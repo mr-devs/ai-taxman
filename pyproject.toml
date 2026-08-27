@@ -1,7 +1,7 @@
 [project]
 name = "ai-taxman"
-version = "0.0.1"
-description = "AI tax man — placeholder release reserving the name. Coming soon."
+version = "0.0.2"
+description = "A simple command line interface to audit popular AI systems, importable as a Python package."
 readme = "README.md"
 authors = [
     { name = "Matthew DeVerna", email = "matthew.deverna@gmail.com" }
@@ -10,10 +10,25 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = []
-keywords = ["ai", "placeholder"]
+keywords = [
+    "ai",
+    "audit",
+    "auditing",
+    "algorithm-audit",
+    "evaluation",
+    "llm",
+    "accountability",
+    "transparency",
+    "cli",
+]
 classifiers = [
     "Development Status :: 1 - Planning",
+    "Environment :: Console",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

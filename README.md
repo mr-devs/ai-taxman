@@ -1,38 +1,15 @@
-# ai-taxman
+# ai-taxman 🧾
 
-> ⚠️ **Placeholder release.** The name is reserved on PyPI; there is no functionality yet.
+> *knock knock*
+>
+> Open up. It's the taxman — you're being audited.
 
-## Installation
+`ai-taxman`: a command line interface to audit popular AI systems.
+Also usable as a regular Python package.
 
-```bash
-uv add ai-taxman
-```
+> ⚠️ **`ai-taxman` is still in development.**
 
-or
-
-```bash
-pip install ai-taxman
-```
-
-## Usage
-
-```python
-import ai_taxman
-
-ai_taxman.__version__
-```
-
-## Development
-
-This project uses [uv](https://docs.astral.sh/uv/).
-
-```bash
-git clone https://github.com/mr-devs/ai-taxman.git
-cd ai-taxman
-uv sync
-uv run pytest
-```
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). No tax is owed on this one.
