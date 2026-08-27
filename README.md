@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/taxman-logo.jpeg" alt="ai-taxman" width="600">
+</p>
+
 # ai-taxman 🧾
 
 > *knock knock*
