@@ -1,0 +1,243 @@
+# CLAUDE.md — ai-taxman
+
+## What this project is
+
+`ai-taxman` is a CLI (`taxman`) for auditing AI/LLM providers, also usable as a plain Python
+package. The CLI is the priority; the Python API is a thin, honest wrapper over the same code.
+
+The one canonical workflow, and the thing every design decision must keep simple:
+
+```
+1. The user writes a plain .txt file of messages, one per line, however they like.
+2. taxman init openai <audit-name>            ->  scaffolds audits/<name>.yaml
+3. The user fills in the blanks.
+4. taxman collect <audit-name>                ->  data/<audit>/<run_id>/responses.jsonl
+```
+
+An **audit** is one YAML file. Its `audit:` key is the name `taxman collect` matches on.
+
+`taxman init` takes a provider and an audit name, and **nothing else**. Every setting is
+written at its default with a comment explaining it, and the user edits the file. Do not
+add flags or `key=value` arguments back: routing settings to their owner on the command
+line meant core had to know which keys were the provider's, which is the seam this project
+exists to keep clean. Audits are always written to `./audits/` in the working directory.
+
+## uv only — never pip
+
+This project installs, runs, and builds with **uv**. Never write `pip install`,
+`uv pip`, or `python -m pip` anywhere: not in the README, not in docs, not in CI, not in
+comments, and **not in error messages shown to users**. There are no exceptions, and no
+"just this once for a user who might not have uv".
+
+Use `uv add` / `uv sync --all-extras` for dependencies, `uv run <cmd>` to run anything,
+and `uv tool install` for a standalone command. `tests/test_conventions.py` fails the
+suite if `pip` reappears.
+
+## Terminology (strict)
+
+The unit of input is a **message**. Never "query", never "prompt" — not in code, config keys, CLI
+help, docstrings, docs, or test names. Use `Message`, `message_id`, `read_messages()`, `messages:`.
+
+Provider APIs call their chat-turn arrays `messages` too. Keep that sense **inside the provider
+adapter** and name the variable `request_messages` so the two never blur.
+
+## TDD is mandatory
+
+No implementation without a failing test first. For every unit of behaviour:
+
+1. Write the test. Run it. Watch it fail for the right reason.
+2. Write the minimum code to pass.
+3. Refactor with the test green.
+
+Do not write a module and backfill tests. If you are about to, stop and write the test.
+
+**No network in the default test run.** Real API calls go behind `@pytest.mark.live`, which is
+deselected by default via `addopts`. `uv run pytest` must pass offline, with no API keys set.
+
+## Provider isolation (the core architectural rule)
+
+Each provider is a self-contained subpackage under `src/ai_taxman/providers/<name>/`. Adding,
+changing, or breaking one provider must not touch another.
+
+- `core/` and `cli/` **never** import `providers.<name>` directly. They go through
+  `core/registry.py`, which lazy-imports by name and reads the module-level `PROVIDER`.
+- No `if provider == "openai"` anywhere outside that provider's own directory.
+- One provider never imports another.
+- Provider SDKs are **optional extras** (`ai-taxman[openai]`). A missing SDK must produce a clear
+  "`uv add ai-taxman[openai]`" message, never a raw ImportError traceback.
+- All shared behaviour lives in `providers/base.py` (the contract) or the conformance test suite.
+
+### Pure / IO split
+
+Inside each provider, separate:
+
+- **pure**: `build_request(...)`, `extract(raw)` — no I/O, unit-tested against checked-in JSON
+  fixtures in `tests/providers/<name>/fixtures/`.
+- **thin I/O**: `send(...)` — the only function that touches the network, kept as small as possible
+  and not exercised in the default test run.
+
+## First-run experience
+
+`uv tool install` must be the only thing a user has to do. Anything else — `PATH`, shell
+completion — is taxman's job to detect and offer to fix, never the user's job to look up.
+
+`core/environment.py` detects; `cli/doctor_cmd.py` reports and fixes. `taxman doctor` is
+the only place those checks run — no other command may fold them in silently.
+
+Rules for that code:
+
+- **Never edit a shell startup file without an explicit yes.** A "no, don't ask again" is
+  remembered in `~/.taxman/state.yaml`.
+- **Shell out to `uv tool update-shell` for `PATH`** — uv owns that file, not us.
+- **Only warn about `PATH` for a `uv tool` install.** A `uv run` or `uvx` binary is
+  deliberately not on `PATH`; warning there is noise.
+- **Detection never raises.** A machine we cannot read is reported as unknown, and we stay
+  quiet rather than guess.
+
+## API keys
+
+Every audit names exactly **one** environment variable in `api_key_env:`, and that is the
+only name taxman looks up. There is no fallback chain of variable names. Missing field, or
+a name that resolves to nothing → hard error, before anything is sent.
+
+The variable is satisfied **one** way: the user exports it. taxman never stores a key, so
+there is no file to protect, no copy to go stale, and no precedence rule to explain.
+`core/credentials.resolve_api_key()` is one `os.environ` lookup and must stay that way —
+do not add a `.env` reader, a keyring, or a config file back.
+
+`taxman init` writes `api_key_env: <insert_api_key_env_var_here>` and never guesses a
+variable name. A provider's `default_api_key_env` is rendered into a *comment* as a hint;
+core must never resolve a key from it. Guessing is how an audit ends up billing a key it
+never named.
+
+Core owns "read the variable this audit names". Providers own "use this key". A provider
+never reads the environment itself, and never sees a variable name.
+
+## There is no configuration command
+
+`taxman init` writes a fully commented audit file and the user edits it. That is the only
+way any setting is ever chosen — the `api_key_env:` variable name included.
+
+There was a `taxman setup` that interviewed the user for provider defaults and persisted
+them to `~/.taxman/providers/<name>.yaml`. It is gone, and so is `set-key`. **Do not add
+either back**, in any form: a second channel for setting audit values means core has to
+route each one to its owner, providers have to validate arbitrary keys, and the rendered
+template has to round-trip saved values through YAML. All of that existed and all of it
+was deleted. If a setting is hard to discover, fix its comment in the template.
+
+The only interactive prompt left in the CLI is `doctor`'s yes/no, which lives in
+`cli/doctor_cmd.py` and asks about the machine, never about an audit.
+
+## Config contract
+
+Top-level YAML blocks (`audit`, `provider`, `messages`, `output`, `execution`) are **core-owned** and
+identical across providers. The `model:` block is **provider-owned** and opaque to core — core hands
+it to `provider.validate_model_config()` and never inspects its keys. That split *is* the isolation
+boundary; do not leak provider-specific keys upward.
+
+**Core must never read a key out of the `model:` block** — not `name`, not anything. It
+looks like a shortcut and it breaks the moment a provider names things differently. To get
+the model name for a record, call `provider.describe_model(validated)`. To resolve the
+block, call `provider.validate_model_config(block)`. `tests/test_conventions.py` fails the
+suite if `core/` or `cli/` reads a known provider key, imports `providers.<name>`, or
+hardcodes a provider's name.
+
+## Record schema is stable
+
+`core/records.py` defines the JSONL row, shared by all providers. `raw` holds the provider response
+verbatim; `text` and `usage` are convenience fields produced by `provider.extract()`.
+
+Changes are **additive only** — auditors depend on old data staying readable. Removing or renaming a
+field is a breaking change and needs a version note in the README.
+
+Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
+hash, counts, timings. Reproducibility is the point of an audit tool.
+
+## Repeat semantics
+
+`execution.repeats: N` means each message is sent N times. The runner expands the audit into a flat
+list of `(message_id, repeat_index)` pairs — the full cartesian product — and feeds *that* to one
+concurrency-limited pool. Repeats interleave; they are **not** sequential passes over the file. Do
+not "optimize" this into a loop of passes.
+
+## Layout
+
+```
+src/ai_taxman/
+├── __init__.py       # __version__ + public Python API
+├── __main__.py       # python -m ai_taxman
+├── cli/              # Typer app: init, collect, audits, doctor, completion
+├── core/             # config, credentials, discovery, messages, records,
+│                     # writer, runner, registry, state, environment, errors
+└── providers/
+    ├── base.py       # the ONLY shared provider contract + setup question types
+    └── openai/       # provider.py, config.py, models.py
+
+docs/provider-apis/   # API docs per provider - read before touching provider code
+```
+
+Audit YAMLs resolve `./audits/<name>.yaml` first, then `~/.taxman/audits/<name>.yaml`. Local wins.
+
+## Commands
+
+```
+uv run pytest              # full suite, offline, live tests deselected
+uv run pytest -m live      # opt in to real API calls (needs keys)
+uv run ruff check . && uv run ruff format --check .
+uv run mypy src
+uv run taxman --help
+```
+
+## Provider API documentation — do not guess
+
+`docs/provider-apis/` maps every provider feature to canonical, machine-readable API
+documentation. **Read the doc before writing or changing provider code.** Do not rely on
+recalled parameter names, response shapes, usage keys, or error semantics — providers rename
+and deprecate, and a wrong field name in an adapter fails silently at audit time: the run
+completes, the JSONL fills up, and the data is wrong.
+
+Consult it when you: change `build_request()` or `extract()`; add a key to a `model:` block;
+touch retry or error handling; refresh `known_models()`; or implement a new provider.
+
+Every provider we target serves a markdown twin of its docs. Fetch that, not the HTML page:
+
+| Provider | Markdown URL |
+|---|---|
+| OpenAI | `developers.openai.com/api/<path>` + `.md` |
+| Anthropic | `platform.claude.com/docs/en/<path>` + `.md` |
+| Gemini | `ai.google.dev/gemini-api/docs/<path>` + `.md.txt` |
+| xAI (Grok) | `docs.x.ai/developers/<path>` + `.md` |
+| Perplexity | `docs.perplexity.ai/docs/<path>` + `.md` |
+
+Two soft-200 traps: `platform.openai.com/docs/*.md` and `ai.google.dev/*.md` both answer HTTP
+200 with HTML. A 200 is not proof — the body must start as markdown.
+
+For a page not listed in `docs/provider-apis/`, fetch that provider's `llms.txt` (each file
+links its own); it indexes every page with its markdown twin. Prefer that to a web search.
+
+If a markdown twin genuinely does not exist, record the human-facing URL and mark it
+`HTML only`. Read those with the Claude-in-Chrome tools (`mcp__claude-in-chrome__*`), not
+WebFetch — these docs sites render client-side, so a plain fetch returns an empty shell.
+
+When a doc contradicts the code, the doc wins — but fix the code with a failing test first,
+and update `docs/provider-apis/` if the URL moved.
+
+## Adding a new provider
+
+1. Read `docs/provider-apis/<name>.md` end to end and fetch the request/response reference it
+   links. If that file does not exist, write it first — the markdown convention and the
+   provider's index URL are in `docs/provider-apis/README.md`.
+2. `mkdir src/ai_taxman/providers/<name>/` — mirror the `openai/` layout exactly.
+3. Add the SDK as an optional extra in `pyproject.toml` (and to the `all` extra), then `uv sync --all-extras`.
+4. Write failing tests first: `build_request`, `extract` against a recorded fixture, template parses.
+5. Implement `Provider` from `providers/base.py`; export `PROVIDER` at module level.
+6. Implement `known_models()`, `render_template()`, `describe_model()` and
+   `default_api_key_env` — these feed `taxman init` and shell completion. `render_template()`
+   takes no arguments and renders every parameter blank but commented.
+7. Confirm the conformance suite (`tests/providers/test_conformance.py`) picks it up and passes.
+8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.
+
+## Commit messages
+
+Describe the change and nothing else. No AI attribution of any kind — no co-author trailers, no
+session links, no "generated with" lines.
