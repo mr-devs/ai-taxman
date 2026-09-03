@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from ai_taxman.core import registry
-from ai_taxman.providers.base import Extracted, Provider, Request
+from ai_taxman.providers.base import Provider, Request
 
 
 @dataclass
@@ -86,9 +86,6 @@ class FakeProvider(Provider):
             }
         finally:
             self._in_flight -= 1
-
-    def extract(self, raw: dict[str, Any]) -> Extracted:
-        return Extracted(text=raw.get("echo"), usage=raw.get("usage"))
 
 
 @pytest.fixture

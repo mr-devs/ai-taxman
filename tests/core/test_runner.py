@@ -114,14 +114,15 @@ async def test_records_carry_the_audit_envelope(project, fake_provider):
     assert record.latency_ms >= 0
 
 
-async def test_records_carry_the_extracted_text_and_usage(project, fake_provider):
+async def test_records_carry_the_response_verbatim_and_nothing_derived(project, fake_provider):
+    """`raw` is the whole response. Nothing is parsed out of it at collection."""
     result = await run_audit_async(audit(project))
 
     record = next(iter(read_jsonl(result.output_path)))
 
-    assert record.text == record.message
-    assert record.usage == {"input_tokens": 1, "output_tokens": 2}
     assert record.raw["echo"] == record.message
+    assert record.raw["usage"] == {"input_tokens": 1, "output_tokens": 2}
+    assert not hasattr(record, "text")
 
 
 async def test_a_failing_message_does_not_stop_the_others(project, fake_provider):
@@ -144,7 +145,7 @@ async def test_a_failure_is_recorded_as_an_error_row(project, fake_provider):
     assert len(failed) == 1
     assert failed[0].message_id == "m0001"
     assert "nope" in failed[0].error
-    assert failed[0].text is None
+    assert failed[0].raw == {}
 
 
 async def test_retryable_failures_are_retried_then_succeed(project, fake_provider):

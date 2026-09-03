@@ -19,9 +19,7 @@ def make_record(**overrides):
         received_at="2026-08-30T14:22:01.812000Z",
         latency_ms=812,
         status="ok",
-        text="hi there",
-        usage={"input_tokens": 42, "output_tokens": 310},
-        raw={"id": "resp_1"},
+        raw={"id": "resp_1", "usage": {"input_tokens": 42, "output_tokens": 310}},
     )
     fields.update(overrides)
     return ResponseRecord(**fields)
@@ -36,9 +34,9 @@ def test_round_trips_through_json():
 
 
 def test_serialises_every_schema_field_even_when_empty():
-    row = make_record(text=None, usage=None).to_dict()
+    row = make_record(raw={}).to_dict()
 
-    for field in ("error", "text", "usage", "attempts", "schema_version"):
+    for field in ("error", "raw", "attempts", "schema_version"):
         assert field in row
 
 
@@ -50,12 +48,12 @@ def test_defaults_to_one_attempt():
     assert make_record().attempts == 1
 
 
-def test_error_records_carry_the_failure_and_no_text():
-    record = make_record(status="error", error="rate limited after 5 attempts", text=None, raw={})
+def test_error_records_carry_the_failure_and_an_empty_response():
+    record = make_record(status="error", error="rate limited after 5 attempts", raw={})
 
     assert record.status == "error"
     assert record.error == "rate limited after 5 attempts"
-    assert record.text is None
+    assert record.raw == {}
 
 
 def test_status_is_constrained():

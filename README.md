@@ -377,12 +377,11 @@ callback if you want to watch responses land.
 
 ## Output
 
-One JSON object per response. The schema is the same for every provider, and
-changes to it are additive only:
+One JSON object per response. The schema is the same for every provider:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "audit": "election-probe",
   "run_id": "20260830T142201Z-a1b2c3",
   "message_id": "m0007",
@@ -395,14 +394,28 @@ changes to it are additive only:
   "status": "ok",
   "error": null,
   "attempts": 1,
-  "text": "…",
-  "usage": {"input_tokens": 42, "output_tokens": 310},
   "raw": {  }
 }
 ```
 
-`raw` is the provider's response verbatim — the source of truth. `text` and
-`usage` are conveniences extracted from it.
+`raw` is the provider's response verbatim, and it is the whole of it. taxman
+collects; it does not parse, clean, or summarise what came back. Pulling the
+answer text, token counts, or citations out of `raw` is a separate step, run
+against the data on disk — which means a change to how responses are read can
+never silently change what was collected.
+
+### Schema versions
+
+Changes are additive: a field may be added, and old files stay readable. The one
+exception so far is noted here.
+
+| Version | Change |
+|---|---|
+| 2 | Removed `text` and `usage`. Collection no longer derives anything from `raw`. |
+| 1 | Initial schema. Rows carried `text` and `usage` alongside `raw`. |
+
+Version 1 files remain valid JSONL and lose nothing: everything `text` and
+`usage` held was copied out of `raw`, which is still there.
 
 ## Supported providers
 

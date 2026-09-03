@@ -3,7 +3,8 @@
 Implemented in [`src/ai_taxman/providers/openai/`](../../src/ai_taxman/providers/openai/).
 
 - **Endpoint:** Responses API, `POST /v1/responses`, via `AsyncOpenAI().responses.create()`.
-- **Key env:** `OPENAI_API_KEY` (or `TAXMAN_OPENAI_API_KEY`).
+- **Key env:** whatever the audit's `api_key_env:` names. `OPENAI_API_KEY` is OpenAI's own
+  convention and the hint `taxman init` writes into a comment; taxman resolves no other name.
 - **Index:** <https://developers.openai.com/api/llms.txt>
 - **Markdown convention:** `developers.openai.com/api/<path>` + `.md`. Note the host —
   `platform.openai.com/...md` returns HTML with a 200.
@@ -27,10 +28,6 @@ key to the `model:` block.
 | `reasoning_effort` → `reasoning.effort` | `provider.py` | [Reasoning models](https://developers.openai.com/api/docs/guides/reasoning.md), [Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices.md) |
 | `web_search` → `tools: [{type: web_search}]` | `provider.py` | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md), [Tools overview](https://developers.openai.com/api/docs/guides/tools.md) |
 | `store` (always sent, defaults false) | `config.py` | [Data controls](https://developers.openai.com/api/docs/guides/your-data.md), [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state.md) |
-| `extract_text` — `output[].content[].text` / `.refusal` | `provider.py` | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) (output item schemas) |
-| `extract_usage` — `input_tokens`, `output_tokens`, `total_tokens` | `provider.py` | [Counting tokens](https://developers.openai.com/api/docs/guides/token-counting.md) |
-| `usage.output_tokens_details.reasoning_tokens` | `provider.py` | [Reasoning models](https://developers.openai.com/api/docs/guides/reasoning.md) |
-| `usage.input_tokens_details.cached_tokens` | `provider.py` | [Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching.md) |
 | Retry set: `RateLimitError`, `InternalServerError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Error codes](https://developers.openai.com/api/docs/guides/error-codes.md), [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
 | Client construction, `max_retries=0` | `provider.py` `_new_client()` | [Python SDK](https://developers.openai.com/api/docs/libraries.md) |
 
@@ -39,6 +36,10 @@ key to the `model:` block.
 Each of these is reachable only through the `extra:` escape hatch, or not at all. Read the
 linked page before promoting one to a first-class `model:` key.
 
+Nothing here is about *reading* a response: taxman writes OpenAI's answer verbatim to `raw`
+and derives nothing from it. Fields like `url_citation` and `incomplete_details` are already
+in the collected data, waiting for whatever reads it.
+
 | Gap | Documentation |
 |---|---|
 | **Batch mode** (`supports_batch = False`; the runner rejects `execution.batch`) | [Batch API guide](https://developers.openai.com/api/docs/guides/batch.md), [Batches — Create](https://developers.openai.com/api/reference/resources/batches/methods/create.md), [Batches — Retrieve](https://developers.openai.com/api/reference/resources/batches/methods/retrieve.md), [Files — Create](https://developers.openai.com/api/reference/resources/files/methods/create.md) |
@@ -46,8 +47,8 @@ linked page before promoting one to a first-class `model:` key.
 | **Structured outputs** (`text.format`) | [Structured model outputs](https://developers.openai.com/api/docs/guides/structured-outputs.md) |
 | **Function calling, `tool_choice`, `parallel_tool_calls`** | [Function calling](https://developers.openai.com/api/docs/guides/function-calling.md) |
 | **Web-search options** (`search_context_size`, `user_location`, filters) | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md) |
-| **`url_citation` annotations** (present in `fixtures/response_web_search.json`, not extracted) | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md), [Citation formatting](https://developers.openai.com/api/docs/guides/citation-formatting.md) |
-| **`incomplete_details.reason`** (present in `fixtures/response_incomplete.json`, not extracted) | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) |
+| **`url_citation` annotations** (in `raw`; a reader's job, not taxman's) | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md), [Citation formatting](https://developers.openai.com/api/docs/guides/citation-formatting.md) |
+| **`incomplete_details.reason`** (in `raw`; a reader's job, not taxman's) | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) |
 | **`reasoning.summary`, encrypted reasoning state** | [Reasoning models](https://developers.openai.com/api/docs/guides/reasoning.md) |
 | **`service_tier`** — flex, priority, and the latency trade-offs | [Flex processing](https://developers.openai.com/api/docs/guides/flex-processing.md), [Fast mode](https://developers.openai.com/api/docs/guides/fast-mode.md), [Latency optimization](https://developers.openai.com/api/docs/guides/latency-optimization.md) |
 | **`prompt_cache_key`, `safety_identifier`** | [Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching.md), [Production best practices](https://developers.openai.com/api/docs/guides/production-best-practices.md) |

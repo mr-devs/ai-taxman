@@ -71,8 +71,8 @@ changing, or breaking one provider must not touch another.
 
 Inside each provider, separate:
 
-- **pure**: `build_request(...)`, `extract(raw)` — no I/O, unit-tested against checked-in JSON
-  fixtures in `tests/providers/<name>/fixtures/`.
+- **pure**: `build_request(...)` — no I/O, unit-tested against checked-in JSON fixtures in
+  `tests/providers/<name>/fixtures/`.
 - **thin I/O**: `send(...)` — the only function that touches the network, kept as small as possible
   and not exercised in the default test run.
 
@@ -142,13 +142,29 @@ block, call `provider.validate_model_config(block)`. `tests/test_conventions.py`
 suite if `core/` or `cli/` reads a known provider key, imports `providers.<name>`, or
 hardcodes a provider's name.
 
+## Collection never parses a response
+
+`taxman collect` sends messages and writes what came back. It does **not** extract, clean,
+summarise, or derive anything from a provider's response. There was a `Provider.extract()`
+producing `text` and `usage` convenience fields; it is gone, and
+`tests/test_collection_only.py` fails the suite if it or anything like it reappears —
+including a provider defining its own `extract_*` function.
+
+Parsing is a separate tool's job, working from `raw` on disk. Keeping the two apart means a
+change to how responses are read can never alter what was collected, and a re-read of an old
+run always gives the same answer as a fresh one.
+
+`response.model_dump(mode="json")` in `send()` is serialisation, not extraction: it is what
+makes the SDK's object writable at all.
+
 ## Record schema is stable
 
-`core/records.py` defines the JSONL row, shared by all providers. `raw` holds the provider response
-verbatim; `text` and `usage` are convenience fields produced by `provider.extract()`.
+`core/records.py` defines the JSONL row, shared by all providers. `raw` holds the provider
+response verbatim, and is the only response data in the row.
 
-Changes are **additive only** — auditors depend on old data staying readable. Removing or renaming a
-field is a breaking change and needs a version note in the README.
+Changes are **additive** — auditors depend on old data staying readable. Removing or renaming a
+field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
+"Schema versions" table. That has happened once, for v2 (`text` and `usage` removed).
 
 Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
 hash, counts, timings. Reproducibility is the point of an audit tool.

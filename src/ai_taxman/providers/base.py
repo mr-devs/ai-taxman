@@ -6,8 +6,13 @@ provider's own package instead — the point of this seam is that adding or
 breaking one provider cannot touch another.
 
 Each provider splits into pure functions (`validate_model_config`,
-`render_template`, `extract`) that are unit-tested against recorded fixtures,
-and one thin I/O method (`send`) that touches the network.
+`render_template`, `build_request`) that are unit-tested against recorded
+fixtures, and one thin I/O method (`send`) that touches the network.
+
+Note what is *not* here: nothing parses a response. `send` returns the provider's
+answer as a JSON-safe dict and the runner writes it verbatim. Deriving text,
+token counts, or citations from that is a separate tool's job, working from the
+data on disk.
 """
 
 from __future__ import annotations
@@ -27,18 +32,6 @@ class Request:
     repeat: int
     #: The audit's validated `model:` block, as returned by `validate_model_config`.
     model: Any
-
-
-@dataclass(frozen=True, slots=True)
-class Extracted:
-    """The convenience fields pulled out of a raw provider response.
-
-    `raw` stays the source of truth; these exist so common analyses do not have
-    to know each provider's response shape.
-    """
-
-    text: str | None = None
-    usage: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,10 +97,6 @@ class Provider(ABC):
         documentation the user edits. There are no saved values to merge in:
         `init` writes defaults, and the user fills in the rest by hand.
         """
-
-    @abstractmethod
-    def extract(self, raw: dict[str, Any]) -> Extracted:
-        """Pull `text` and `usage` out of a raw response. Must not raise."""
 
     # -- I/O ----------------------------------------------------------------
 

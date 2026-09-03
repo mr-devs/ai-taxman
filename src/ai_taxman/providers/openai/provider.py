@@ -8,8 +8,11 @@ Requests go through the Responses API, which is the one endpoint that covers
 reasoning effort and the web-search tool alongside ordinary text generation.
 
 Split, per the project's provider rules:
-  pure  - `build_request`, `extract`, `validate_model_config`, `render_template`
+  pure  - `build_request`, `validate_model_config`, `render_template`
   I/O   - `send`, `startup`, `shutdown`
+
+Nothing here reads a response. `send` returns what OpenAI sent, as a dict, and
+the runner writes it verbatim.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
-from ai_taxman.providers.base import Extracted, Provider, Request
+from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.openai.config import TEMPLATE_FIELDS, OpenAIModelConfig
 from ai_taxman.providers.openai.models import DEFAULT_MODEL, KNOWN_MODELS
 
@@ -60,9 +63,6 @@ class OpenAIProvider(Provider):
 
     def render_template(self) -> str:
         return render_template()
-
-    def extract(self, raw: dict[str, Any]) -> Extracted:
-        return Extracted(text=extract_text(raw), usage=extract_usage(raw))
 
     def describe_model(self, model: OpenAIModelConfig) -> str:
         return model.name
@@ -131,56 +131,6 @@ def build_request(request: Request) -> dict[str, Any]:
 
     payload.update(config.extra)
     return payload
-
-
-def extract_text(raw: dict[str, Any]) -> str | None:
-    """Return the assistant's text, or the refusal if it refused.
-
-    Tolerant by design: an unexpected payload yields `None` rather than raising,
-    because `raw` is already safely on disk and losing the whole record to a
-    parsing surprise would be worse than losing the convenience field.
-    """
-    shortcut = raw.get("output_text")
-    if isinstance(shortcut, str) and shortcut:
-        return shortcut
-
-    output = raw.get("output")
-    if not isinstance(output, list):
-        return None
-
-    parts: list[str] = []
-    for item in output:
-        if not isinstance(item, dict) or item.get("type") != "message":
-            continue  # reasoning items, tool calls
-        for part in item.get("content") or []:
-            if not isinstance(part, dict):
-                continue
-            text = part.get("text") or part.get("refusal")
-            if isinstance(text, str) and text:
-                parts.append(text)
-
-    return "\n".join(parts) if parts else None
-
-
-def extract_usage(raw: dict[str, Any]) -> dict[str, Any] | None:
-    """Flatten the usage block, lifting reasoning and cached token counts up."""
-    usage = raw.get("usage")
-    if not isinstance(usage, dict):
-        return None
-
-    flat: dict[str, Any] = {
-        key: usage[key] for key in ("input_tokens", "output_tokens", "total_tokens") if key in usage
-    }
-
-    details = usage.get("output_tokens_details")
-    if isinstance(details, dict) and "reasoning_tokens" in details:
-        flat["reasoning_tokens"] = details["reasoning_tokens"]
-
-    details = usage.get("input_tokens_details")
-    if isinstance(details, dict) and "cached_tokens" in details:
-        flat["cached_tokens"] = details["cached_tokens"]
-
-    return flat
 
 
 def render_template() -> str:

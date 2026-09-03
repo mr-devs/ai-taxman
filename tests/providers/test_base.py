@@ -1,7 +1,7 @@
 import pytest
 
 from ai_taxman.core.messages import Message
-from ai_taxman.providers.base import Extracted, Provider, Request
+from ai_taxman.providers.base import Provider, Request
 
 
 def test_request_carries_the_message_repeat_and_model_config():
@@ -12,13 +12,6 @@ def test_request_carries_the_message_repeat_and_model_config():
     assert request.message is message
     assert request.repeat == 2
     assert request.model == {"name": "fake-1"}
-
-
-def test_extracted_defaults_to_nothing_found():
-    extracted = Extracted()
-
-    assert extracted.text is None
-    assert extracted.usage is None
 
 
 def test_provider_cannot_be_instantiated_without_the_contract():
@@ -59,8 +52,5 @@ def test_retryability_defaults_to_false():
 
         async def send(self, request, *, timeout_s):
             return {}
-
-        def extract(self, raw):
-            return Extracted()
 
     assert Minimal().is_retryable(RuntimeError("boom")) is False

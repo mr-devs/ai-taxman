@@ -299,7 +299,6 @@ async def _attempt(
             await asyncio.sleep(min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF))
             continue
 
-        extracted = provider.extract(raw)
         return _record(
             request,
             model_name=provider.describe_model(request.model),
@@ -308,8 +307,6 @@ async def _attempt(
             started=started,
             attempts=attempts,
             status="ok",
-            text=extracted.text,
-            usage=extracted.usage,
             raw=raw,
         )
 
@@ -334,8 +331,6 @@ def _record(
     started: datetime,
     attempts: int,
     status: str,
-    text: str | None = None,
-    usage: dict[str, Any] | None = None,
     raw: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> ResponseRecord:
@@ -355,8 +350,6 @@ def _record(
         status=status,  # type: ignore[arg-type]
         error=error,
         attempts=attempts,
-        text=text,
-        usage=usage,
         raw=raw or {},
     )
 

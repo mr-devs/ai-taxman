@@ -1,12 +1,13 @@
 """The shape of the data an audit produces.
 
 `ResponseRecord` is one line of the output JSONL, and it is identical for every
-provider: shared envelope fields, the provider's response verbatim in `raw`, and
-two convenience fields (`text`, `usage`) that the provider's `extract()` pulls
-out of `raw`.
+provider: shared envelope fields naming what was asked and how it went, plus the
+provider's response verbatim in `raw`. Nothing is derived from `raw` — taxman
+collects, and parsing happens downstream from the data on disk.
 
-This schema is a promise to whoever analyses the data later. Changes must be
-**additive** — adding a field is fine, removing or renaming one is not.
+This schema is a promise to whoever analyses the data later. Changes are
+**additive** — adding a field is fine, removing or renaming one is a break that
+costs a `RESPONSE_SCHEMA_VERSION` bump and a note in the README.
 """
 
 from __future__ import annotations
@@ -17,8 +18,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-#: Bumped only when fields are added. See the additive-only rule above.
-RESPONSE_SCHEMA_VERSION = 1
+#: Bumped when the shape changes. v1 carried `text` and `usage` alongside `raw`;
+#: v2 carries `raw` alone, because taxman no longer parses a response.
+RESPONSE_SCHEMA_VERSION = 2
 
 Status = Literal["ok", "error"]
 
@@ -51,10 +53,6 @@ class ResponseRecord(BaseModel):
     status: Status
     error: str | None = None
     attempts: int = 1
-
-    #: Extracted by the provider for convenience; `raw` remains the source of truth.
-    text: str | None = None
-    usage: dict[str, Any] | None = None
 
     #: The provider's response, exactly as it came back.
     raw: dict[str, Any] = Field(default_factory=dict)
