@@ -30,6 +30,7 @@ from typing import Any
 from ai_taxman.core.config import AuditConfig, load_audit, resolve_output_dir
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
+from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message, read_messages
 from ai_taxman.core.records import (
     RESPONSE_SCHEMA_VERSION,
@@ -42,6 +43,10 @@ from ai_taxman.core.records import (
 from ai_taxman.core.registry import get_provider
 from ai_taxman.core.writer import JsonlWriter
 from ai_taxman.providers.base import Provider, Request
+
+#: Never logs a message body or an API key - ids and counts only. A log is a
+#: file users pipe into issues; the message text is already in the JSONL.
+log = get_logger(__name__)
 
 MANIFEST_FILENAME = "manifest.json"
 DEFAULT_BACKOFF_BASE = 0.5
@@ -129,6 +134,19 @@ async def run_audit_async(
         await _startup(provider, api_key)
         _write_manifest(manifest, manifest_path)
         on_disk = True
+        log.info(
+            "run starting  run_id=%s audit=%s provider=%s model=%s "
+            "messages=%d repeats=%d expected=%d concurrency=%d output=%s",
+            run_id,
+            config.audit,
+            provider.name,
+            manifest.model,
+            len(messages),
+            config.execution.repeats,
+            len(tasks),
+            limit,
+            writer.path,
+        )
         with writer:
             await _dispatch(
                 tasks,
@@ -157,6 +175,14 @@ async def run_audit_async(
             manifest.n_ok = state.n_ok
             manifest.n_error = state.n_error
             _write_manifest(manifest, manifest_path)
+            log.info(
+                "run %s  run_id=%s ok=%d error=%d output=%s",
+                manifest.status,
+                run_id,
+                state.n_ok,
+                state.n_error,
+                writer.path,
+            )
 
     return RunResult(
         run_id=run_id,
@@ -328,6 +354,14 @@ async def _dispatch(
                 continue
             writer.write(record)
             state.record(record.status)
+            log.info(
+                "%s  message=%s repeat=%d attempts=%d latency_ms=%d",
+                record.status,
+                record.message_id,
+                record.repeat,
+                record.attempts,
+                record.latency_ms,
+            )
             if on_record is not None:
                 on_record(record)
     except BaseException:
@@ -360,7 +394,18 @@ async def _attempt(
             last_error = exc
             if not provider.is_retryable(exc) or attempts > config.execution.max_retries:
                 break
-            await asyncio.sleep(min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF))
+            delay = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
+            log.warning(
+                "retrying  message=%s repeat=%d attempt=%d/%d in=%.1fs %s: %s",
+                request.message.id,
+                request.repeat,
+                attempts,
+                config.execution.max_retries,
+                delay,
+                type(exc).__name__,
+                exc,
+            )
+            await asyncio.sleep(delay)
             continue
 
         return _record(
@@ -374,6 +419,14 @@ async def _attempt(
             raw=raw,
         )
 
+    log.error(
+        "giving up  message=%s repeat=%d attempts=%d %s: %s",
+        request.message.id,
+        request.repeat,
+        attempts,
+        type(last_error).__name__,
+        last_error,
+    )
     return _record(
         request,
         model_name=provider.describe_model(request.model),

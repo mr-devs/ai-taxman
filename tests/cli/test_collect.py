@@ -178,3 +178,54 @@ def test_a_missing_api_key_is_reported_cleanly(invoke, tmp_path, fake_provider, 
     assert result.exit_code != 0
     assert "TAXMAN_FAKE_API_KEY" in result.output
     assert "Traceback" not in result.output
+
+
+# --- logging -------------------------------------------------------------
+
+
+def test_a_log_file_captures_the_run(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--log-file", "run.log")
+
+    assert result.exit_code == 0
+    log = (tmp_path / "run.log").read_text(encoding="utf-8")
+    assert "run starting" in log
+    assert "m0000" in log
+
+
+def test_the_log_file_can_go_anywhere(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    invoke("collect", "probe", "--log-file", "logs/nested/run.log")
+
+    assert (tmp_path / "logs" / "nested" / "run.log").is_file()
+
+
+def test_the_summary_still_prints_when_the_log_goes_to_a_file(invoke, tmp_path, fake_provider):
+    """The log is for the run; the summary is for the person who ran it."""
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--log-file", "run.log")
+
+    assert "3 ok" in result.output
+    assert "run starting" not in result.output
+
+
+def test_the_log_level_can_be_turned_down(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    invoke("collect", "probe", "--log-file", "run.log", "--log-level", "warning")
+
+    log = (tmp_path / "run.log").read_text(encoding="utf-8")
+    assert "run starting" not in log
+
+
+def test_an_unknown_log_level_is_refused_by_name(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--log-level", "loud")
+
+    assert result.exit_code != 0
+    assert "loud" in result.output
+    assert len(fake_provider.sent) == 0

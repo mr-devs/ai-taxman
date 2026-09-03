@@ -224,6 +224,28 @@ finished one. `n_messages × repeats` is the number of responses to expect.
 Each run gets its own directory. If you edit `output.dir` and drop `{run_id}`,
 the second run into that directory is refused rather than appended to the first.
 
+### Watching a run
+
+A collection logs as it goes — one line per response — to the terminal:
+
+```
+2026-08-30T14:22:01.004Z INFO    ai_taxman.core.runner  run starting  run_id=20260830T142201Z-a1b2c3 audit=election-probe provider=openai model=gpt-5 messages=40 repeats=3 expected=120 concurrency=8 output=data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+2026-08-30T14:22:01.816Z INFO    ai_taxman.core.runner  ok  message=m0000 repeat=0 attempts=1 latency_ms=812
+2026-08-30T14:22:04.219Z WARNING ai_taxman.core.runner  retrying  message=m0003 repeat=1 attempt=1/5 in=0.5s RateLimitError: 429
+```
+
+The log goes to stderr and the summary to stdout, so you can keep either or
+both:
+
+```bash
+taxman collect election-probe > run.log 2>&1     # everything
+taxman collect election-probe --log-file run.log # the log to a file, summary on screen
+taxman collect election-probe --log-level warning
+```
+
+Message text and API keys are never logged — ids and counts only. The text is
+already in the JSONL, and a log is a file you might paste into an issue.
+
 ## Commands
 
 | Command | What it does |

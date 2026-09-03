@@ -20,9 +20,14 @@ run_audit` behaves exactly as it always has; it just loads the module behind it
 at that moment.
 """
 
+import logging
 from typing import TYPE_CHECKING
 
 __version__ = "0.0.2"
+
+# A library does not configure logging for its caller. `taxman collect` attaches
+# a real handler; importing `ai_taxman` and using the Python API stays silent.
+logging.getLogger("ai_taxman").addHandler(logging.NullHandler())
 
 #: Public name -> the module that defines it.
 _EXPORTS = {
