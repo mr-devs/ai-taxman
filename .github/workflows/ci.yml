@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # Every uv command in this job must target the matrix version. Without
+      # this, `uv run` falls back to `.python-version`, finds a venv built for
+      # a different interpreter, and silently rebuilds it without the extras.
+      UV_PYTHON: ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      # `--all-extras` on each command too: the provider SDKs are optional
+      # extras, and both mypy and the provider tests need them present.
+      - run: uv run --all-extras ruff check .
+      - run: uv run --all-extras ruff format --check .
+      - run: uv run --all-extras mypy src
+      - run: uv run --all-extras pytest

@@ -1,0 +1,16 @@
+{
+  "id": "resp_68b2c2",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-5-2026-05-01",
+  "output": [
+    {
+      "id": "msg_2",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [{"type": "refusal", "refusal": "I can't help with that."}]
+    }
+  ],
+  "usage": {"input_tokens": 9, "output_tokens": 12, "total_tokens": 21}
+}

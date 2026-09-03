@@ -1,0 +1,25 @@
+{
+  "id": "resp_68b2c4",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-5-2026-05-01",
+  "output": [
+    {"id": "ws_1", "type": "web_search_call", "status": "completed"},
+    {
+      "id": "msg_3",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "The election is on 3 November.",
+          "annotations": [
+            {"type": "url_citation", "url": "https://example.gov/dates", "title": "Dates"}
+          ]
+        }
+      ]
+    }
+  ],
+  "usage": {"input_tokens": 30, "output_tokens": 88, "total_tokens": 118}
+}

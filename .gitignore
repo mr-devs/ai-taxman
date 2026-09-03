@@ -8,3 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local audit output
+data/
+
+# Scratch audits from manual testing of the CLI itself. A project that *uses*
+# ai-taxman generally wants its audits committed - the file is the record of
+# what was run - but in this repo they are only ever throwaway.
+audits/

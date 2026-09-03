@@ -1,0 +1,9 @@
+{
+  "id": "resp_68b2c3",
+  "object": "response",
+  "status": "incomplete",
+  "incomplete_details": {"reason": "max_output_tokens"},
+  "model": "gpt-5-2026-05-01",
+  "output": [{"id": "rs_2", "type": "reasoning", "summary": []}],
+  "usage": {"input_tokens": 9, "output_tokens": 64, "total_tokens": 73}
+}
