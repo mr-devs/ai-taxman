@@ -111,17 +111,25 @@ async def run_audit_async(
         random.Random(seed).shuffle(tasks)
 
     directory = resolve_output_dir(config, run_id=run_id)
+    _guard_run_directory(directory, run_id=run_id)
+
     manifest = _new_manifest(config, provider, model, messages, run_id)
+    manifest_path = directory / MANIFEST_FILENAME
 
     state = _RunState(on_error=config.execution.on_error)
+    # Constructed here but not opened: nothing touches the disk until the `with`.
+    writer = JsonlWriter(directory / config.output.filename, compress=config.output.compress)
+    on_disk = False
 
-    # Start the provider before creating anything on disk, so a run that cannot
-    # begin - a missing API key, most often - leaves no empty output behind.
+    # Start the provider first, so a run that cannot begin - a missing SDK, most
+    # often - leaves no directory behind. Everything after that point is written
+    # before the first request goes out, so the run is described from the moment
+    # it can produce anything at all.
     try:
         await _startup(provider, api_key)
-        with JsonlWriter(
-            directory / config.output.filename, compress=config.output.compress
-        ) as out:
+        _write_manifest(manifest, manifest_path)
+        on_disk = True
+        with writer:
             await _dispatch(
                 tasks,
                 provider=provider,
@@ -130,30 +138,86 @@ async def run_audit_async(
                 run_id=run_id,
                 limit=limit,
                 backoff_base=backoff_base,
-                writer=out,
+                writer=writer,
                 state=state,
                 on_record=on_record,
             )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        manifest.status = "interrupted"
+        raise
+    except BaseException:
+        manifest.status = "failed"
+        raise
+    else:
+        manifest.status = "stopped_early" if state.stop.is_set() else "complete"
     finally:
         await _shutdown(provider)
-
-    manifest.finished_at = timestamp()
-    manifest.n_ok = state.n_ok
-    manifest.n_error = state.n_error
-    manifest_path = directory / MANIFEST_FILENAME
-    manifest_path.write_text(
-        json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+        if on_disk:
+            manifest.finished_at = timestamp()
+            manifest.n_ok = state.n_ok
+            manifest.n_error = state.n_error
+            _write_manifest(manifest, manifest_path)
 
     return RunResult(
         run_id=run_id,
-        output_path=out.path,
+        output_path=writer.path,
         manifest_path=manifest_path,
         n_ok=state.n_ok,
         n_error=state.n_error,
         stopped_early=state.stop.is_set(),
     )
+
+
+def _write_manifest(manifest: RunManifest, path: Path) -> None:
+    """Write the manifest, replacing any earlier version of itself.
+
+    Called before the first request and again when the run ends, so the run
+    directory describes itself from the moment it exists. A run killed in
+    between leaves `status: running`, which is how a partial audit is told from
+    a complete one.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _guard_run_directory(directory: Path, *, run_id: str) -> None:
+    """Refuse to write a second run into another run's directory.
+
+    `output.dir` is the user's to set, and dropping `{run_id}` from it points
+    every run at one place. The JSONL is opened in append mode and the manifest
+    is overwritten, so the result is one file holding two runs described by a
+    manifest that accounts for half of it. Appending under the same run id is
+    deliberate - that is what `--run-id` is for - so only a different one is an
+    error.
+    """
+    existing = _existing_run_id(directory / MANIFEST_FILENAME)
+    if existing is None or existing == run_id:
+        return
+
+    raise ConfigError(
+        f"{directory} already holds run {existing}, and this run is {run_id}. "
+        "Two runs cannot share a directory: the responses would be appended to "
+        "one file and the manifest would describe only the newer run. Keep "
+        "`{run_id}` in the audit's `output.dir`, or pass `--run-id "
+        f"{existing}` to add to that run on purpose."
+    )
+
+
+def _existing_run_id(path: Path) -> str | None:
+    """The run id a directory already claims, or None if it claims none.
+
+    Unreadable is treated as absent: this guard exists to catch a misconfigured
+    `output.dir`, not to police a directory the user has been editing.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    run_id = data.get("run_id") if isinstance(data, dict) else None
+    return run_id if isinstance(run_id, str) else None
 
 
 def _resolve_key(provider: Provider, config: AuditConfig) -> str | None:

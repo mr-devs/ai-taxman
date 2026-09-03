@@ -200,6 +200,30 @@ Every message is sent `repeats` times, concurrently, and each raw response is
 written to `data/election-probe/<run_id>/responses.jsonl` as it arrives —
 alongside a `manifest.json` recording exactly what was run.
 
+Both files are written as the run happens, not at the end. The manifest lands
+before the first request, so a run you kill halfway still describes itself, and
+every response that came back before that moment is already on disk:
+
+```json
+{
+  "run_id": "20260830T142201Z-a1b2c3",
+  "status": "running",
+  "taxman_version": "0.0.2",
+  "messages_hash": "sha256:…",
+  "n_messages": 40, "repeats": 3,
+  "started_at": "…", "finished_at": null,
+  "n_ok": 26, "n_error": 0,
+  "config": {  }
+}
+```
+
+`status` is `running` until the run ends, then `complete`, `stopped_early`,
+`interrupted`, or `failed` — so a partial directory is never mistaken for a
+finished one. `n_messages × repeats` is the number of responses to expect.
+
+Each run gets its own directory. If you edit `output.dir` and drop `{run_id}`,
+the second run into that directory is refused rather than appended to the first.
+
 ## Commands
 
 | Command | What it does |

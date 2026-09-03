@@ -167,7 +167,22 @@ field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row 
 "Schema versions" table. That has happened once, for v2 (`text` and `usage` removed).
 
 Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
-hash, counts, timings. Reproducibility is the point of an audit tool.
+hash, counts, timings, and `status`. Reproducibility is the point of an audit tool.
+
+It is written **before the first request** and rewritten when the run ends, never only at the
+end. A run killed halfway through still says what it was running, with which settings, and how
+many responses it expected — without that denominator a run cut off at 40% is indistinguishable
+from a complete run over a shorter message file. `status` is `running` until the run ends, then
+`complete`, `stopped_early`, `interrupted`, or `failed`.
+
+One directory holds exactly one run. `output.dir` is the user's to set, and dropping `{run_id}`
+from it would append two runs into one file under a manifest describing only the later one, so
+the runner refuses a directory that already claims a different `run_id`. The same id is allowed
+— that is what appending to a named run means.
+
+Everything on disk is written as it is produced. Responses are flushed per row, so an audit that
+is killed keeps every response already paid for, and `read_jsonl` stops at a truncated tail
+rather than raising — including a gzip stream with no end-of-stream marker.
 
 ## Repeat semantics
 

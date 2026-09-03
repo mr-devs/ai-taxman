@@ -24,6 +24,10 @@ RESPONSE_SCHEMA_VERSION = 2
 
 Status = Literal["ok", "error"]
 
+#: How a run ended, or that it has not. `running` is what a killed run leaves
+#: behind, and is the signal that a directory holds a partial audit.
+RunStatus = Literal["running", "complete", "stopped_early", "interrupted", "failed"]
+
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
 
@@ -71,7 +75,10 @@ class RunManifest(BaseModel):
     """What was run, with what, and how it went.
 
     Written beside the JSONL so a run can be understood without the config that
-    produced it.
+    produced it - and written *before* the first response, so a run that is
+    killed still says what it was doing, with which settings, and how many
+    responses it expected. Without that denominator, a run cut off at 40% is
+    indistinguishable from a complete run over a shorter message file.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -94,6 +101,11 @@ class RunManifest(BaseModel):
 
     started_at: str | None = None
     finished_at: str | None = None
+
+    #: Written as `running` before the first request goes out and rewritten when
+    #: the run ends, so an interrupted run is never mistaken for a complete one.
+    status: RunStatus = "running"
+
     n_ok: int = 0
     n_error: int = 0
 
