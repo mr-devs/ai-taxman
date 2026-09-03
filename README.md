@@ -13,6 +13,407 @@ Also usable as a regular Python package.
 
 > ⚠️ **`ai-taxman` is still in development.**
 
+## Install
+
+```bash
+uv tool install "ai-taxman[openai]"
+```
+
+Then `taxman init openai <audit-name>` writes a fully commented audit file, and you fill in
+the blanks. There is no configuration command and nothing to set up per machine — the audit
+file is the only place anything is chosen. Full walkthrough below. Provider SDKs are
+optional extras, so you only install the ones you audit.
+
+<details>
+<summary>Working on <code>ai-taxman</code> itself</summary>
+
+```bash
+uv sync --all-extras
+uv run pytest
+uv run taxman --help
+```
+
+</details>
+
+## Setting up
+
+A full walkthrough, from nothing to a first audit. Roughly two minutes.
+
+### 1. Install
+
+```console
+$ uv tool install "ai-taxman[openai]"
+Installed 1 executable: taxman
+```
+
+If uv warns that `~/.local/bin` is not on your `PATH`, run `uv tool update-shell` and open
+a new terminal. `taxman doctor` checks this for you at any time.
+
+### 2. Export your API key
+
+taxman never stores a key. It reads exactly one environment variable, whichever one your
+audit names, from the environment the command runs in:
+
+```bash
+export OPENAI_API_KEY="sk-..."          # add it to ~/.zshrc to make it stick
+```
+
+Any variable name works — `OPENAI_API_KEY` is just OpenAI's convention, and each audit
+names its own. That means one machine can hold several keys for the same provider (a
+personal one and a lab one, say) and each audit says which it uses. In CI, use the
+runner's secret mechanism; nothing else changes.
+
+### 3. Create your first audit
+
+`init` takes the provider and a name for the audit, and nothing else:
+
+```console
+$ taxman init openai election-probe
+Created audits/election-probe.yaml
+
+Next:
+  1. Write your messages, one per line, in messages/election-probe.txt
+  2. Review the settings in election-probe.yaml, including `api_key_env`
+  3. taxman collect election-probe
+```
+
+That is the whole command — there are no other arguments or flags. Every setting is written
+at its default with a comment saying what it does, so you change things by editing the file
+rather than by memorising options. Audits are always written to `./audits/` in the directory
+you run from.
+
+One field is left blank on purpose, because only you know the answer:
+
+```yaml
+# The one environment variable holding this audit's API key.
+# taxman reads this name and no other. Export the variable in your
+# shell, then put its name here.
+# For openai this is usually OPENAI_API_KEY.
+api_key_env: <insert_api_key_env_var_here>
+```
+
+Replace the placeholder with the name of the variable you exported in step 2. Leave it as
+it is and `taxman collect` stops before sending anything, saying that
+`<insert_api_key_env_var_here>` is not set.
+
+### 4. Write your messages and check it
+
+```console
+$ mkdir -p messages
+$ cat > messages/election-probe.txt <<'EOF'
+When is the next US federal election?
+Who is eligible to vote by mail?
+EOF
+
+$ taxman audits validate election-probe
+audits/election-probe.yaml is valid.
+2 message(s) x 1 repeat(s) = 2 request(s).
+```
+
+`validate` resolves the config, checks the settings against the provider, and counts the
+requests — **without sending anything or spending anything.** Run it before every real
+collection.
+
+### 5. Run it
+
+```console
+$ taxman collect election-probe
+Collecting election-probe: openai (gpt-5), 1 repeat(s) per message.
+
+2 ok  ->  data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+```
+
+This one makes real API calls and bills your account.
+
+### If something's wrong
+
+```console
+$ taxman doctor
+taxman is ready: on your PATH, with tab completion.
+```
+
+`doctor` checks that `taxman` is on your `PATH` and that tab completion is installed, and
+offers to fix either. Nothing is written to a shell config unless you say yes, and a
+"don't ask again" is remembered.
+
+> **Chicken-and-egg:** if `taxman` isn't on your `PATH` yet, your shell can't find it to
+> run this. Use `uvx ai-taxman doctor` for the first run — it needs no install and no
+> `PATH` — or use the full path uv printed.
+
+## The workflow
+
+Once your key is exported, the loop is three steps.
+
+**1. Write your messages** — one per line, in a plain `.txt` file. Blank lines
+and lines starting with `#` are ignored.
+
+```
+# messages/election.txt
+When is the next US federal election?
+Who is eligible to vote by mail?
+```
+
+**2. Describe the audit.**
+
+```bash
+taxman init openai election-probe
+```
+
+That writes `audits/election-probe.yaml` with every setting at its default and
+commented, ready for you to edit:
+
+```yaml
+audit: election-probe
+provider: openai
+messages: messages/election-probe.txt
+
+api_key_env: OPENAI_API_KEY   # you fill this in; the one variable taxman reads
+
+output:
+  dir: data/{audit}/{run_id}
+  filename: responses.jsonl
+  compress: false          # true to gzip the output
+
+execution:
+  repeats: 1               # times to send EACH message; all repeats go out together
+  max_concurrency: 8
+  batch: false
+  timeout_s: 120
+  max_retries: 5
+  on_error: continue
+  shuffle: false
+
+model:                     # settings specific to the `openai` provider
+  name: gpt-5
+  temperature:
+  reasoning_effort:
+  web_search:
+```
+
+**3. Run it.**
+
+```bash
+taxman collect election-probe
+```
+
+Every message is sent `repeats` times, concurrently, and each raw response is
+written to `data/election-probe/<run_id>/responses.jsonl` as it arrives —
+alongside a `manifest.json` recording exactly what was run.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `taxman doctor` | Check PATH and tab completion, and offer to fix them |
+| `taxman init <provider> <audit>` | Scaffold an audit YAML in `./audits/` |
+| `taxman collect <audit>` | Run an audit |
+| `taxman audits list` | List audits in `./audits` and `~/.taxman/audits` |
+| `taxman audits show <audit>` | Print an audit's fully resolved settings |
+| `taxman audits validate <audit>` | Check an audit without sending anything |
+| `taxman providers` | List the providers this install can audit |
+| `taxman --install-completion` | Install tab completion for your shell |
+
+Tab completion covers command names, provider names, model names, **and your
+audit names**. `taxman doctor` offers to install it; `taxman --install-completion` does it
+directly. On zsh, if your terminal starts more slowly afterward, see
+[Tab completion](#tab-completion).
+
+## Tab completion
+
+Install it the normal way — `taxman doctor` offers it, or run it directly:
+
+```bash
+taxman --install-completion
+```
+
+Restart your shell, and `taxman <Tab>` completes commands, provider names, model names,
+and your audit names.
+
+### zsh: check your startup time afterward
+
+One thing to watch for, on zsh only.
+
+The installer appends its own `compinit` call to `~/.zshrc`. If your shell already runs one
+— oh-my-zsh, prezto, Homebrew's snippet, and most custom prompts all do — you now have two.
+The second sees an `fpath` that changed after the first ran, so zsh rebuilds its completion
+cache on **every** shell start.
+
+Check it. Run this twice; the first run does a one-time rebuild, the second is your real
+startup time:
+
+```console
+$ time zsh -i -c exit
+```
+
+Comfortably under ~0.2s means there is nothing to do. If it is closer to a second, apply the
+fix below. (On the machine this was measured on, it was the difference between 0.10s and
+1.0-1.3s on every new terminal.)
+
+### The fix, if it is slow
+
+Two changes, and **both** are needed. Doing only the first is the common mistake: it stops
+the slowdown but silently breaks completion.
+
+**1. Drop the duplicate `compinit`.** Find the line the installer appended to `~/.zshrc`:
+
+```zsh
+fpath+=~/.zfunc; autoload -Uz compinit; compinit
+```
+
+and cut it down to just:
+
+```zsh
+fpath+=~/.zfunc
+```
+
+**2. Move that line to the very top of `~/.zshrc`** — above everything, in particular above
+any line that *sources* another file:
+
+```zsh
+# taxman additions - delete these lines and ~/.zfunc/_taxman to uninstall
+fpath+=~/.zfunc
+
+source ~/.my-prompt          # <- your compinit probably lives in here
+```
+
+This step is easy to skip, because your `compinit` is usually not visible in `~/.zshrc` at
+all. oh-my-zsh, prezto, and hand-rolled prompt files all run it from inside a file you
+source, so "above your `compinit`" means above the `source` line, not below it. `compinit`
+scans `fpath` once and never looks again — a directory added afterwards is ignored, even
+though `fpath` looks correct by the time your shell finishes starting.
+
+**Then check it worked.** Open a new terminal:
+
+```console
+$ print -r -- ${_comps[taxman]:-NOT REGISTERED}
+_taxman
+```
+
+`_taxman` means completion is wired up. `NOT REGISTERED` means `fpath+=~/.zfunc` is still
+below whatever runs `compinit`. If you had already started a shell with the old ordering,
+delete the stale cache first — `rm ~/.zcompdump` — and open a new terminal.
+
+### The other line it adds
+
+```zsh
+zstyle ':completion:*' menu select
+```
+
+The installer adds this as well. It is cosmetic and has nothing to do with speed — it gives
+you arrow-key selection menus on Tab, for **every** command on your system, not just
+`taxman`. Plenty of people like it. Delete it if you would rather not have it.
+
+### If `taxman <Tab>` does nothing
+
+Check whether zsh ever registered it. In a new terminal:
+
+```console
+$ print -r -- ${_comps[taxman]:-NOT REGISTERED}
+```
+
+`NOT REGISTERED` almost always means `~/.zfunc` is on `fpath` but was added *after*
+`compinit` ran, so it was never scanned. Move `fpath+=~/.zfunc` to the top of `~/.zshrc`,
+above any `source` line, then `rm ~/.zcompdump` and open a new terminal. See
+[The fix, if it is slow](#the-fix-if-it-is-slow) for the detail.
+
+If the file itself is missing or empty, reinstall with `taxman --install-completion`.
+
+### Why there is a small pause before completions appear
+
+Each Tab press starts a Python process and asks taxman what the options are — that is how
+this style of completion works, and it is unrelated to the startup issue above. taxman
+defers its heavier imports so a completion loads only what it needs, which keeps that pause
+to roughly a tenth of a second rather than most of a second.
+
+### Removing it
+
+```bash
+rm ~/.zfunc/_taxman
+```
+
+and delete the block from `~/.zshrc`. The installer labels it, so it is easy to find:
+
+```zsh
+# taxman additions - delete these lines and ~/.zfunc/_taxman to uninstall
+```
+
+### bash and fish
+
+No caveat either way. fish gets `~/.config/fish/completions/taxman.fish` and needs no config
+change at all. bash gets a single ordinary `source` line in `~/.bashrc`.
+
+## API keys
+
+An audit names exactly one environment variable in its `api_key_env:` field, and taxman
+reads that one and nothing else — there is no fallback chain to reason about, and taxman
+never stores a key of its own.
+
+```yaml
+api_key_env: OPENAI_API_KEY
+```
+
+Export it however you normally would: your shell profile, `direnv`, or a CI secret. The
+name is yours to choose, so one machine can hold several keys for the same provider and
+each audit says which it uses.
+
+`taxman init` leaves the field as `<insert_api_key_env_var_here>` — it will not guess a
+variable for you, because guessing is how an audit ends up billing a key it never named.
+
+If the field is still the placeholder, is missing, or names a variable holding nothing,
+`taxman collect` stops before sending a single message and tells you which variable it
+wanted.
+
+## From Python
+
+```python
+from ai_taxman import load_audit, run_audit
+
+result = run_audit("audits/election-probe.yaml")
+print(result.n_ok, result.n_error, result.output_path)
+```
+
+`run_audit` also accepts a loaded `AuditConfig`, and takes an `on_record`
+callback if you want to watch responses land.
+
+## Output
+
+One JSON object per response. The schema is the same for every provider, and
+changes to it are additive only:
+
+```json
+{
+  "schema_version": 1,
+  "audit": "election-probe",
+  "run_id": "20260830T142201Z-a1b2c3",
+  "message_id": "m0007",
+  "message_hash": "sha256:…",
+  "message": "When is the next US federal election?",
+  "repeat": 2,
+  "provider": "openai",
+  "model": "gpt-5",
+  "requested_at": "…", "received_at": "…", "latency_ms": 812,
+  "status": "ok",
+  "error": null,
+  "attempts": 1,
+  "text": "…",
+  "usage": {"input_tokens": 42, "output_tokens": 310},
+  "raw": {  }
+}
+```
+
+`raw` is the provider's response verbatim — the source of truth. `text` and
+`usage` are conveniences extracted from it.
+
+## Supported providers
+
+| Provider | Extra | Status |
+|---|---|---|
+| OpenAI | `ai-taxman[openai]` | Responses API; batch mode not yet |
+
+Providers are fully isolated from each other — adding one cannot break another.
+See [CLAUDE.md](CLAUDE.md) for the contract and a checklist for adding one, and
+[`docs/provider-apis/`](docs/provider-apis/) for each provider's API documentation, mapped
+feature by feature.
 
 ## License
 
