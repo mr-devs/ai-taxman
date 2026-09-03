@@ -349,3 +349,17 @@ def test_a_backgrounded_run_stops_gracefully_when_it_is_killed(echo_project, plu
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["finished_at"] is not None
     assert manifest["n_ok"] < 500  # it stopped, rather than running to the end
+
+
+def test_a_background_run_uses_the_run_id_it_was_given(echo_project, plugin_path):
+    """--run-id names the run in the foreground; -b must not quietly ignore it."""
+    result = run_taxman(echo_project, plugin_path, "--background", "--run-id", "i-asked-for-this")
+
+    assert "i-asked-for-this" in result.stderr
+    directory = echo_project / "data" / "probe" / "i-asked-for-this"
+    assert wait_for(
+        lambda: (
+            json.loads((directory / "manifest.json").read_text(encoding="utf-8"))["status"]
+            == "complete"
+        )
+    ), child_log(directory)

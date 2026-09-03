@@ -101,6 +101,7 @@ def collect(
             audit,
             config=config,
             provider=provider,
+            run_id=run_id,
             repeats=repeats,
             concurrency=concurrency,
             log_level=log_level,
@@ -175,6 +176,7 @@ def _start_in_background(
     *,
     config: AuditConfig,
     provider: Provider,
+    run_id: str | None,
     repeats: int | None,
     concurrency: int | None,
     log_level: str,
@@ -200,7 +202,8 @@ def _start_in_background(
     read_messages(config.messages_path)
     resolve_key(provider, config)
 
-    run_id = new_run_id()
+    # The user's id if they named one, so `-b` behaves like the foreground run.
+    run_id = run_id or new_run_id()
     directory = resolve_output_dir(config, run_id=run_id)
     directory.mkdir(parents=True, exist_ok=True)
 
