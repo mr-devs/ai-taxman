@@ -184,6 +184,32 @@ Everything on disk is written as it is produced. Responses are flushed per row, 
 is killed keeps every response already paid for, and `read_jsonl` stops at a truncated tail
 rather than raising — including a gzip stream with no end-of-stream marker.
 
+## Logging and background runs
+
+`core/logging.py` owns the format and `setup_logging()`; **core modules only ever ask for a
+logger and emit**. Handlers are attached by `cli/collect_cmd.py`, never by the library, and a
+`NullHandler` on the package logger keeps the Python API silent. Log records go to stderr so
+stdout stays the command's own; `--log-file` redirects them to a path instead.
+
+**The API key is never logged**, at any level, and neither is message text — ids and counts
+only. `tests/core/test_logging.py` asserts both.
+
+`collect --background` re-runs taxman as a detached child (`cli/background.py`): the parent
+validates the audit, picks the `run_id`, spawns `python -m ai_taxman collect ... --run-id ...`
+in a new session, and exits. Three rules:
+
+- **The parent validates first.** A pid handed back for a run that could never work is worse
+  than an error at the prompt.
+- **The parent picks the run id**, because otherwise nothing could name the directory or the
+  log before the child starts. That is what `--run-id` is for; it also makes appending to a
+  named run possible, which the collision guard deliberately allows.
+- **stdout is the pid and nothing else**, like `docker run -d`. The human block goes to
+  stderr. Do not add fields to stdout — `PID=$(taxman collect probe -b)` is the whole point.
+
+SIGTERM is a *graceful* stop: `run_audit_async(stop_signals=...)` sets the runner's stop flag,
+so in-flight requests finish and the manifest is finalised. The default is no signal handling,
+because a library does not take its caller's handlers.
+
 ## Repeat semantics
 
 `execution.repeats: N` means each message is sent N times. The runner expands the audit into a flat

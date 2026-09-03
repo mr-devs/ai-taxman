@@ -76,10 +76,20 @@ def run_audit(
     *,
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
+    run_id: str | None = None,
+    stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit. The synchronous entry point for the Python API and CLI."""
     config = audit if isinstance(audit, AuditConfig) else load_audit(audit)
-    return asyncio.run(run_audit_async(config, provider=provider, on_record=on_record))
+    return asyncio.run(
+        run_audit_async(
+            config,
+            provider=provider,
+            on_record=on_record,
+            run_id=run_id,
+            stop_signals=stop_signals,
+        )
+    )
 
 
 async def run_audit_async(
@@ -91,17 +101,24 @@ async def run_audit_async(
     max_concurrency: int | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
+    stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit and return what it produced.
 
     Everything that can fail cheaply — a missing message file, an invalid
     `model:` block, an unavailable provider — fails before a single request goes
     out.
+
+    `stop_signals` names signals that should end the run *gracefully*: requests
+    already in flight are finished and written, and the manifest is finalised as
+    `stopped_early`. It defaults to none, because a library does not take a
+    caller's signal handlers; `taxman collect` passes SIGTERM so that killing a
+    background run keeps the responses it already paid for.
     """
     provider = provider or get_provider(config.provider)
     messages = read_messages(config.messages_path)
     model = validate_model(provider, config)
-    api_key = _resolve_key(provider, config)
+    api_key = resolve_key(provider, config)
 
     if config.execution.batch:
         raise NotImplementedError(
@@ -131,6 +148,7 @@ async def run_audit_async(
     # before the first request goes out, so the run is described from the moment
     # it can produce anything at all.
     try:
+        _handle_stop_signals(stop_signals, state)
         await _startup(provider, api_key)
         _write_manifest(manifest, manifest_path)
         on_disk = True
@@ -169,6 +187,7 @@ async def run_audit_async(
     else:
         manifest.status = "stopped_early" if state.stop.is_set() else "complete"
     finally:
+        _release_stop_signals(stop_signals)
         await _shutdown(provider)
         if on_disk:
             manifest.finished_at = timestamp()
@@ -192,6 +211,42 @@ async def run_audit_async(
         n_error=state.n_error,
         stopped_early=state.stop.is_set(),
     )
+
+
+def _handle_stop_signals(signals: tuple[int, ...], state: _RunState) -> None:
+    """Turn the named signals into a request to wind the run down.
+
+    `kill <pid>` on a background run should not throw away work already paid
+    for. Setting the stop flag lets in-flight requests finish and be written,
+    then finalises the manifest, instead of the process vanishing mid-write.
+
+    Signal handling is unavailable on some platforms and inside some event
+    loops; being unable to stop gracefully must not stop the run from starting.
+    """
+    if not signals:
+        return
+
+    loop = asyncio.get_running_loop()
+    for number in signals:
+        with contextlib.suppress(NotImplementedError, RuntimeError, ValueError, OSError):
+            loop.add_signal_handler(number, _request_stop, state, number)
+
+
+def _request_stop(state: _RunState, number: int) -> None:
+    log.warning("stopping on signal %d: finishing what is in flight", number)
+    state.stop.set()
+
+
+def _release_stop_signals(signals: tuple[int, ...]) -> None:
+    """Give the signals back, so a second run in this process starts clean."""
+    if not signals:
+        return
+
+    with contextlib.suppress(RuntimeError):
+        loop = asyncio.get_running_loop()
+        for number in signals:
+            with contextlib.suppress(NotImplementedError, RuntimeError, ValueError, OSError):
+                loop.remove_signal_handler(number)
 
 
 def _write_manifest(manifest: RunManifest, path: Path) -> None:
@@ -246,12 +301,15 @@ def _existing_run_id(path: Path) -> str | None:
     return run_id if isinstance(run_id, str) else None
 
 
-def _resolve_key(provider: Provider, config: AuditConfig) -> str | None:
+def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
     """Look up the one variable this audit names, if the provider needs a key.
 
     There is no fallback chain: the audit names a variable, and that variable
     either holds a key or the run stops here - before anything is sent, and
     before any output directory is created.
+
+    Public because `collect --background` has to make the same check, with the
+    same message, before it hands back a pid for a run that could never work.
     """
     if not provider.requires_api_key:
         return None

@@ -246,6 +246,45 @@ taxman collect election-probe --log-level warning
 Message text and API keys are never logged — ids and counts only. The text is
 already in the JSONL, and a log is a file you might paste into an issue.
 
+### Running in the background
+
+`--background` (`-b`) starts the run detached and gives you the prompt back. It
+survives the terminal that started it, logs to `collect.log` in the run
+directory, and writes its pid to `collect.pid` there:
+
+```bash
+$ taxman collect election-probe -b
+Collecting election-probe in the background: openai (gpt-5), 3 repeat(s) per message.
+
+  run id   20260830T142201Z-a1b2c3
+  pid      51234
+  log      data/election-probe/20260830T142201Z-a1b2c3/collect.log
+  output   data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+  stop     kill 51234   (or: kill $(cat data/election-probe/20260830T142201Z-a1b2c3/collect.pid))
+```
+
+That block goes to stderr; **stdout is just the pid**, so a script can hold on
+to it. Auditing two providers at once is then a few lines:
+
+```bash
+#!/bin/bash
+openai=$(taxman collect openai-probe -b)
+anthropic=$(taxman collect anthropic-probe -b)
+
+while kill -0 "$openai" 2>/dev/null || kill -0 "$anthropic" 2>/dev/null; do sleep 5; done
+echo "both finished"
+```
+
+`kill <pid>` stops a run **gracefully**: requests already in flight are finished
+and written, and the manifest is closed out as `stopped_early`. Everything
+collected up to that point is kept. (`kill -9` does not get that courtesy — the
+responses already on disk survive, but the manifest is left saying `running`,
+which is how you will know.)
+
+The audit is validated before the fork, so a bad `model:` block, an unset key
+variable, or a missing message file is an error at the prompt rather than a pid
+for a run that was never going to work.
+
 ## Commands
 
 | Command | What it does |
