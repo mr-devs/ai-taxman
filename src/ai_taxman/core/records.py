@@ -1,26 +1,35 @@
 """The shape of the data an audit produces.
 
 `ResponseRecord` is one line of the output JSONL, and it is identical for every
-provider: shared envelope fields, the provider's response verbatim in `raw`, and
-two convenience fields (`text`, `usage`) that the provider's `extract()` pulls
-out of `raw`.
+provider: shared envelope fields naming what was asked and how it went, plus the
+provider's response verbatim in `raw`. Nothing is derived from `raw` — taxman
+collects, and parsing happens downstream from the data on disk.
 
-This schema is a promise to whoever analyses the data later. Changes must be
-**additive** — adding a field is fine, removing or renaming one is not.
+This schema is a promise to whoever analyses the data later. Changes are
+**additive** — adding a field is fine, removing or renaming one is a break that
+costs a `RESPONSE_SCHEMA_VERSION` bump and a note in the README.
 """
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-#: Bumped only when fields are added. See the additive-only rule above.
-RESPONSE_SCHEMA_VERSION = 1
+from ai_taxman.core.errors import ConfigError
+
+#: Bumped when the shape changes. v1 carried `text` and `usage` alongside `raw`;
+#: v2 carries `raw` alone, because taxman no longer parses a response.
+RESPONSE_SCHEMA_VERSION = 2
 
 Status = Literal["ok", "error"]
+
+#: How a run ended, or that it has not. `running` is what a killed run leaves
+#: behind, and is the signal that a directory holds a partial audit.
+RunStatus = Literal["running", "complete", "stopped_early", "interrupted", "failed"]
 
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
@@ -52,10 +61,6 @@ class ResponseRecord(BaseModel):
     error: str | None = None
     attempts: int = 1
 
-    #: Extracted by the provider for convenience; `raw` remains the source of truth.
-    text: str | None = None
-    usage: dict[str, Any] | None = None
-
     #: The provider's response, exactly as it came back.
     raw: dict[str, Any] = Field(default_factory=dict)
 
@@ -73,7 +78,10 @@ class RunManifest(BaseModel):
     """What was run, with what, and how it went.
 
     Written beside the JSONL so a run can be understood without the config that
-    produced it.
+    produced it - and written *before* the first response, so a run that is
+    killed still says what it was doing, with which settings, and how many
+    responses it expected. Without that denominator, a run cut off at 40% is
+    indistinguishable from a complete run over a shorter message file.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -96,6 +104,11 @@ class RunManifest(BaseModel):
 
     started_at: str | None = None
     finished_at: str | None = None
+
+    #: Written as `running` before the first request goes out and rewritten when
+    #: the run ends, so an interrupted run is never mistaken for a complete one.
+    status: RunStatus = "running"
+
     n_ok: int = 0
     n_error: int = 0
 
@@ -113,6 +126,54 @@ def new_run_id() -> str:
     The suffix keeps two runs started in the same second distinct.
     """
     return f"{utc_now().strftime(RUN_ID_FORMAT)}-{secrets.token_hex(3)}"
+
+
+#: A run id becomes a directory name and is written into every row, so it is
+#: held to what is safe in both places: letters, digits, dot, dash, underscore.
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+#: Long enough for a timestamp and a description, short enough for a path.
+MAX_RUN_ID_LENGTH = 128
+
+
+def validate_run_id(value: str) -> str:
+    """Return `value` as a usable run id, or say why it is not one.
+
+    The id is interpolated into `output.dir` and then resolved as a path, so an
+    id containing `/` or `..` does not name a run - it moves the run somewhere
+    else on disk, quietly, while every record still claims the id. It is also
+    written into every JSONL row, where a space or a quote makes the data
+    awkward to work with later.
+
+    Surrounding whitespace is trimmed rather than refused: ids get copied out of
+    logs and manifests, and picking up a trailing newline should not be an
+    error.
+    """
+    cleaned = value.strip()
+
+    if not cleaned:
+        raise ConfigError(
+            "The run id is empty. Give one like `--run-id pilot-2`, or leave "
+            "`--run-id` off entirely and taxman will generate a timestamped one."
+        )
+
+    if len(cleaned) > MAX_RUN_ID_LENGTH:
+        raise ConfigError(
+            f"The run id is {len(cleaned)} characters, longer than the "
+            f"{MAX_RUN_ID_LENGTH} allowed. It has to work as a directory name."
+        )
+
+    if not RUN_ID_PATTERN.match(cleaned):
+        raise ConfigError(
+            f"{cleaned!r} cannot be used as a run id. A run id names the "
+            "directory the run is written to and is recorded in every response, "
+            "so it may contain only letters, digits, dots, dashes and "
+            "underscores, and must start with a letter or a digit. An id "
+            "containing `/` or `..` would move the data somewhere else on disk "
+            "while every record still claimed this id."
+        )
+
+    return cleaned
 
 
 def utc_now() -> datetime:

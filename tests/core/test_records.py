@@ -2,7 +2,14 @@ import json
 
 import pytest
 
-from ai_taxman.core.records import RESPONSE_SCHEMA_VERSION, ResponseRecord, RunManifest, new_run_id
+from ai_taxman.core.errors import ConfigError
+from ai_taxman.core.records import (
+    RESPONSE_SCHEMA_VERSION,
+    ResponseRecord,
+    RunManifest,
+    new_run_id,
+    validate_run_id,
+)
 
 
 def make_record(**overrides):
@@ -19,9 +26,7 @@ def make_record(**overrides):
         received_at="2026-08-30T14:22:01.812000Z",
         latency_ms=812,
         status="ok",
-        text="hi there",
-        usage={"input_tokens": 42, "output_tokens": 310},
-        raw={"id": "resp_1"},
+        raw={"id": "resp_1", "usage": {"input_tokens": 42, "output_tokens": 310}},
     )
     fields.update(overrides)
     return ResponseRecord(**fields)
@@ -36,9 +41,9 @@ def test_round_trips_through_json():
 
 
 def test_serialises_every_schema_field_even_when_empty():
-    row = make_record(text=None, usage=None).to_dict()
+    row = make_record(raw={}).to_dict()
 
-    for field in ("error", "text", "usage", "attempts", "schema_version"):
+    for field in ("error", "raw", "attempts", "schema_version"):
         assert field in row
 
 
@@ -50,12 +55,12 @@ def test_defaults_to_one_attempt():
     assert make_record().attempts == 1
 
 
-def test_error_records_carry_the_failure_and_no_text():
-    record = make_record(status="error", error="rate limited after 5 attempts", text=None, raw={})
+def test_error_records_carry_the_failure_and_an_empty_response():
+    record = make_record(status="error", error="rate limited after 5 attempts", raw={})
 
     assert record.status == "error"
     assert record.error == "rate limited after 5 attempts"
-    assert record.text is None
+    assert record.raw == {}
 
 
 def test_status_is_constrained():
@@ -118,3 +123,63 @@ def test_manifest_counts_default_to_zero_before_the_run_finishes():
     assert manifest.n_ok == 0
     assert manifest.n_error == 0
     assert manifest.finished_at is None
+
+
+# --- run ids ---------------------------------------------------------------
+
+
+def test_a_generated_run_id_is_sortable_and_unique():
+    first, second = new_run_id(), new_run_id()
+
+    assert first != second
+    assert first[:4] == "2026"[:4] or first[:2] == "20"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["my-run", "run_2", "pilot.1", "20260830T142201Z-a1b2c3", "A", "0"],
+)
+def test_a_run_id_may_be_any_plain_name(value):
+    assert validate_run_id(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "../escape",
+        "../../escape",
+        "nested/run",
+        "/absolute",
+        "..",
+        ".",
+        "",
+        "   ",
+        "two words",
+        "quote'd",
+        "star*",
+        "~/home",
+    ],
+)
+def test_a_run_id_that_is_not_a_plain_name_is_refused(value):
+    """The id becomes a directory name and is recorded in every row."""
+    with pytest.raises(ConfigError):
+        validate_run_id(value)
+
+
+def test_a_traversing_run_id_says_what_is_allowed():
+    with pytest.raises(ConfigError) as caught:
+        validate_run_id("../escaped")
+
+    message = str(caught.value)
+    assert "../escaped" in message
+    assert "run id" in message.lower()
+
+
+def test_a_run_id_is_not_allowed_to_be_endless():
+    with pytest.raises(ConfigError):
+        validate_run_id("r" * 200)
+
+
+def test_surrounding_whitespace_is_trimmed_rather_than_refused():
+    """Copy-pasting an id out of a log should not be a syntax error."""
+    assert validate_run_id("  my-run\n") == "my-run"

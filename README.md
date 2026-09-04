@@ -200,6 +200,97 @@ Every message is sent `repeats` times, concurrently, and each raw response is
 written to `data/election-probe/<run_id>/responses.jsonl` as it arrives —
 alongside a `manifest.json` recording exactly what was run.
 
+Both files are written as the run happens, not at the end. The manifest lands
+before the first request, so a run you kill halfway still describes itself, and
+every response that came back before that moment is already on disk:
+
+```json
+{
+  "run_id": "20260830T142201Z-a1b2c3",
+  "status": "running",
+  "taxman_version": "0.0.2",
+  "messages_hash": "sha256:…",
+  "n_messages": 40, "repeats": 3,
+  "started_at": "…", "finished_at": null,
+  "n_ok": 26, "n_error": 0,
+  "config": {  }
+}
+```
+
+`status` is `running` until the run ends, then `complete`, `stopped_early`,
+`interrupted`, or `failed` — so a partial directory is never mistaken for a
+finished one. `n_messages × repeats` is the number of responses to expect.
+
+Each run gets its own directory. If you edit `output.dir` and drop `{run_id}`,
+the second run into that directory is refused rather than appended to the first.
+
+`--run-id <id>` names a run instead of taking the generated timestamp, and
+running again with the same id adds to it. An id has to work both as a directory
+name and as a field in every record, so it may contain only letters, digits,
+dots, dashes and underscores, and must start with a letter or a digit — anything
+else is refused before the run starts.
+
+### Watching a run
+
+A collection logs as it goes — one line per response — to the terminal:
+
+```
+2026-08-30T14:22:01.004Z INFO    ai_taxman.core.runner  run starting  run_id=20260830T142201Z-a1b2c3 audit=election-probe provider=openai model=gpt-5 messages=40 repeats=3 expected=120 concurrency=8 output=data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+2026-08-30T14:22:01.816Z INFO    ai_taxman.core.runner  ok  message=m0000 repeat=0 attempts=1 latency_ms=812
+2026-08-30T14:22:04.219Z WARNING ai_taxman.core.runner  retrying  message=m0003 repeat=1 attempt=1/5 in=0.5s RateLimitError: 429
+```
+
+The log goes to stderr and the summary to stdout, so you can keep either or
+both:
+
+```bash
+taxman collect election-probe > run.log 2>&1     # everything
+taxman collect election-probe --log-file run.log # the log to a file, summary on screen
+taxman collect election-probe --log-level warning
+```
+
+Message text and API keys are never logged — ids and counts only. The text is
+already in the JSONL, and a log is a file you might paste into an issue.
+
+### Running in the background
+
+`--background` (`-b`) starts the run detached and gives you the prompt back. It
+survives the terminal that started it, logs to `collect.log` in the run
+directory, and writes its pid to `collect.pid` there:
+
+```bash
+$ taxman collect election-probe -b
+Collecting election-probe in the background: openai (gpt-5), 3 repeat(s) per message.
+
+  run id   20260830T142201Z-a1b2c3
+  pid      51234
+  log      data/election-probe/20260830T142201Z-a1b2c3/collect.log
+  output   data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+  stop     kill 51234   (or: kill $(cat data/election-probe/20260830T142201Z-a1b2c3/collect.pid))
+```
+
+That block goes to stderr; **stdout is just the pid**, so a script can hold on
+to it. Auditing two providers at once is then a few lines:
+
+```bash
+#!/bin/bash
+openai=$(taxman collect openai-probe -b)
+anthropic=$(taxman collect anthropic-probe -b)
+
+while kill -0 "$openai" 2>/dev/null || kill -0 "$anthropic" 2>/dev/null; do sleep 5; done
+echo "both finished"
+```
+
+`kill <pid>` stops a run **gracefully**: requests already in flight are finished
+and written, and the manifest is closed out as `stopped_early`. Everything
+collected up to that point is kept. (`kill -9` does not get that courtesy — the
+responses already on disk survive, but the manifest is left saying `running`,
+which is how you will know.)
+
+The audit is validated before the fork, so a bad `model:` block, an unset key
+variable, or a missing message file is an error at the prompt rather than a pid
+for a run that was never going to work.
+
 ## Commands
 
 | Command | What it does |
@@ -377,12 +468,11 @@ callback if you want to watch responses land.
 
 ## Output
 
-One JSON object per response. The schema is the same for every provider, and
-changes to it are additive only:
+One JSON object per response. The schema is the same for every provider:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "audit": "election-probe",
   "run_id": "20260830T142201Z-a1b2c3",
   "message_id": "m0007",
@@ -395,14 +485,28 @@ changes to it are additive only:
   "status": "ok",
   "error": null,
   "attempts": 1,
-  "text": "…",
-  "usage": {"input_tokens": 42, "output_tokens": 310},
   "raw": {  }
 }
 ```
 
-`raw` is the provider's response verbatim — the source of truth. `text` and
-`usage` are conveniences extracted from it.
+`raw` is the provider's response verbatim, and it is the whole of it. taxman
+collects; it does not parse, clean, or summarise what came back. Pulling the
+answer text, token counts, or citations out of `raw` is a separate step, run
+against the data on disk — which means a change to how responses are read can
+never silently change what was collected.
+
+### Schema versions
+
+Changes are additive: a field may be added, and old files stay readable. The one
+exception so far is noted here.
+
+| Version | Change |
+|---|---|
+| 2 | Removed `text` and `usage`. Collection no longer derives anything from `raw`. |
+| 1 | Initial schema. Rows carried `text` and `usage` alongside `raw`. |
+
+Version 1 files remain valid JSONL and lose nothing: everything `text` and
+`usage` held was copied out of `raw`, which is still there.
 
 ## Supported providers
 

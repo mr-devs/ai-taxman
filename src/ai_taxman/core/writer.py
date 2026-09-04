@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import zlib
 from collections.abc import Iterator
 from pathlib import Path
 from types import TracebackType
@@ -65,8 +66,9 @@ class JsonlWriter:
 def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
     """Yield the records in a JSONL file, gzipped or not.
 
-    A missing file yields nothing, and a truncated final line — the signature of
-    an interrupted run — is skipped rather than raising.
+    A missing file yields nothing, and a truncated tail — the signature of an
+    interrupted run, whether that is a half-written line or a gzip stream with no
+    end-of-stream marker — ends the iteration rather than raising.
     """
     path = Path(path)
     if not path.is_file():
@@ -74,7 +76,7 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
 
     opener = gzip.open if path.suffix == GZIP_SUFFIX else open
     with opener(path, "rt", encoding="utf-8") as handle:
-        for line in handle:
+        for line in _lines(handle):
             line = line.strip()
             if not line:
                 continue
@@ -83,6 +85,24 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
             except (json.JSONDecodeError, ValueError):
                 # A half-written final line from a killed run; everything before it stands.
                 continue
+
+
+def _lines(handle: IO[str]) -> Iterator[str]:
+    """Yield lines, stopping where a killed run stopped writing.
+
+    A gzip stream from an interrupted run has no end-of-stream marker, and the
+    decompressor raises rather than handing back the data it already has. Every
+    line before that point is intact, and is what the user paid for - so the
+    error ends the iteration instead of the read.
+    """
+    while True:
+        try:
+            line = handle.readline()
+        except (EOFError, OSError, zlib.error):
+            return
+        if not line:
+            return
+        yield line
 
 
 def _target_path(path: Path, *, compress: bool) -> Path:

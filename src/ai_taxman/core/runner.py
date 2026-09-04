@@ -30,6 +30,7 @@ from typing import Any
 from ai_taxman.core.config import AuditConfig, load_audit, resolve_output_dir
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
+from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message, read_messages
 from ai_taxman.core.records import (
     RESPONSE_SCHEMA_VERSION,
@@ -38,10 +39,15 @@ from ai_taxman.core.records import (
     new_run_id,
     timestamp,
     utc_now,
+    validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
 from ai_taxman.core.writer import JsonlWriter
 from ai_taxman.providers.base import Provider, Request
+
+#: Never logs a message body or an API key - ids and counts only. A log is a
+#: file users pipe into issues; the message text is already in the JSONL.
+log = get_logger(__name__)
 
 MANIFEST_FILENAME = "manifest.json"
 DEFAULT_BACKOFF_BASE = 0.5
@@ -71,10 +77,20 @@ def run_audit(
     *,
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
+    run_id: str | None = None,
+    stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit. The synchronous entry point for the Python API and CLI."""
     config = audit if isinstance(audit, AuditConfig) else load_audit(audit)
-    return asyncio.run(run_audit_async(config, provider=provider, on_record=on_record))
+    return asyncio.run(
+        run_audit_async(
+            config,
+            provider=provider,
+            on_record=on_record,
+            run_id=run_id,
+            stop_signals=stop_signals,
+        )
+    )
 
 
 async def run_audit_async(
@@ -86,17 +102,24 @@ async def run_audit_async(
     max_concurrency: int | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
+    stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit and return what it produced.
 
     Everything that can fail cheaply — a missing message file, an invalid
     `model:` block, an unavailable provider — fails before a single request goes
     out.
+
+    `stop_signals` names signals that should end the run *gracefully*: requests
+    already in flight are finished and written, and the manifest is finalised as
+    `stopped_early`. It defaults to none, because a library does not take a
+    caller's signal handlers; `taxman collect` passes SIGTERM so that killing a
+    background run keeps the responses it already paid for.
     """
     provider = provider or get_provider(config.provider)
     messages = read_messages(config.messages_path)
     model = validate_model(provider, config)
-    api_key = _resolve_key(provider, config)
+    api_key = resolve_key(provider, config)
 
     if config.execution.batch:
         raise NotImplementedError(
@@ -104,24 +127,46 @@ async def run_audit_async(
             "Set `execution.batch: false` in the audit."
         )
 
-    run_id = run_id or new_run_id()
+    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
     limit = max_concurrency or config.execution.max_concurrency
     tasks = _expand(messages, config.execution.repeats)
     if config.execution.shuffle:
         random.Random(seed).shuffle(tasks)
 
     directory = resolve_output_dir(config, run_id=run_id)
+    _guard_run_directory(directory, run_id=run_id)
+
     manifest = _new_manifest(config, provider, model, messages, run_id)
+    manifest_path = directory / MANIFEST_FILENAME
 
     state = _RunState(on_error=config.execution.on_error)
+    # Constructed here but not opened: nothing touches the disk until the `with`.
+    writer = JsonlWriter(directory / config.output.filename, compress=config.output.compress)
+    on_disk = False
 
-    # Start the provider before creating anything on disk, so a run that cannot
-    # begin - a missing API key, most often - leaves no empty output behind.
+    # Start the provider first, so a run that cannot begin - a missing SDK, most
+    # often - leaves no directory behind. Everything after that point is written
+    # before the first request goes out, so the run is described from the moment
+    # it can produce anything at all.
     try:
+        _handle_stop_signals(stop_signals, state)
         await _startup(provider, api_key)
-        with JsonlWriter(
-            directory / config.output.filename, compress=config.output.compress
-        ) as out:
+        _write_manifest(manifest, manifest_path)
+        on_disk = True
+        log.info(
+            "run starting  run_id=%s audit=%s provider=%s model=%s "
+            "messages=%d repeats=%d expected=%d concurrency=%d output=%s",
+            run_id,
+            config.audit,
+            provider.name,
+            manifest.model,
+            len(messages),
+            config.execution.repeats,
+            len(tasks),
+            limit,
+            writer.path,
+        )
+        with writer:
             await _dispatch(
                 tasks,
                 provider=provider,
@@ -130,25 +175,38 @@ async def run_audit_async(
                 run_id=run_id,
                 limit=limit,
                 backoff_base=backoff_base,
-                writer=out,
+                writer=writer,
                 state=state,
                 on_record=on_record,
             )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        manifest.status = "interrupted"
+        raise
+    except BaseException:
+        manifest.status = "failed"
+        raise
+    else:
+        manifest.status = "stopped_early" if state.stop.is_set() else "complete"
     finally:
+        _release_stop_signals(stop_signals)
         await _shutdown(provider)
-
-    manifest.finished_at = timestamp()
-    manifest.n_ok = state.n_ok
-    manifest.n_error = state.n_error
-    manifest_path = directory / MANIFEST_FILENAME
-    manifest_path.write_text(
-        json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+        if on_disk:
+            manifest.finished_at = timestamp()
+            manifest.n_ok = state.n_ok
+            manifest.n_error = state.n_error
+            _write_manifest(manifest, manifest_path)
+            log.info(
+                "run %s  run_id=%s ok=%d error=%d output=%s",
+                manifest.status,
+                run_id,
+                state.n_ok,
+                state.n_error,
+                writer.path,
+            )
 
     return RunResult(
         run_id=run_id,
-        output_path=out.path,
+        output_path=writer.path,
         manifest_path=manifest_path,
         n_ok=state.n_ok,
         n_error=state.n_error,
@@ -156,12 +214,103 @@ async def run_audit_async(
     )
 
 
-def _resolve_key(provider: Provider, config: AuditConfig) -> str | None:
+def _handle_stop_signals(signals: tuple[int, ...], state: _RunState) -> None:
+    """Turn the named signals into a request to wind the run down.
+
+    `kill <pid>` on a background run should not throw away work already paid
+    for. Setting the stop flag lets in-flight requests finish and be written,
+    then finalises the manifest, instead of the process vanishing mid-write.
+
+    Signal handling is unavailable on some platforms and inside some event
+    loops; being unable to stop gracefully must not stop the run from starting.
+    """
+    if not signals:
+        return
+
+    loop = asyncio.get_running_loop()
+    for number in signals:
+        with contextlib.suppress(NotImplementedError, RuntimeError, ValueError, OSError):
+            loop.add_signal_handler(number, _request_stop, state, number)
+
+
+def _request_stop(state: _RunState, number: int) -> None:
+    log.warning("stopping on signal %d: finishing what is in flight", number)
+    state.stop.set()
+
+
+def _release_stop_signals(signals: tuple[int, ...]) -> None:
+    """Give the signals back, so a second run in this process starts clean."""
+    if not signals:
+        return
+
+    with contextlib.suppress(RuntimeError):
+        loop = asyncio.get_running_loop()
+        for number in signals:
+            with contextlib.suppress(NotImplementedError, RuntimeError, ValueError, OSError):
+                loop.remove_signal_handler(number)
+
+
+def _write_manifest(manifest: RunManifest, path: Path) -> None:
+    """Write the manifest, replacing any earlier version of itself.
+
+    Called before the first request and again when the run ends, so the run
+    directory describes itself from the moment it exists. A run killed in
+    between leaves `status: running`, which is how a partial audit is told from
+    a complete one.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _guard_run_directory(directory: Path, *, run_id: str) -> None:
+    """Refuse to write a second run into another run's directory.
+
+    `output.dir` is the user's to set, and dropping `{run_id}` from it points
+    every run at one place. The JSONL is opened in append mode and the manifest
+    is overwritten, so the result is one file holding two runs described by a
+    manifest that accounts for half of it. Appending under the same run id is
+    deliberate - that is what `--run-id` is for - so only a different one is an
+    error.
+    """
+    existing = _existing_run_id(directory / MANIFEST_FILENAME)
+    if existing is None or existing == run_id:
+        return
+
+    raise ConfigError(
+        f"{directory} already holds run {existing}, and this run is {run_id}. "
+        "Two runs cannot share a directory: the responses would be appended to "
+        "one file and the manifest would describe only the newer run. Keep "
+        "`{run_id}` in the audit's `output.dir`, or pass `--run-id "
+        f"{existing}` to add to that run on purpose."
+    )
+
+
+def _existing_run_id(path: Path) -> str | None:
+    """The run id a directory already claims, or None if it claims none.
+
+    Unreadable is treated as absent: this guard exists to catch a misconfigured
+    `output.dir`, not to police a directory the user has been editing.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    run_id = data.get("run_id") if isinstance(data, dict) else None
+    return run_id if isinstance(run_id, str) else None
+
+
+def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
     """Look up the one variable this audit names, if the provider needs a key.
 
     There is no fallback chain: the audit names a variable, and that variable
     either holds a key or the run stops here - before anything is sent, and
     before any output directory is created.
+
+    Public because `collect --background` has to make the same check, with the
+    same message, before it hands back a pid for a run that could never work.
     """
     if not provider.requires_api_key:
         return None
@@ -264,6 +413,14 @@ async def _dispatch(
                 continue
             writer.write(record)
             state.record(record.status)
+            log.info(
+                "%s  message=%s repeat=%d attempts=%d latency_ms=%d",
+                record.status,
+                record.message_id,
+                record.repeat,
+                record.attempts,
+                record.latency_ms,
+            )
             if on_record is not None:
                 on_record(record)
     except BaseException:
@@ -296,10 +453,20 @@ async def _attempt(
             last_error = exc
             if not provider.is_retryable(exc) or attempts > config.execution.max_retries:
                 break
-            await asyncio.sleep(min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF))
+            delay = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
+            log.warning(
+                "retrying  message=%s repeat=%d attempt=%d/%d in=%.1fs %s: %s",
+                request.message.id,
+                request.repeat,
+                attempts,
+                config.execution.max_retries,
+                delay,
+                type(exc).__name__,
+                exc,
+            )
+            await asyncio.sleep(delay)
             continue
 
-        extracted = provider.extract(raw)
         return _record(
             request,
             model_name=provider.describe_model(request.model),
@@ -308,11 +475,17 @@ async def _attempt(
             started=started,
             attempts=attempts,
             status="ok",
-            text=extracted.text,
-            usage=extracted.usage,
             raw=raw,
         )
 
+    log.error(
+        "giving up  message=%s repeat=%d attempts=%d %s: %s",
+        request.message.id,
+        request.repeat,
+        attempts,
+        type(last_error).__name__,
+        last_error,
+    )
     return _record(
         request,
         model_name=provider.describe_model(request.model),
@@ -334,8 +507,6 @@ def _record(
     started: datetime,
     attempts: int,
     status: str,
-    text: str | None = None,
-    usage: dict[str, Any] | None = None,
     raw: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> ResponseRecord:
@@ -355,8 +526,6 @@ def _record(
         status=status,  # type: ignore[arg-type]
         error=error,
         attempts=attempts,
-        text=text,
-        usage=usage,
         raw=raw or {},
     )
 

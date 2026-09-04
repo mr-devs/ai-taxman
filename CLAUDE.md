@@ -71,8 +71,8 @@ changing, or breaking one provider must not touch another.
 
 Inside each provider, separate:
 
-- **pure**: `build_request(...)`, `extract(raw)` — no I/O, unit-tested against checked-in JSON
-  fixtures in `tests/providers/<name>/fixtures/`.
+- **pure**: `build_request(...)` — no I/O, unit-tested against checked-in JSON fixtures in
+  `tests/providers/<name>/fixtures/`.
 - **thin I/O**: `send(...)` — the only function that touches the network, kept as small as possible
   and not exercised in the default test run.
 
@@ -142,16 +142,77 @@ block, call `provider.validate_model_config(block)`. `tests/test_conventions.py`
 suite if `core/` or `cli/` reads a known provider key, imports `providers.<name>`, or
 hardcodes a provider's name.
 
+## Collection never parses a response
+
+`taxman collect` sends messages and writes what came back. It does **not** extract, clean,
+summarise, or derive anything from a provider's response. There was a `Provider.extract()`
+producing `text` and `usage` convenience fields; it is gone, and
+`tests/test_collection_only.py` fails the suite if it or anything like it reappears —
+including a provider defining its own `extract_*` function.
+
+Parsing is a separate tool's job, working from `raw` on disk. Keeping the two apart means a
+change to how responses are read can never alter what was collected, and a re-read of an old
+run always gives the same answer as a fresh one.
+
+`response.model_dump(mode="json")` in `send()` is serialisation, not extraction: it is what
+makes the SDK's object writable at all.
+
 ## Record schema is stable
 
-`core/records.py` defines the JSONL row, shared by all providers. `raw` holds the provider response
-verbatim; `text` and `usage` are convenience fields produced by `provider.extract()`.
+`core/records.py` defines the JSONL row, shared by all providers. `raw` holds the provider
+response verbatim, and is the only response data in the row.
 
-Changes are **additive only** — auditors depend on old data staying readable. Removing or renaming a
-field is a breaking change and needs a version note in the README.
+Changes are **additive** — auditors depend on old data staying readable. Removing or renaming a
+field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
+"Schema versions" table. That has happened once, for v2 (`text` and `usage` removed).
 
 Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
-hash, counts, timings. Reproducibility is the point of an audit tool.
+hash, counts, timings, and `status`. Reproducibility is the point of an audit tool.
+
+It is written **before the first request** and rewritten when the run ends, never only at the
+end. A run killed halfway through still says what it was running, with which settings, and how
+many responses it expected — without that denominator a run cut off at 40% is indistinguishable
+from a complete run over a shorter message file. `status` is `running` until the run ends, then
+`complete`, `stopped_early`, `interrupted`, or `failed`.
+
+One directory holds exactly one run. `output.dir` is the user's to set, and dropping `{run_id}`
+from it would append two runs into one file under a manifest describing only the later one, so
+the runner refuses a directory that already claims a different `run_id`. The same id is allowed
+— that is what appending to a named run means.
+
+Everything on disk is written as it is produced. Responses are flushed per row, so an audit that
+is killed keeps every response already paid for, and `read_jsonl` stops at a truncated tail
+rather than raising — including a gzip stream with no end-of-stream marker.
+
+## Logging and background runs
+
+`core/logging.py` owns the format and `setup_logging()`; **core modules only ever ask for a
+logger and emit**. Handlers are attached by `cli/collect_cmd.py`, never by the library, and a
+`NullHandler` on the package logger keeps the Python API silent. Log records go to stderr so
+stdout stays the command's own; `--log-file` redirects them to a path instead.
+
+**The API key is never logged**, at any level, and neither is message text — ids and counts
+only. `tests/core/test_logging.py` asserts both.
+
+`collect --background` re-runs taxman as a detached child (`cli/background.py`): the parent
+validates the audit, picks the `run_id`, spawns `python -m ai_taxman collect ... --run-id ...`
+in a new session, and exits. Three rules:
+
+- **The parent validates first.** A pid handed back for a run that could never work is worse
+  than an error at the prompt.
+- **The parent picks the run id**, because otherwise nothing could name the directory or the
+  log before the child starts. That is what `--run-id` is for; it also makes appending to a
+  named run possible, which the collision guard deliberately allows. A user-supplied id goes
+  through `records.validate_run_id()` first — it is interpolated into `output.dir` and then
+  resolved as a path, so `..` or `/` in one would move the data elsewhere on disk while every
+  record still claimed the id. The runner validates too, so the Python API is held to the same
+  rule.
+- **stdout is the pid and nothing else**, like `docker run -d`. The human block goes to
+  stderr. Do not add fields to stdout — `PID=$(taxman collect probe -b)` is the whole point.
+
+SIGTERM is a *graceful* stop: `run_audit_async(stop_signals=...)` sets the runner's stop flag,
+so in-flight requests finish and the manifest is finalised. The default is no signal handling,
+because a library does not take its caller's handlers.
 
 ## Repeat semantics
 

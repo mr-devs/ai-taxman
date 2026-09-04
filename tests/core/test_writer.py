@@ -19,8 +19,6 @@ def make_record(message_id="m0000", repeat=0):
         received_at="2026-08-30T00:00:01.000000Z",
         latency_ms=1000,
         status="ok",
-        text="hi",
-        usage=None,
         raw={},
     )
 
@@ -89,7 +87,7 @@ def test_rows_are_readable_before_the_writer_closes(tmp_path):
 def test_keeps_unicode_unescaped(tmp_path):
     target = tmp_path / "responses.jsonl"
     record = make_record()
-    record.text = "¿qué tal? 🧾"
+    record.raw = {"text": "¿qué tal? 🧾"}
 
     with JsonlWriter(target) as writer:
         writer.write(record)
