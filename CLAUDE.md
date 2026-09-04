@@ -349,7 +349,28 @@ and update `docs/provider-apis/` if the URL moved.
 7. Confirm the conformance suite (`tests/providers/test_conformance.py`) picks it up and passes.
 8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.
 
-## Commit messages
+## Commits
+
+**Small commits, tiny messages.** One behaviour per commit — the failing test, the code that
+passes it, and the doc line that describes it, together. A commit that needs "and" in its
+subject is two commits.
+
+The message is a **single imperative line**, no body, no period, no `type:` prefix, no issue
+number. Aim for five to nine words. It says what the change *does for a user of the code*,
+not which files moved:
+
+```
+Validate a run id before it becomes a path
+Write the manifest as the run happens, not after it
+Collect responses without parsing them
+Use the run id a background run was given
+```
+
+Not `Update discovery.py`, not `fix bug`, not `refactor(core): rework audit resolution`.
+
+If the reasoning is too long for the line, it is not commit-message material — it belongs in
+a docstring or in this file, next to the rule it explains, where the next reader will
+actually find it. Git history is an index, not documentation.
 
 Describe the change and nothing else. No AI attribution of any kind — no co-author trailers, no
 session links, no "generated with" lines.
