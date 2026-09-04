@@ -19,12 +19,42 @@ def test_lists_local_audits(invoke, tmp_path):
     assert "probe" in result.output
 
 
-def test_lists_global_audits(invoke, tmp_path):
-    make_audit(tmp_path / "taxman-home" / "audits", "shared")
+def test_lists_audits_from_a_subdirectory_of_the_project(invoke, tmp_path, monkeypatch):
+    """The root is found by walking up, so any directory inside a project works."""
+    make_audit(tmp_path / "audits", "probe")
+    deep = tmp_path / "messages" / "nested"
+    deep.mkdir(parents=True)
+    monkeypatch.chdir(deep)
 
     result = invoke("audits", "list")
 
-    assert "shared" in result.output
+    assert result.exit_code == 0
+    assert "probe" in result.output
+
+
+def test_listing_outside_a_project_says_so(invoke, leave_project):
+    result = invoke("audits", "list")
+
+    assert result.exit_code != 0
+    assert "not a taxman project" in result.output.lower()
+    assert "taxman init" in result.output
+
+
+def test_a_stray_audits_directory_does_not_make_a_project(invoke, leave_project, tmp_path):
+    """An unrelated `audits/` folder must never be adopted as a project root."""
+    make_audit(tmp_path / "audits", "unrelated")
+
+    result = invoke("audits", "list")
+
+    assert result.exit_code != 0
+    assert "unrelated" not in result.output
+
+
+def test_collecting_outside_a_project_says_so(invoke, leave_project):
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "not a taxman project" in result.output.lower()
 
 
 def test_says_so_when_there_are_no_audits(invoke):

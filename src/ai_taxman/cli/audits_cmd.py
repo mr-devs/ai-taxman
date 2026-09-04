@@ -9,7 +9,7 @@ import yaml
 
 from ai_taxman.cli.completion import complete_audit
 from ai_taxman.cli.util import fail, handles_taxman_errors
-from ai_taxman.core.discovery import find_audit, list_audits
+from ai_taxman.core.discovery import audits_dir, find_audit, list_audits, require_project_root
 from ai_taxman.core.messages import read_messages
 from ai_taxman.core.registry import get_provider
 
@@ -21,15 +21,22 @@ AuditName = Annotated[str, typer.Argument(help="Audit name.", autocompletion=com
 @audits_app.command("list")
 @handles_taxman_errors
 def list_command() -> None:
-    """List every audit in ./audits and ~/.taxman/audits."""
-    refs = list_audits()
+    """List every audit in this project."""
+    # Naming the root answers "am I in the right directory?" directly, which is
+    # the question an unexpected listing always turns out to be.
+    root = require_project_root()
+    refs = list_audits(root=root)
+    typer.echo(f"# project: {root}")
+
     if not refs:
-        typer.echo("No audits found. Create one with `taxman init <provider> <audit>`.")
+        typer.echo(
+            f"No audits in {audits_dir(root)}. Create one with `taxman init <provider> <audit>`."
+        )
         return
 
     width = max(len(ref.name) for ref in refs)
     for ref in refs:
-        typer.echo(f"{ref.name:<{width}}  {ref.source:<6}  {ref.path}")
+        typer.echo(f"{ref.name:<{width}}  {ref.path}")
 
 
 @audits_app.command("show")

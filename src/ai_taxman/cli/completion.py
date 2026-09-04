@@ -25,7 +25,11 @@ def complete_provider(incomplete: str) -> list[str]:
 
 
 def complete_audit(incomplete: str) -> list[str]:
-    """Audit names visible from here, local and global."""
+    """Audit names in the project the shell is standing in.
+
+    Outside a project there is nothing to complete, and the blanket `except`
+    below is what turns that into an empty list rather than a broken prompt.
+    """
     try:
         return [ref.name for ref in list_audits() if ref.name.startswith(incomplete)]
     except Exception:  # noqa: BLE001

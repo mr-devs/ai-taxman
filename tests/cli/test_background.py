@@ -19,11 +19,13 @@ from pathlib import Path
 import pytest
 
 from ai_taxman.cli.background import PID_FILENAME, build_child_command
+from ai_taxman.core.discovery import write_marker
 
 AUDIT = "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
 
 
 def make_project(tmp_path, body=AUDIT, messages="one\ntwo\nthree\n"):
+    write_marker(tmp_path)
     (tmp_path / "messages").mkdir(exist_ok=True)
     (tmp_path / "messages" / "probe.txt").write_text(messages, encoding="utf-8")
     (tmp_path / "audits").mkdir(exist_ok=True)

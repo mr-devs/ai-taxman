@@ -298,7 +298,7 @@ for a run that was never going to work.
 | `taxman doctor` | Check PATH and tab completion, and offer to fix them |
 | `taxman init <provider> <audit>` | Scaffold an audit YAML in `./audits/` |
 | `taxman collect <audit>` | Run an audit |
-| `taxman audits list` | List audits in `./audits` and `~/.taxman/audits` |
+| `taxman audits list` | List the audits in this project |
 | `taxman audits show <audit>` | Print an audit's fully resolved settings |
 | `taxman audits validate <audit>` | Check an audit without sending anything |
 | `taxman providers` | List the providers this install can audit |

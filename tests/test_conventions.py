@@ -106,3 +106,73 @@ def test_no_provider_name_is_hardcoded_in_core():
                     offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
 
     assert not offenders, "Provider named in core:\n" + "\n".join(offenders)
+
+
+# --- project scope --------------------------------------------------------
+
+#: taxman is project-scoped top to bottom. See CLAUDE.md.
+GLOBAL_AUDITS = re.compile(r"~/\.taxman/audits|taxman_home\(\)\s*/\s*[\"']audits|global_dir")
+
+
+@pytest.mark.parametrize("path", project_files(), ids=lambda p: str(p.relative_to(ROOT)))
+def test_no_user_global_audit_directory_anywhere(path):
+    """There is no `~/.taxman/audits`, and there never will be."""
+    offenders = [
+        f"{path.relative_to(ROOT)}:{number}: {line.strip()}"
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if GLOBAL_AUDITS.search(line)
+    ]
+
+    assert not offenders, (
+        "Audits are project-scoped; a global one is invisible to the repo that "
+        "depends on it:\n" + "\n".join(offenders)
+    )
+
+
+def test_the_project_scope_rule_is_written_down_in_claude_md():
+    """The guard is only half the rule; the other half has to be documented."""
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+
+    assert "project-scoped" in text.lower()
+
+
+def test_the_marker_is_a_marker_not_a_config_file():
+    """One key, forever. A project-level setting is the config channel we deleted."""
+    import yaml
+
+    from ai_taxman.core.discovery import MARKER_TEXT, MARKER_VERSION, MARKER_VERSION_KEY
+
+    assert yaml.safe_load(MARKER_TEXT) == {MARKER_VERSION_KEY: MARKER_VERSION}
+
+
+def test_core_ignores_every_other_key_in_the_marker(tmp_path):
+    """A setting smuggled into the marker must have no effect at all."""
+    from ai_taxman.core.config import load_audit
+    from ai_taxman.core.discovery import MARKER_FILENAME, write_marker
+
+    write_marker(tmp_path)
+    audit = tmp_path / "audits" / "probe.yaml"
+    audit.parent.mkdir()
+    audit.write_text(
+        "audit: probe\nprovider: openai\nmessages: messages/probe.txt\nmodel:\n  name: gpt-5\n",
+        encoding="utf-8",
+    )
+    plain = load_audit(audit).model_dump(mode="json")
+
+    (tmp_path / MARKER_FILENAME).write_text(
+        "taxman_project: 1\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
+        encoding="utf-8",
+    )
+
+    assert load_audit(audit).model_dump(mode="json") == plain
+
+
+def test_remembered_state_is_only_ever_skip_flags():
+    """`~/.taxman/state.yaml` holds facts about the machine, never about an audit."""
+    from dataclasses import fields
+
+    from ai_taxman.core.state import State
+
+    for field in fields(State):
+        assert field.name.startswith("skip_"), f"{field.name} is not a doctor skip flag"
+        assert field.type in ("bool", bool), f"{field.name} is not a yes/no answer"

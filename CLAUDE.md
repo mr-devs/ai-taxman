@@ -221,6 +221,35 @@ list of `(message_id, repeat_index)` pairs — the full cartesian product — an
 concurrency-limited pool. Repeats interleave; they are **not** sequential passes over the file. Do
 not "optimize" this into a loop of passes.
 
+## Everything is project-scoped
+
+taxman is a **project tool, top to bottom**. An audit belongs to a project on disk, next to
+the messages it sends and the data it collects, the way a `pyproject.toml` belongs to a
+package. There is no user-global audit, and **there never will be**.
+
+- **No `~/.taxman/audits/`.** No global audit directory, no search fallback, no
+  local-shadows-global precedence, and no `source: local | global` on a discovered audit.
+- **One name resolves to exactly one file**: `<project root>/audits/<name>.yaml`. If it
+  isn't there, that is a hard error naming the root that was searched — never a quiet
+  second lookup somewhere else.
+- **Outside a project is an error, not a fallback.** A command that needs an audit and
+  finds no project root says so plainly ("this directory is not a taxman project") instead
+  of guessing at the current working directory.
+
+`~/.taxman/` survives for exactly one thing: `state.yaml`, the remembered "no, don't ask
+again" from `doctor`. That is a fact about the machine, not about an audit. Nothing else
+belongs in it — an audit, a provider default, a key, a message file, an output path, none
+of it.
+
+The reason is reproducibility, which is the whole point of an audit tool. A global audit
+is invisible in the repo that depends on it: a collaborator clones the project, runs the
+same command, and silently gets a different audit or none at all, and the manifest cannot
+record what it could not see. Precedence rules make that worse, not better — "it worked on
+my machine" is exactly the shadowing bug they produce.
+
+If an audit is worth reusing across projects, it is worth committing to each one, or
+distributing as a file people copy. Both leave a trace on disk. A hidden global does not.
+
 ## The project root
 
 The root is found by walking **up** from the working directory to the nearest `taxman.yaml`
@@ -256,7 +285,7 @@ src/ai_taxman/
 docs/provider-apis/   # API docs per provider - read before touching provider code
 ```
 
-Audit YAMLs resolve `./audits/<name>.yaml` first, then `~/.taxman/audits/<name>.yaml`. Local wins.
+Audit YAMLs resolve to `<project root>/audits/<name>.yaml`, and nowhere else.
 
 ## Commands
 

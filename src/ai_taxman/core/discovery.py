@@ -1,23 +1,21 @@
 """The project root, and resolving an audit name to the file that defines it.
 
-A taxman project is any directory holding a `taxman.yaml` marker. The root is
-found by walking *up* from the working directory to the nearest one, the way git
-finds `.git`, so a command works from anywhere inside a project.
+taxman is project-scoped from top to bottom. A project is any directory holding
+a `taxman.yaml` marker, and its audits live in exactly one place:
+`<root>/audits/<name>.yaml`. There is no user-global audit directory, no search
+fallback, and no precedence rule — one name resolves to one file, or to an error
+naming the directory that was searched.
 
-The marker is a visible file rather than the presence of `audits/`: `audits/` is
-a common directory name in exactly the repositories taxman's users keep, and a
-walk-up matching it would adopt an unrelated folder as a project root.
+The root is found by walking *up* from the working directory to the nearest
+marker, the way git finds `.git`, so every command works from anywhere inside a
+project. The marker is a visible file rather than the presence of `audits/`:
+`audits/` is a common directory name in exactly the repositories taxman's users
+keep, and a walk-up matching it would adopt an unrelated folder as a project
+root and write collected data into it.
 
 `taxman.yaml` is a marker, not a config file. The only key read from it is its
 schema version, which exists so a project written by a newer taxman is refused
 rather than misread. Settings live in the audit.
-
-`taxman collect <name>` takes a bare name, not a path. Names resolve against the
-project-local `./audits/` directory first, then the user-global
-`~/.taxman/audits/`, so an audit committed alongside a research project always
-shadows a personal one of the same name.
-
-A path to a YAML file is also accepted anywhere a name is, for one-off runs.
 """
 
 from __future__ import annotations
@@ -25,7 +23,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 import yaml
 
@@ -55,38 +52,28 @@ MARKER_TEXT = f"""\
 """
 
 AUDITS_DIR_NAME = "audits"
-GLOBAL_DIR_ENV_VAR = "TAXMAN_HOME"
-GLOBAL_DIR_DEFAULT = Path("~/.taxman")
 
-Source = Literal["local", "global"]
+#: Home for `doctor`'s remembered answers - a fact about the machine, never
+#: about an audit. Nothing project-scoped may be stored here.
+HOME_ENV_VAR = "TAXMAN_HOME"
+HOME_DEFAULT = Path("~/.taxman")
 
 
 @dataclass(frozen=True, slots=True)
 class AuditRef:
-    """An audit file found on disk, with where it was found."""
+    """An audit file found in the project."""
 
     name: str
     path: Path
-    source: Source
-
-
-def default_local_dir() -> Path:
-    """The project-local audit directory: `./audits`."""
-    return Path.cwd() / AUDITS_DIR_NAME
 
 
 def taxman_home() -> Path:
     """The user-global taxman directory, honouring `TAXMAN_HOME`.
 
-    Holds user-global audits and the `doctor` state file.
+    Holds `doctor`'s `state.yaml` and nothing else.
     """
-    root = os.environ.get(GLOBAL_DIR_ENV_VAR)
-    return Path(root) if root else GLOBAL_DIR_DEFAULT.expanduser()
-
-
-def default_global_dir() -> Path:
-    """The user-global audit directory."""
-    return taxman_home() / AUDITS_DIR_NAME
+    root = os.environ.get(HOME_ENV_VAR)
+    return Path(root) if root else HOME_DEFAULT.expanduser()
 
 
 def find_project_root(start: Path | None = None) -> Path | None:
@@ -143,6 +130,68 @@ def audits_dir(root: Path) -> Path:
     return Path(root) / AUDITS_DIR_NAME
 
 
+def find_audit(
+    name: str,
+    *,
+    root: Path | None = None,
+    start: Path | None = None,
+) -> Path:
+    """Return the YAML file defining the audit called `name`.
+
+    `name` may also be a path to a YAML file, for a one-off run — but it must be
+    inside the project, since that is what its relative paths resolve against.
+    """
+    root = root if root is not None else require_project_root(start)
+    directory = audits_dir(root)
+
+    direct = Path(name)
+    if direct.suffix in YAML_SUFFIXES:
+        return _resolve_direct_path(direct, root)
+
+    for suffix in YAML_SUFFIXES:
+        candidate = directory / f"{name}{suffix}"
+        if candidate.is_file():
+            return candidate
+
+    raise AuditNotFoundError(_not_found_message(name, directory, list_audits(root=root)))
+
+
+def list_audits(
+    *,
+    root: Path | None = None,
+    start: Path | None = None,
+) -> list[AuditRef]:
+    """Every audit in the project, sorted by name.
+
+    Used by `taxman audits list` and by shell completion, so a missing `audits/`
+    directory is an empty list rather than an error. Being outside a project is
+    still an error — completion swallows it.
+    """
+    root = root if root is not None else require_project_root(start)
+    return sorted(
+        (AuditRef(name=path.stem, path=path) for path in _yaml_files(audits_dir(root))),
+        key=lambda ref: ref.name,
+    )
+
+
+def _resolve_direct_path(path: Path, root: Path) -> Path:
+    if not path.is_file():
+        raise AuditNotFoundError(f"No audit file at {path}.")
+
+    try:
+        inside = path.resolve().is_relative_to(root.resolve())
+    except OSError:
+        inside = False
+
+    if not inside:
+        raise AuditNotFoundError(
+            f"{path} is outside the taxman project at {root}. An audit's relative "
+            "paths resolve against the project root, so it has to live inside one — "
+            f"move it into {audits_dir(root)}."
+        )
+    return path
+
+
 def _marker_version(path: Path) -> int:
     """The marker's schema version.
 
@@ -161,58 +210,6 @@ def _marker_version(path: Path) -> int:
     return version if isinstance(version, int) else MARKER_VERSION
 
 
-def find_audit(
-    name: str,
-    *,
-    local_dir: Path | None = None,
-    global_dir: Path | None = None,
-) -> Path:
-    """Return the YAML file defining the audit called `name`.
-
-    `name` may also be a path to a YAML file, which is used as-is. Raises
-    `AuditNotFoundError` naming the audits that *are* available.
-    """
-    direct = Path(name)
-    if direct.suffix in YAML_SUFFIXES and direct.is_file():
-        return direct
-
-    local_dir = local_dir if local_dir is not None else default_local_dir()
-    global_dir = global_dir if global_dir is not None else default_global_dir()
-
-    for directory in (local_dir, global_dir):
-        for suffix in YAML_SUFFIXES:
-            candidate = directory / f"{name}{suffix}"
-            if candidate.is_file():
-                return candidate
-
-    raise AuditNotFoundError(
-        _not_found_message(name, list_audits(local_dir=local_dir, global_dir=global_dir))
-    )
-
-
-def list_audits(
-    *,
-    local_dir: Path | None = None,
-    global_dir: Path | None = None,
-) -> list[AuditRef]:
-    """Return every audit visible from here, sorted by name.
-
-    Local audits shadow global ones of the same name. Used by `taxman audits
-    list` and by shell completion, so it never raises on a missing directory.
-    """
-    local_dir = local_dir if local_dir is not None else default_local_dir()
-    global_dir = global_dir if global_dir is not None else default_global_dir()
-
-    found: dict[str, AuditRef] = {}
-    scan: tuple[tuple[Path, Source], ...] = ((global_dir, "global"), (local_dir, "local"))
-    for directory, source in scan:
-        for path in _yaml_files(directory):
-            # Local is scanned second, so it overwrites the global entry.
-            found[path.stem] = AuditRef(name=path.stem, path=path, source=source)
-
-    return sorted(found.values(), key=lambda ref: ref.name)
-
-
 def _yaml_files(directory: Path) -> list[Path]:
     try:
         entries = sorted(directory.iterdir())
@@ -220,19 +217,19 @@ def _yaml_files(directory: Path) -> list[Path]:
         return []
 
     # Reverse suffix order so `.yaml` is scanned last and wins over `.yml`.
-    return [
-        path
-        for suffix in reversed(YAML_SUFFIXES)
-        for path in entries
-        if path.suffix == suffix and path.is_file()
-    ]
+    seen: dict[str, Path] = {}
+    for suffix in reversed(YAML_SUFFIXES):
+        for path in entries:
+            if path.suffix == suffix and path.is_file():
+                seen[path.stem] = path
+    return list(seen.values())
 
 
-def _not_found_message(name: str, available: list[AuditRef]) -> str:
+def _not_found_message(name: str, directory: Path, available: list[AuditRef]) -> str:
     if not available:
         return (
-            f"No audit named {name!r}, and no audits were found in ./audits or "
-            "~/.taxman/audits. Create one with `taxman init <provider>`."
+            f"No audit named {name!r}, and there are no audits in {directory}. "
+            "Create one with `taxman init <provider> <audit>`."
         )
     names = ", ".join(ref.name for ref in available)
-    return f"No audit named {name!r}. Available audits: {names}."
+    return f"No audit named {name!r} in {directory}. Available audits: {names}."

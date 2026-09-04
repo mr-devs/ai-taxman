@@ -1,3 +1,11 @@
+"""Finding the project root, and the audits inside it.
+
+taxman is project-scoped top to bottom: an audit lives in exactly one place,
+`<project root>/audits/<name>.yaml`, and there is no user-global fallback. The
+root is the nearest ancestor holding a `taxman.yaml` marker, so every command
+works from anywhere inside a project.
+"""
+
 import pytest
 
 from ai_taxman.core.discovery import (
@@ -14,143 +22,22 @@ from ai_taxman.core.errors import AuditNotFoundError, ConfigError, NotATaxmanPro
 
 
 @pytest.fixture
-def roots(tmp_path):
-    """A local ./audits dir and a global ~/.taxman/audits dir."""
-    local = tmp_path / "project" / "audits"
-    glob = tmp_path / "home" / ".taxman" / "audits"
-    local.mkdir(parents=True)
-    glob.mkdir(parents=True)
-    return local, glob
+def project(tmp_path):
+    """A project root with a marker and an empty `audits/` directory."""
+    root = tmp_path / "project"
+    (root / "audits").mkdir(parents=True)
+    write_marker(root)
+    return root
 
 
 def make(directory, name, suffix=".yaml"):
+    directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}{suffix}"
     path.write_text(f"audit: {name}\n", encoding="utf-8")
     return path
 
 
-def test_finds_an_audit_in_the_local_directory(roots):
-    local, glob = roots
-    expected = make(local, "election")
-
-    assert find_audit("election", local_dir=local, global_dir=glob) == expected
-
-
-def test_finds_an_audit_in_the_global_directory(roots):
-    local, glob = roots
-    expected = make(glob, "shared")
-
-    assert find_audit("shared", local_dir=local, global_dir=glob) == expected
-
-
-def test_local_wins_over_global(roots):
-    local, glob = roots
-    expected = make(local, "both")
-    make(glob, "both")
-
-    assert find_audit("both", local_dir=local, global_dir=glob) == expected
-
-
-def test_accepts_the_yml_suffix(roots):
-    local, glob = roots
-    expected = make(local, "terse", suffix=".yml")
-
-    assert find_audit("terse", local_dir=local, global_dir=glob) == expected
-
-
-def test_yaml_wins_over_yml_in_the_same_directory(roots):
-    local, glob = roots
-    expected = make(local, "dupe", suffix=".yaml")
-    make(local, "dupe", suffix=".yml")
-
-    assert find_audit("dupe", local_dir=local, global_dir=glob) == expected
-
-
-def test_accepts_a_path_to_a_yaml_file_directly(roots, tmp_path):
-    local, glob = roots
-    elsewhere = tmp_path / "somewhere" / "one-off.yaml"
-    elsewhere.parent.mkdir()
-    elsewhere.write_text("audit: one-off\n", encoding="utf-8")
-
-    assert find_audit(str(elsewhere), local_dir=local, global_dir=glob) == elsewhere
-
-
-def test_unknown_audit_lists_what_is_available(roots):
-    local, glob = roots
-    make(local, "election")
-    make(glob, "refusals")
-
-    with pytest.raises(AuditNotFoundError) as exc:
-        find_audit("typo", local_dir=local, global_dir=glob)
-
-    message = str(exc.value)
-    assert "typo" in message
-    assert "election" in message
-    assert "refusals" in message
-
-
-def test_unknown_audit_with_none_available_suggests_init(roots):
-    local, glob = roots
-
-    with pytest.raises(AuditNotFoundError, match="taxman init"):
-        find_audit("typo", local_dir=local, global_dir=glob)
-
-
-def test_lists_audits_from_both_directories_sorted_by_name(roots):
-    local, glob = roots
-    make(local, "beta")
-    make(glob, "alpha")
-
-    refs = list_audits(local_dir=local, global_dir=glob)
-
-    assert [r.name for r in refs] == ["alpha", "beta"]
-    assert all(isinstance(r, AuditRef) for r in refs)
-
-
-def test_listing_records_where_each_audit_came_from(roots):
-    local, glob = roots
-    make(local, "here")
-    make(glob, "there")
-
-    sources = {r.name: r.source for r in list_audits(local_dir=local, global_dir=glob)}
-
-    assert sources == {"here": "local", "there": "global"}
-
-
-def test_listing_deduplicates_shadowed_audits_keeping_the_local_one(roots):
-    local, glob = roots
-    make(local, "both")
-    make(glob, "both")
-
-    refs = list_audits(local_dir=local, global_dir=glob)
-
-    assert [(r.name, r.source) for r in refs] == [("both", "local")]
-
-
-def test_listing_ignores_non_yaml_files(roots):
-    local, glob = roots
-    make(local, "real")
-    (local / "notes.txt").write_text("ignore me", encoding="utf-8")
-
-    assert [r.name for r in list_audits(local_dir=local, global_dir=glob)] == ["real"]
-
-
-def test_listing_tolerates_missing_directories(tmp_path):
-    refs = list_audits(local_dir=tmp_path / "nope", global_dir=tmp_path / "also-nope")
-
-    assert refs == []
-
-
-# --- the project root -----------------------------------------------------
-
-
-@pytest.fixture
-def project(tmp_path):
-    """A project root, marked."""
-    root = tmp_path / "project"
-    root.mkdir()
-    write_marker(root)
-    return root
+# --- finding the root -----------------------------------------------------
 
 
 def test_the_marker_marks_the_root(project):
@@ -182,7 +69,6 @@ def test_no_marker_anywhere_is_not_a_project(tmp_path):
 def test_an_audits_directory_alone_is_not_a_project(tmp_path):
     """`audits/` is a common directory name; it must never imply a taxman root."""
     stray = tmp_path / "some-repo"
-    (stray / "audits").mkdir(parents=True)
     make(stray / "audits", "unrelated")
 
     assert find_project_root(stray) is None
@@ -229,3 +115,107 @@ def test_writing_a_marker_is_idempotent(tmp_path):
 
 def test_the_audits_directory_hangs_off_the_root(project):
     assert audits_dir(project) == project / "audits"
+
+
+# --- finding one audit ----------------------------------------------------
+
+
+def test_finds_an_audit_in_the_project(project):
+    expected = make(audits_dir(project), "election")
+
+    assert find_audit("election", root=project) == expected
+
+
+def test_accepts_the_yml_suffix(project):
+    expected = make(audits_dir(project), "terse", suffix=".yml")
+
+    assert find_audit("terse", root=project) == expected
+
+
+def test_yaml_wins_over_yml(project):
+    expected = make(audits_dir(project), "dupe", suffix=".yaml")
+    make(audits_dir(project), "dupe", suffix=".yml")
+
+    assert find_audit("dupe", root=project) == expected
+
+
+def test_accepts_a_path_to_a_yaml_file_inside_the_project(project):
+    elsewhere = make(project / "scratch", "one-off")
+
+    assert find_audit(str(elsewhere), root=project) == elsewhere
+
+
+def test_refuses_a_path_to_a_yaml_file_outside_the_project(project, tmp_path):
+    outside = make(tmp_path / "elsewhere", "stray")
+
+    with pytest.raises(AuditNotFoundError, match="outside"):
+        find_audit(str(outside), root=project)
+
+
+def test_unknown_audit_lists_what_is_available(project):
+    make(audits_dir(project), "election")
+    make(audits_dir(project), "refusals")
+
+    with pytest.raises(AuditNotFoundError) as exc:
+        find_audit("typo", root=project)
+
+    message = str(exc.value)
+    assert "typo" in message
+    assert "election" in message
+    assert "refusals" in message
+
+
+def test_unknown_audit_with_none_available_suggests_init(project):
+    with pytest.raises(AuditNotFoundError, match="taxman init"):
+        find_audit("typo", root=project)
+
+
+def test_the_not_found_message_names_the_directory_searched(project):
+    with pytest.raises(AuditNotFoundError) as exc:
+        find_audit("typo", root=project)
+
+    assert str(audits_dir(project)) in str(exc.value)
+
+
+def test_finding_an_audit_outside_a_project_says_so(tmp_path):
+    stray = tmp_path / "not-a-project"
+    stray.mkdir()
+
+    with pytest.raises(NotATaxmanProjectError):
+        find_audit("anything", start=stray)
+
+
+# --- listing --------------------------------------------------------------
+
+
+def test_lists_audits_sorted_by_name(project):
+    make(audits_dir(project), "beta")
+    make(audits_dir(project), "alpha")
+
+    refs = list_audits(root=project)
+
+    assert [r.name for r in refs] == ["alpha", "beta"]
+    assert all(isinstance(r, AuditRef) for r in refs)
+
+
+def test_listing_ignores_non_yaml_files(project):
+    make(audits_dir(project), "real")
+    (audits_dir(project) / "notes.txt").write_text("ignore me", encoding="utf-8")
+
+    assert [r.name for r in list_audits(root=project)] == ["real"]
+
+
+def test_listing_tolerates_a_missing_audits_directory(tmp_path):
+    root = tmp_path / "bare"
+    root.mkdir()
+    write_marker(root)
+
+    assert list_audits(root=root) == []
+
+
+def test_listing_outside_a_project_says_so(tmp_path):
+    stray = tmp_path / "not-a-project"
+    stray.mkdir()
+
+    with pytest.raises(NotATaxmanProjectError):
+        list_audits(start=stray)
