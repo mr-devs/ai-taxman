@@ -5,14 +5,21 @@ The top-level blocks here (`audit`, `provider`, `messages`, `output`,
 is provider-owned and deliberately opaque to this module — it is handed to the
 provider's own validator untouched. That split is what keeps providers isolated.
 
-Relative paths resolve against the audit's *project root*: the parent of the
-containing directory when the file lives in an `audits/` directory, and the
-containing directory otherwise. So the documented layout works as it reads::
+Relative paths resolve against the audit's *project root*: the nearest
+directory at or above the file holding a `taxman.yaml` marker. So the documented
+layout works as it reads, from anywhere inside it::
 
     my-research/
+    |-- taxman.yaml              <- the project root
     |-- audits/election.yaml     messages: messages/election.txt
     |-- messages/election.txt
     `-- data/
+
+A file handed to `load_audit()` directly with no marker above it falls back to
+its own location - the parent of an `audits/` directory, else the containing
+directory. That is a fact about where the file sits, not a guess at the working
+directory, so it stays deterministic wherever it is loaded from. The CLI never
+reaches it: `find_audit()` requires a project first.
 """
 
 from __future__ import annotations
@@ -23,7 +30,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ai_taxman.core.discovery import AUDITS_DIR_NAME
+from ai_taxman.core.discovery import AUDITS_DIR_NAME, find_project_root
 from ai_taxman.core.errors import ConfigError
 
 DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
@@ -79,6 +86,9 @@ class AuditConfig(_Strict):
     def project_root(self) -> Path:
         """The directory relative paths in this file resolve against."""
         directory = self.source_path.parent
+        marked = find_project_root(directory)
+        if marked is not None:
+            return marked
         if directory.name == AUDITS_DIR_NAME:
             return directory.parent
         return directory

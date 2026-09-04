@@ -261,3 +261,27 @@ def test_model_block_defaults_to_empty(tmp_path):
     )
 
     assert load_audit(path).model == {}
+
+
+def test_paths_resolve_against_the_marker_when_there_is_one(tmp_path):
+    """The project root is the marker's directory, however deep the audit sits."""
+    from ai_taxman.core.discovery import write_marker
+
+    write_marker(tmp_path)
+    path = write_audit(tmp_path / "nested" / "deeper")
+
+    config = load_audit(path)
+
+    assert config.project_root == tmp_path
+    assert config.messages_path == tmp_path / "messages" / "probe.txt"
+
+
+def test_output_dir_resolves_against_the_marker_too(tmp_path):
+    from ai_taxman.core.discovery import write_marker
+
+    write_marker(tmp_path)
+    config = load_audit(write_audit(tmp_path / "nested" / "deeper"))
+
+    resolved = resolve_output_dir(config, run_id="r1")
+
+    assert resolved == tmp_path / "data" / "my-audit" / "r1"
