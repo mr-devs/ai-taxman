@@ -202,7 +202,11 @@ in a new session, and exits. Three rules:
   than an error at the prompt.
 - **The parent picks the run id**, because otherwise nothing could name the directory or the
   log before the child starts. That is what `--run-id` is for; it also makes appending to a
-  named run possible, which the collision guard deliberately allows.
+  named run possible, which the collision guard deliberately allows. A user-supplied id goes
+  through `records.validate_run_id()` first — it is interpolated into `output.dir` and then
+  resolved as a path, so `..` or `/` in one would move the data elsewhere on disk while every
+  record still claimed the id. The runner validates too, so the Python API is held to the same
+  rule.
 - **stdout is the pid and nothing else**, like `docker run -d`. The human block goes to
   stderr. Do not add fields to stdout — `PID=$(taxman collect probe -b)` is the whole point.
 

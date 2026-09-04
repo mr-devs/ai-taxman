@@ -229,3 +229,36 @@ def test_an_unknown_log_level_is_refused_by_name(invoke, tmp_path, fake_provider
     assert result.exit_code != 0
     assert "loud" in result.output
     assert len(fake_provider.sent) == 0
+
+
+# --- run ids -------------------------------------------------------------
+
+
+def test_a_named_run_goes_in_a_directory_of_that_name(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--run-id", "pilot")
+
+    assert result.exit_code == 0
+    assert (tmp_path / "data" / "probe" / "pilot" / "responses.jsonl").is_file()
+
+
+def test_a_run_id_that_would_escape_the_data_directory_is_refused(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--run-id", "../../escaped")
+
+    assert result.exit_code != 0
+    assert "escaped" in result.output
+    assert fake_provider.sent == []
+    assert not (tmp_path.parent.parent / "escaped").exists()
+
+
+def test_a_bad_run_id_is_refused_before_anything_is_sent(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--run-id", "two words")
+
+    assert result.exit_code != 0
+    assert fake_provider.sent == []
+    assert not (tmp_path / "data").exists()

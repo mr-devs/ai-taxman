@@ -12,11 +12,14 @@ costs a `RESPONSE_SCHEMA_VERSION` bump and a note in the README.
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from ai_taxman.core.errors import ConfigError
 
 #: Bumped when the shape changes. v1 carried `text` and `usage` alongside `raw`;
 #: v2 carries `raw` alone, because taxman no longer parses a response.
@@ -123,6 +126,54 @@ def new_run_id() -> str:
     The suffix keeps two runs started in the same second distinct.
     """
     return f"{utc_now().strftime(RUN_ID_FORMAT)}-{secrets.token_hex(3)}"
+
+
+#: A run id becomes a directory name and is written into every row, so it is
+#: held to what is safe in both places: letters, digits, dot, dash, underscore.
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+#: Long enough for a timestamp and a description, short enough for a path.
+MAX_RUN_ID_LENGTH = 128
+
+
+def validate_run_id(value: str) -> str:
+    """Return `value` as a usable run id, or say why it is not one.
+
+    The id is interpolated into `output.dir` and then resolved as a path, so an
+    id containing `/` or `..` does not name a run - it moves the run somewhere
+    else on disk, quietly, while every record still claims the id. It is also
+    written into every JSONL row, where a space or a quote makes the data
+    awkward to work with later.
+
+    Surrounding whitespace is trimmed rather than refused: ids get copied out of
+    logs and manifests, and picking up a trailing newline should not be an
+    error.
+    """
+    cleaned = value.strip()
+
+    if not cleaned:
+        raise ConfigError(
+            "The run id is empty. Give one like `--run-id pilot-2`, or leave "
+            "`--run-id` off entirely and taxman will generate a timestamped one."
+        )
+
+    if len(cleaned) > MAX_RUN_ID_LENGTH:
+        raise ConfigError(
+            f"The run id is {len(cleaned)} characters, longer than the "
+            f"{MAX_RUN_ID_LENGTH} allowed. It has to work as a directory name."
+        )
+
+    if not RUN_ID_PATTERN.match(cleaned):
+        raise ConfigError(
+            f"{cleaned!r} cannot be used as a run id. A run id names the "
+            "directory the run is written to and is recorded in every response, "
+            "so it may contain only letters, digits, dots, dashes and "
+            "underscores, and must start with a letter or a digit. An id "
+            "containing `/` or `..` would move the data somewhere else on disk "
+            "while every record still claimed this id."
+        )
+
+    return cleaned
 
 
 def utc_now() -> datetime:

@@ -193,7 +193,7 @@ def _start_in_background(
     )
     from ai_taxman.core.config import resolve_output_dir
     from ai_taxman.core.messages import read_messages
-    from ai_taxman.core.records import new_run_id
+    from ai_taxman.core.records import new_run_id, validate_run_id
     from ai_taxman.core.runner import resolve_key, validate_model
 
     # Everything checkable without doing the run, checked before the fork: a pid
@@ -203,7 +203,9 @@ def _start_in_background(
     resolve_key(provider, config)
 
     # The user's id if they named one, so `-b` behaves like the foreground run.
-    run_id = run_id or new_run_id()
+    # Checked here as well as in the runner: the parent builds the run directory
+    # from it, and that happens before the child is ever started.
+    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
     directory = resolve_output_dir(config, run_id=run_id)
     directory.mkdir(parents=True, exist_ok=True)
 

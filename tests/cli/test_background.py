@@ -351,6 +351,19 @@ def test_a_backgrounded_run_stops_gracefully_when_it_is_killed(echo_project, plu
     assert manifest["n_ok"] < 500  # it stopped, rather than running to the end
 
 
+def test_a_bad_run_id_is_refused_before_a_background_run_is_started(
+    invoke, tmp_path, fake_provider
+):
+    """The parent builds the run directory from the id, so it checks it first."""
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--background", "--run-id", "../../escaped")
+
+    assert result.exit_code != 0
+    assert "pid" not in result.output.lower()
+    assert not (tmp_path / "data").exists()
+
+
 def test_a_background_run_uses_the_run_id_it_was_given(echo_project, plugin_path):
     """--run-id names the run in the foreground; -b must not quietly ignore it."""
     result = run_taxman(echo_project, plugin_path, "--background", "--run-id", "i-asked-for-this")

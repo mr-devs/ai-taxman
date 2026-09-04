@@ -224,6 +224,12 @@ finished one. `n_messages × repeats` is the number of responses to expect.
 Each run gets its own directory. If you edit `output.dir` and drop `{run_id}`,
 the second run into that directory is refused rather than appended to the first.
 
+`--run-id <id>` names a run instead of taking the generated timestamp, and
+running again with the same id adds to it. An id has to work both as a directory
+name and as a field in every record, so it may contain only letters, digits,
+dots, dashes and underscores, and must start with a letter or a digit — anything
+else is refused before the run starts.
+
 ### Watching a run
 
 A collection logs as it goes — one line per response — to the terminal:

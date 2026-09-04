@@ -39,6 +39,7 @@ from ai_taxman.core.records import (
     new_run_id,
     timestamp,
     utc_now,
+    validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
 from ai_taxman.core.writer import JsonlWriter
@@ -126,7 +127,7 @@ async def run_audit_async(
             "Set `execution.batch: false` in the audit."
         )
 
-    run_id = run_id or new_run_id()
+    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
     limit = max_concurrency or config.execution.max_concurrency
     tasks = _expand(messages, config.execution.repeats)
     if config.execution.shuffle:
