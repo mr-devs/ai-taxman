@@ -8,7 +8,7 @@ import typer
 import yaml
 
 from ai_taxman.cli.completion import complete_audit
-from ai_taxman.cli.util import fail, handles_taxman_errors
+from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
 from ai_taxman.core.discovery import audits_dir, find_audit, list_audits, require_project_root
 from ai_taxman.core.messages import read_messages
 from ai_taxman.core.registry import get_provider
@@ -30,13 +30,14 @@ def list_command() -> None:
 
     if not refs:
         typer.echo(
-            f"No audits in {audits_dir(root)}. Create one with `taxman init <provider> <audit>`."
+            f"No audits in {display_path(audits_dir(root))}. "
+            "Create one with `taxman init <provider> <audit>`."
         )
         return
 
     width = max(len(ref.name) for ref in refs)
     for ref in refs:
-        typer.echo(f"{ref.name:<{width}}  {ref.path}")
+        typer.echo(f"{ref.name:<{width}}  {display_path(ref.path)}")
 
 
 @audits_app.command("show")

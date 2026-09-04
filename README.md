@@ -71,11 +71,11 @@ runner's secret mechanism; nothing else changes.
 $ cd ~/research/election-study
 $ taxman init openai election-probe
 Started a taxman project at /Users/you/research/election-study
-  /Users/you/research/election-study/taxman.yaml marks the root; audits and paths resolve against it.
-Created /Users/you/research/election-study/audits/election-probe.yaml
+  taxman.yaml marks the root; audits and paths resolve against it.
+Created audits/election-probe.yaml
 
 Next:
-  1. Write your messages, one per line, in /Users/you/research/election-study/messages/election-probe.txt
+  1. Write your messages, one per line, in messages/election-probe.txt
   2. Review the settings in election-probe.yaml, including `api_key_env`
   3. taxman collect election-probe
 ```

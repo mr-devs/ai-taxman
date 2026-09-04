@@ -21,7 +21,7 @@ import typer
 
 from ai_taxman.cli.completion import complete_provider
 from ai_taxman.cli.render import API_KEY_ENV_PLACEHOLDER, render_audit
-from ai_taxman.cli.util import fail, handles_taxman_errors
+from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
 from ai_taxman.core.discovery import audits_dir, find_project_root, write_marker
 from ai_taxman.core.registry import get_provider
 from ai_taxman.providers.base import Provider
@@ -74,11 +74,11 @@ def init(
     if started_a_project:
         # The root is named in full: "." would not tell the user which project.
         typer.secho(f"Started a taxman project at {root}", fg=typer.colors.GREEN)
-        typer.echo(f"  {marker} marks the root; audits and paths resolve against it.")
-    typer.secho(f"Created {target}", fg=typer.colors.GREEN)
+        typer.echo(f"  {display_path(marker)} marks the root; audits and paths resolve against it.")
+    typer.secho(f"Created {display_path(target)}", fg=typer.colors.GREEN)
     typer.echo("")
     typer.echo("Next:")
-    messages = root / "messages" / f"{audit}.txt"
+    messages = display_path(root / "messages" / f"{audit}.txt")
     typer.echo(f"  1. Write your messages, one per line, in {messages}")
     typer.echo(f"  2. Review the settings in {target.name}, including `api_key_env`")
     typer.echo(f"  3. taxman collect {audit}")
