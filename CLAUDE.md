@@ -269,6 +269,9 @@ it is deleted for the same reasons. Settings live in the audit, which `taxman in
 fully commented. `tests/test_conventions.py` fails the suite if core reads any other key
 out of the marker.
 
+`taxman init` creates the marker when there isn't one — that is what makes a directory a
+project. There is no separate "init a project" command to learn.
+
 ## Layout
 
 ```

@@ -68,19 +68,48 @@ runner's secret mechanism; nothing else changes.
 `init` takes the provider and a name for the audit, and nothing else:
 
 ```console
+$ cd ~/research/election-study
 $ taxman init openai election-probe
-Created audits/election-probe.yaml
+Started a taxman project at /Users/you/research/election-study
+  /Users/you/research/election-study/taxman.yaml marks the root; audits and paths resolve against it.
+Created /Users/you/research/election-study/audits/election-probe.yaml
 
 Next:
-  1. Write your messages, one per line, in messages/election-probe.txt
+  1. Write your messages, one per line, in /Users/you/research/election-study/messages/election-probe.txt
   2. Review the settings in election-probe.yaml, including `api_key_env`
   3. taxman collect election-probe
 ```
 
 That is the whole command — there are no other arguments or flags. Every setting is written
 at its default with a comment saying what it does, so you change things by editing the file
-rather than by memorising options. Audits are always written to `./audits/` in the directory
-you run from.
+rather than by memorising options.
+
+`init` is also what starts a **project**. taxman is project-scoped from top to bottom: audits
+live in `<project>/audits/`, and the `taxman.yaml` it just wrote marks the root that every
+relative path resolves against. There is no separate command to learn — the first audit makes
+the project — and from then on every taxman command works from anywhere inside it, the way
+git does:
+
+```
+~/research/election-study/
+├── taxman.yaml               <- the project root
+├── audits/election-probe.yaml
+├── messages/election-probe.txt
+└── data/
+```
+
+Run `taxman audits list` somewhere that isn't a project and it says so, rather than guessing:
+
+```console
+$ cd /tmp && taxman audits list
+error: this directory is not a taxman project: no taxman.yaml in /tmp or any
+parent directory. Start one with `taxman init <provider> <audit>`, or change to
+a directory inside an existing project.
+```
+
+There are no user-global audits — nothing hidden in your home directory that a collaborator
+who clones your project would not get. If an audit is worth reusing, commit it to each
+project that uses it.
 
 One field is left blank on purpose, because only you know the answer:
 
@@ -296,7 +325,7 @@ for a run that was never going to work.
 | Command | What it does |
 |---|---|
 | `taxman doctor` | Check PATH and tab completion, and offer to fix them |
-| `taxman init <provider> <audit>` | Scaffold an audit YAML in `./audits/` |
+| `taxman init <provider> <audit>` | Scaffold an audit YAML in the project's `audits/`, starting a project if needed |
 | `taxman collect <audit>` | Run an audit |
 | `taxman audits list` | List the audits in this project |
 | `taxman audits show <audit>` | Print an audit's fully resolved settings |

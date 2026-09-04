@@ -164,3 +164,57 @@ def test_the_generated_file_carries_explanatory_comments(invoke, tmp_path):
 
     assert "# Times to send EACH message" in text
     assert "taxman collect probe" in text
+
+
+# --- init is also what makes a project ------------------------------------
+
+
+def test_init_starts_a_project_where_there_is_none(invoke, leave_project, tmp_path):
+    """There is no separate "init a project" step; the first audit makes one."""
+    from ai_taxman.core.discovery import MARKER_FILENAME
+
+    result = invoke("init", "openai", "probe")
+
+    assert result.exit_code == 0
+    assert (tmp_path / MARKER_FILENAME).is_file()
+    assert (tmp_path / "audits" / "probe.yaml").is_file()
+
+
+def test_it_says_it_started_a_project(invoke, leave_project):
+    result = invoke("init", "openai", "probe")
+
+    assert "project" in result.output.lower()
+
+
+def test_an_unknown_provider_leaves_no_half_made_project(invoke, leave_project, tmp_path):
+    from ai_taxman.core.discovery import MARKER_FILENAME
+
+    result = invoke("init", "nope", "probe")
+
+    assert result.exit_code != 0
+    assert not (tmp_path / MARKER_FILENAME).exists()
+    assert not (tmp_path / "audits").exists()
+
+
+def test_a_second_audit_joins_the_existing_project(invoke, tmp_path, monkeypatch):
+    """Run from a subdirectory, the audit still lands in the project's audits/."""
+    invoke("init", "openai", "first")
+    deep = tmp_path / "messages"
+    deep.mkdir(exist_ok=True)
+    monkeypatch.chdir(deep)
+
+    result = invoke("init", "openai", "second")
+
+    assert result.exit_code == 0
+    assert (tmp_path / "audits" / "second.yaml").is_file()
+    assert not (deep / "audits").exists()
+
+
+def test_the_marker_is_not_rewritten_over_a_users_edits(invoke, tmp_path):
+    from ai_taxman.core.discovery import MARKER_FILENAME
+
+    (tmp_path / MARKER_FILENAME).write_text("# mine\ntaxman_project: 1\n", encoding="utf-8")
+
+    invoke("init", "openai", "probe")
+
+    assert "# mine" in (tmp_path / MARKER_FILENAME).read_text(encoding="utf-8")
