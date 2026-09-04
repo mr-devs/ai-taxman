@@ -23,7 +23,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ai_taxman.core.discovery import LOCAL_DIR_NAME
+from ai_taxman.core.discovery import AUDITS_DIR_NAME
 from ai_taxman.core.errors import ConfigError
 
 DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
@@ -79,7 +79,7 @@ class AuditConfig(_Strict):
     def project_root(self) -> Path:
         """The directory relative paths in this file resolve against."""
         directory = self.source_path.parent
-        if directory.name == LOCAL_DIR_NAME:
+        if directory.name == AUDITS_DIR_NAME:
             return directory.parent
         return directory
 

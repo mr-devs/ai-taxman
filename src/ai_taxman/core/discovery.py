@@ -1,4 +1,16 @@
-"""Resolving an audit name to the YAML file that defines it.
+"""The project root, and resolving an audit name to the file that defines it.
+
+A taxman project is any directory holding a `taxman.yaml` marker. The root is
+found by walking *up* from the working directory to the nearest one, the way git
+finds `.git`, so a command works from anywhere inside a project.
+
+The marker is a visible file rather than the presence of `audits/`: `audits/` is
+a common directory name in exactly the repositories taxman's users keep, and a
+walk-up matching it would adopt an unrelated folder as a project root.
+
+`taxman.yaml` is a marker, not a config file. The only key read from it is its
+schema version, which exists so a project written by a newer taxman is refused
+rather than misread. Settings live in the audit.
 
 `taxman collect <name>` takes a bare name, not a path. Names resolve against the
 project-local `./audits/` directory first, then the user-global
@@ -15,12 +27,34 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from ai_taxman.core.errors import AuditNotFoundError
+import yaml
+
+from ai_taxman.core.errors import (
+    AuditNotFoundError,
+    ConfigError,
+    NotATaxmanProjectError,
+)
 
 #: Suffixes recognised as audit files, in precedence order.
 YAML_SUFFIXES = (".yaml", ".yml")
 
-LOCAL_DIR_NAME = "audits"
+#: The file whose presence makes a directory a taxman project.
+MARKER_FILENAME = "taxman.yaml"
+
+#: The only key core reads out of the marker. See the module docstring.
+MARKER_VERSION_KEY = "taxman_project"
+MARKER_VERSION = 1
+
+MARKER_TEXT = f"""\
+# Marks the root of a taxman project. Audits live in ./audits, and the relative
+# paths inside them (messages, output.dir) resolve against this directory.
+#
+# This is a marker, not a config file: settings belong in the audit YAML, which
+# `taxman init` writes fully commented.
+{MARKER_VERSION_KEY}: {MARKER_VERSION}
+"""
+
+AUDITS_DIR_NAME = "audits"
 GLOBAL_DIR_ENV_VAR = "TAXMAN_HOME"
 GLOBAL_DIR_DEFAULT = Path("~/.taxman")
 
@@ -38,7 +72,7 @@ class AuditRef:
 
 def default_local_dir() -> Path:
     """The project-local audit directory: `./audits`."""
-    return Path.cwd() / LOCAL_DIR_NAME
+    return Path.cwd() / AUDITS_DIR_NAME
 
 
 def taxman_home() -> Path:
@@ -52,7 +86,79 @@ def taxman_home() -> Path:
 
 def default_global_dir() -> Path:
     """The user-global audit directory."""
-    return taxman_home() / LOCAL_DIR_NAME
+    return taxman_home() / AUDITS_DIR_NAME
+
+
+def find_project_root(start: Path | None = None) -> Path | None:
+    """The nearest directory at or above `start` holding a marker, or None."""
+    current = Path(start) if start is not None else Path.cwd()
+    try:
+        current = current.resolve()
+    except OSError:
+        return None
+
+    for directory in (current, *current.parents):
+        if (directory / MARKER_FILENAME).is_file():
+            return directory
+    return None
+
+
+def require_project_root(start: Path | None = None) -> Path:
+    """The project root, or a `NotATaxmanProjectError` explaining how to get one.
+
+    Also refuses a project written by a newer taxman, which is the only reason
+    the marker carries a version at all.
+    """
+    root = find_project_root(start)
+    if root is None:
+        searched = Path(start) if start is not None else Path.cwd()
+        raise NotATaxmanProjectError(
+            f"this directory is not a taxman project: no {MARKER_FILENAME} in "
+            f"{searched} or any parent directory. Start one with "
+            "`taxman init <provider> <audit>`, or change to a directory inside "
+            "an existing project."
+        )
+
+    version = _marker_version(root / MARKER_FILENAME)
+    if version > MARKER_VERSION:
+        raise ConfigError(
+            f"{root / MARKER_FILENAME} was written by a newer version of taxman "
+            f"({MARKER_VERSION_KEY}: {version}; this taxman understands "
+            f"{MARKER_VERSION}). Upgrade taxman to use this project."
+        )
+    return root
+
+
+def write_marker(root: Path) -> Path:
+    """Make `root` a taxman project, leaving an existing marker untouched."""
+    path = Path(root) / MARKER_FILENAME
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(MARKER_TEXT, encoding="utf-8")
+    return path
+
+
+def audits_dir(root: Path) -> Path:
+    """The one directory a project's audits live in."""
+    return Path(root) / AUDITS_DIR_NAME
+
+
+def _marker_version(path: Path) -> int:
+    """The marker's schema version.
+
+    A marker is a marker: an unreadable or unversioned one is treated as the
+    current version rather than failing a run the user was in the middle of.
+    """
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return MARKER_VERSION
+
+    if not isinstance(data, dict):
+        return MARKER_VERSION
+
+    version = data.get(MARKER_VERSION_KEY, MARKER_VERSION)
+    return version if isinstance(version, int) else MARKER_VERSION
 
 
 def find_audit(

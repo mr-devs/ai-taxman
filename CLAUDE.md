@@ -221,6 +221,25 @@ list of `(message_id, repeat_index)` pairs — the full cartesian product — an
 concurrency-limited pool. Repeats interleave; they are **not** sequential passes over the file. Do
 not "optimize" this into a loop of passes.
 
+## The project root
+
+The root is found by walking **up** from the working directory to the nearest `taxman.yaml`
+marker file — so every command works from anywhere inside a project, like `git`. Relative
+paths in an audit (`messages:`, `output.dir`) resolve against that root, never against the
+working directory and never against the audit file's own parent.
+
+The marker is a **visible file**, not a hidden `.taxman/` directory and not the presence of
+`audits/`. `audits/` is a common directory name in exactly the repos taxman's users keep —
+compliance, security, smart-contract — and a walk-up that matched it would happily adopt a
+stranger's folder of PDFs as a project root and write `data/` into it.
+
+`taxman.yaml` is a **marker, not a config file**. Core reads its schema version and nothing
+else. Do not add a setting to it, ever: a project-level default is the same second
+configuration channel that `taxman setup` and `~/.taxman/providers/<name>.yaml` were, and
+it is deleted for the same reasons. Settings live in the audit, which `taxman init` writes
+fully commented. `tests/test_conventions.py` fails the suite if core reads any other key
+out of the marker.
+
 ## Layout
 
 ```

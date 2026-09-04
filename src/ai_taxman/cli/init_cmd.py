@@ -17,7 +17,7 @@ import typer
 from ai_taxman.cli.completion import complete_provider
 from ai_taxman.cli.render import API_KEY_ENV_PLACEHOLDER, render_audit
 from ai_taxman.cli.util import fail, handles_taxman_errors
-from ai_taxman.core.discovery import LOCAL_DIR_NAME
+from ai_taxman.core.discovery import AUDITS_DIR_NAME
 from ai_taxman.core.registry import get_provider
 from ai_taxman.providers.base import Provider
 
@@ -40,7 +40,7 @@ def init(
     """
     resolved = get_provider(provider)
 
-    target = Path.cwd() / LOCAL_DIR_NAME / f"{audit}.yaml"
+    target = Path.cwd() / AUDITS_DIR_NAME / f"{audit}.yaml"
     if target.exists():
         fail(
             f"{target} already exists. Choose another name, or delete the file first "

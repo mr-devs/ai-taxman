@@ -1,7 +1,16 @@
 import pytest
 
-from ai_taxman.core.discovery import AuditRef, find_audit, list_audits
-from ai_taxman.core.errors import AuditNotFoundError
+from ai_taxman.core.discovery import (
+    MARKER_FILENAME,
+    AuditRef,
+    audits_dir,
+    find_audit,
+    find_project_root,
+    list_audits,
+    require_project_root,
+    write_marker,
+)
+from ai_taxman.core.errors import AuditNotFoundError, ConfigError, NotATaxmanProjectError
 
 
 @pytest.fixture
@@ -130,3 +139,93 @@ def test_listing_tolerates_missing_directories(tmp_path):
     refs = list_audits(local_dir=tmp_path / "nope", global_dir=tmp_path / "also-nope")
 
     assert refs == []
+
+
+# --- the project root -----------------------------------------------------
+
+
+@pytest.fixture
+def project(tmp_path):
+    """A project root, marked."""
+    root = tmp_path / "project"
+    root.mkdir()
+    write_marker(root)
+    return root
+
+
+def test_the_marker_marks_the_root(project):
+    assert find_project_root(project) == project
+
+
+def test_the_root_is_found_from_a_subdirectory(project):
+    deep = project / "messages" / "nested"
+    deep.mkdir(parents=True)
+
+    assert find_project_root(deep) == project
+
+
+def test_the_nearest_marker_wins(project):
+    inner = project / "sub"
+    inner.mkdir()
+    write_marker(inner)
+
+    assert find_project_root(inner) == inner
+
+
+def test_no_marker_anywhere_is_not_a_project(tmp_path):
+    stray = tmp_path / "not-a-project"
+    stray.mkdir()
+
+    assert find_project_root(stray) is None
+
+
+def test_an_audits_directory_alone_is_not_a_project(tmp_path):
+    """`audits/` is a common directory name; it must never imply a taxman root."""
+    stray = tmp_path / "some-repo"
+    (stray / "audits").mkdir(parents=True)
+    make(stray / "audits", "unrelated")
+
+    assert find_project_root(stray) is None
+
+
+def test_requiring_a_root_without_one_names_the_directory_searched(tmp_path):
+    stray = tmp_path / "not-a-project"
+    stray.mkdir()
+
+    with pytest.raises(NotATaxmanProjectError) as exc:
+        require_project_root(stray)
+
+    message = str(exc.value)
+    assert "not a taxman project" in message.lower()
+    assert MARKER_FILENAME in message
+    assert "taxman init" in message
+
+
+def test_a_marker_from_a_newer_taxman_is_refused(project):
+    (project / MARKER_FILENAME).write_text("taxman_project: 99\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="newer version of taxman"):
+        require_project_root(project)
+
+
+def test_an_unreadable_marker_still_marks_the_root(project):
+    """A marker is a marker. Its contents are not worth failing a run over."""
+    (project / MARKER_FILENAME).write_text("{{ not yaml\n", encoding="utf-8")
+
+    assert require_project_root(project) == project
+
+
+def test_writing_a_marker_is_idempotent(tmp_path):
+    root = tmp_path / "fresh"
+    root.mkdir()
+
+    first = write_marker(root)
+    first.write_text("# edited by hand\ntaxman_project: 1\n", encoding="utf-8")
+    second = write_marker(root)
+
+    assert first == second == root / MARKER_FILENAME
+    assert "edited by hand" in second.read_text(encoding="utf-8")
+
+
+def test_the_audits_directory_hangs_off_the_root(project):
+    assert audits_dir(project) == project / "audits"

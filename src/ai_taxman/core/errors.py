@@ -13,6 +13,10 @@ class MessageFileError(TaxmanError):
     """The `.txt` file of messages is missing, unreadable, or empty."""
 
 
+class NotATaxmanProjectError(TaxmanError):
+    """No `taxman.yaml` marker in the working directory or any parent."""
+
+
 class AuditNotFoundError(TaxmanError):
     """No audit YAML matches the requested name."""
 
