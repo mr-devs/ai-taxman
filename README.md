@@ -149,7 +149,7 @@ One field is left blank on purpose, because only you know the answer:
 # The name of the environment variable that holds this audit's API key: the
 # name, not the key itself. Export the variable in your shell. taxman reads this
 # name and no other, and never stores a key.
-#   Type:     text
+#   Type:     string
 #   Required: yes
 #   Example:  OPENAI_API_KEY
 api_key_env: <insert_api_key_env_var_here>
@@ -220,7 +220,7 @@ to the provider's own documentation:
 ```yaml
   # How random the sampling is: lower is more focused and deterministic, higher
   # more varied. OpenAI recommends changing this or top_p, not both.
-  #   Type:     number, 0 to 2
+  #   Type:     float, 0 to 2
   #   Default:  blank (not sent, so the model's own default applies)
   #   Docs:     https://developers.openai.com/api/reference/resources/responses/methods/create
   temperature:

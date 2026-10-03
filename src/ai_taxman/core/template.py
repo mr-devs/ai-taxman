@@ -38,10 +38,10 @@ WIDTH = 80
 
 #: What a value of each type is called, alone and in a list.
 NOUNS: dict[type, tuple[str, str]] = {
-    bool: ("true or false", "true or false values"),
-    str: ("text", "text"),
-    int: ("whole number", "whole numbers"),
-    float: ("number", "numbers"),
+    bool: ("boolean", "booleans"),
+    str: ("string", "strings"),
+    int: ("integer", "integers"),
+    float: ("float", "floats"),
 }
 
 #: What a field may say about itself in `json_schema_extra`. See the module docstring.

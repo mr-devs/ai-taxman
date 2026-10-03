@@ -122,7 +122,7 @@ def test_budget_tokens_says_it_needs_room_to_answer():
     above = " ".join(comment_above("budget_tokens"))
 
     assert "less than max_tokens" in above
-    assert "whole number, 1024 or more" in above
+    assert "integer, 1024 or more" in above
 
 
 def test_the_newest_search_tool_is_the_default():

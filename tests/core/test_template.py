@@ -138,17 +138,17 @@ def typed(annotation, **constraints):
 @pytest.mark.parametrize(
     "annotation, constraints, expected",
     [
-        (bool | None, {}, "true or false"),
-        (str | None, {}, "text"),
-        (int | None, {}, "whole number"),
-        (float | None, {}, "number"),
-        (int | None, {"ge": 1}, "whole number, 1 or more"),
-        (float | None, {"gt": 0}, "number, more than 0"),
-        (float | None, {"ge": 0, "le": 2}, "number, 0 to 2"),
-        (float | None, {"le": 1.5}, "number, up to 1.5"),
-        (list[str] | None, {}, "list of text"),
-        (list[str] | None, {"max_length": 100}, "list of text, up to 100"),
-        (list[int] | None, {"min_length": 1}, "list of whole numbers, at least 1"),
+        (bool | None, {}, "boolean"),
+        (str | None, {}, "string"),
+        (int | None, {}, "integer"),
+        (float | None, {}, "float"),
+        (int | None, {"ge": 1}, "integer, 1 or more"),
+        (float | None, {"gt": 0}, "float, more than 0"),
+        (float | None, {"ge": 0, "le": 2}, "float, 0 to 2"),
+        (float | None, {"le": 1.5}, "float, up to 1.5"),
+        (list[str] | None, {}, "list of strings"),
+        (list[str] | None, {"max_length": 100}, "list of strings, up to 100"),
+        (list[int] | None, {"min_length": 1}, "list of integers, at least 1"),
     ],
 )
 def test_the_type_says_what_the_setting_takes(annotation, constraints, expected):
@@ -158,7 +158,7 @@ def test_the_type_says_what_the_setting_takes(annotation, constraints, expected)
 def test_the_type_line_follows_the_explanation():
     lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "temperature")
 
-    assert lines[:2] == ["# How random sampling is.", "#   Type:     number"]
+    assert lines[:2] == ["# How random sampling is.", "#   Type:     float"]
 
 
 def test_a_nested_block_has_no_type_line():
@@ -319,7 +319,7 @@ def test_the_default_comes_after_the_type():
 
     assert lines == [
         "# How random sampling is.",
-        "#   Type:     number",
+        "#   Type:     float",
         "#   Default:  blank",
     ]
 
