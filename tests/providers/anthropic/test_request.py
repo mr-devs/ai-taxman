@@ -283,6 +283,21 @@ def test_a_request_never_carries_changes_from_the_one_before():
     assert second["output_config"]["format"] == {"type": "x"}
 
 
+def test_a_request_never_shares_the_audits_search_lists():
+    """Every request in a run is built from one config; none may write back into it."""
+    search = {"web_search": True, "allowed_domains": ["cdc.gov"], "allowed_callers": ["direct"]}
+    config = AnthropicProvider().validate_model_config({**BASE, "search": search})
+    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    first = build_request(Request(message=message, repeat=0, model=config))
+    first["tools"][0]["allowed_domains"].append("example.com")
+    first["tools"][0]["allowed_callers"].clear()
+
+    second = build_request(Request(message=message, repeat=1, model=config))
+
+    assert second["tools"][0]["allowed_domains"] == ["cdc.gov"]
+    assert second["tools"][0]["allowed_callers"] == ["direct"]
+
+
 def test_every_key_taxman_sends_is_protected_from_extra():
     """A new named setting must join SET_BY_TAXMAN, or `extra:` could override it."""
     from ai_taxman.providers.anthropic.config import SET_BY_TAXMAN

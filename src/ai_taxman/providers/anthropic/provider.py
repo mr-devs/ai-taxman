@@ -183,7 +183,8 @@ def _web_search_tool(search: AnthropicSearchConfig) -> dict[str, Any]:
     ):
         value = getattr(search, key)
         if value is not None:
-            tool[key] = value
+            # Copied, as `extra` is: every request in a run shares this config.
+            tool[key] = copy.deepcopy(value)
     if search.user_location is not None:
         location = search.user_location.model_dump(exclude_none=True)
         tool["user_location"] = {"type": "approximate", **location}
