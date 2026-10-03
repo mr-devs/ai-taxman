@@ -1,0 +1,146 @@
+{
+  "id": "msg_011Cfg2zhRqC6eHYxVNiqfd1",
+  "container": null,
+  "content": [
+    {
+      "id": "srvtoolu_01H8shUW3jg8yFeLnvkEox4M",
+      "input": {
+        "query": "capital of Australia"
+      },
+      "name": "web_search",
+      "type": "server_tool_use"
+    },
+    {
+      "caller": {
+        "type": "direct"
+      },
+      "content": [
+        {
+          "encrypted_content": "Er8GCioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDJBy+JbAbJ+cluCtQxoM9935KFJb/TOsIa+nIjB7kPaNIEJLhp2RhfCNjKX6T1uX8qwRSBKofSQeMHpTbYwyP+723zrt8q6Q0HXWM3QqwgVj3te4TDdU8B6zAZ0dqep8H7N4FsJ+fNkiew6x/oeHyeXHTirGSzIwDPpPVQk8d+fQGW+zosr8e4/HrjvaWw9B73X9wyzaYG2/aRRzicvCjx9pLclAx/AruSouu5hREYdcqcPp+fhyzLb9q+udkpS2/rwdotGxt4G9wjl29pxlVcrWqOp8D/wSYWdJQaabBwSCGeBsgV2PCoPWa7twP/yEe3OvXivp1d3fSIJVhvE6UVo37IbjNOl6nd4hB4KPkbyqLhsr0M90N7aitL6OObSSzHgas6fr6rerLSlLClowMliCjVYCa3lFwlsdV2swMTa8UykmtUK2rNcsu5tgPA7NG6PztRpazg0gP3xbeN4MT3qQV9RhKMpCtlhdOW/Beh1Ci/VI1GWxsyqXLzW01zQsugv0bd28N5AJdH5r9uYAMY3oPRubO4fW3L0COz7K/rO7MLApOGnDcQOfGTbhzJKptMCKsr2cKaa6Ssqre8Ks52se1ERf/FaeqJ+G8RIv2N0LvEpR6Qgh+pLY0M8/M9ewNYxJ+FIV6UDtoBkGPnrmgagct1UZ6Gj4FAy7uI3WLUhVo2YSZuPixFYZrTbpfoc1+qaQ5nczILbzMvFy2HfAMuYWRHINogWd6LBPNCu5MP8bL+svvqGhvb6TtEX8k/tmq+jb2/Apc0JGp5gBJz+QJbesCxKhwYhNjMYBPljs+B7WJDdN5aWWIeIN1G2FdqUjfPwgkqr2FPOfwyB/a9VREzUVGqzIZbieeIECn00C6RqmCGs6iHCXgaSHz1OpQbD70JffJh3EwddsM19AFXlhXLWKwJP1Pa/jMx3lu+0J4CHD8Q5Nk+IH8o2XeuZId9nmnsNRD+DCdxrDRuTaLCWG9h4xTSQic8wCR9GDnTGWqD4EP+YcgPaxSi3oXldXh7droqAppeLQ2fxeVKhnGls2DBEGGAM=",
+          "page_age": "102 days ago",
+          "title": "What is the capital of Australia?",
+          "type": "web_search_result",
+          "url": "https://www.britannica.com/question/What-is-the-capital-of-Australia"
+        },
+        {
+          "encrypted_content": "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",
+          "page_age": "3020 days ago",
+          "title": "What Is The Capital Of Australia?",
+          "type": "web_search_result",
+          "url": "https://www.worldatlas.com/articles/what-is-the-capital-of-australia.html"
+        },
+        {
+          "encrypted_content": "EoIICioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDIDWPUSJLDZfXNRFZhoMUAhvQcTjgfbSSaSYIjBXTZjdo7IJk1cHVsJwwIrp2mi3429ovohvw45PTMS4gX9rQN14dl63TdQJXYa2j8AqhQeG3Zv6W/XahgmPl1aC2biQOCM26geegf5xE+qHgMHx81pB0yRYHqfn/kQscUYkDkyimdoNcby7DyjwoAWckt4js+y+PpnQadWxZtAAJW8dQXsMv1IZUNwXDNctE8HfRBO3cVTpyRSh9OAj8RBAHzdmluQmztzwbBYTfRT5DC2cCZjMooKyNzNqwe+zT6KbC69+7a1De7r0npBbkedRNp0fFJ4/XmvujXrwwVwHoJfrUm2EK8qDWMXGC3NpwE148japsD8Ry9FvjcMpUcv3bbgzRPkpT5B0KJo39zXotEoB7RpyqTfbByXznYMBU6Bb9MfFSbXu3Mo2c1NxGdEzUki60dBSYpKbNmR0bVp8ug926vj6sQZpyLjowotarPvNQJq360k0mqtA7QgoBHCLx1rxFCCiBAjsrqXL0ChmNWVE84JzCW3Ro0extqjtipa35BCvNm+YmUK0nq99HqeCS7GqyjtKilvLpYRk6PMRqSXexGVhu96t6QKXiXbeiye10WZ0f2va/DNxVoWvfIq/zIAJRQgnRPu6+oCgf6Bx4WObQwZnlLp9Z8Y7wpojoSZokodFQj6KFsNI099IlOwnEdcmyhv9ThPcU3PyFjkWAtW26iRcCu/CxWKW14RiBoeI+pjv+2JPbAkpwUECDtvOLW7Th5sNQyjMZ4xFSoXbM0+wVGPA5RImWAXbk0mi/pZQsZ5kP/TVghuN5wZTnPIZcQn+PiL/TAZ9YMTQfX/50oA1GC4mSYlHroZxbd+6Ip6HmcUZroL/aG4//T5p55WRTb2olF63iav9FqRxUUaPak7T6H1VI1iKMrtsWqSglAyMaCK1DBU3KCPGDJt3FVM9trVLJApjZJsJgwDmxJHVKXSsSllgrrp4NKyUHkTgIWQYSLA0AMr9ydZ/JRx0lid32MCbN30HZc5yq6rKsvqCQMLy/4J6I/sYNyHkwdkMRMbP6XP48728m0S6ZjjoYSeCCcxTdy0ziI8ymZb2GYNu7XylctfxbZ6xiXO1N9tRD8812/B2ZO3wIf2s4KZEQssp19I8FYpdJJj/lSKv48ZEBt1P954ZCNaJZtds2mLTZaUh3w8+dK9h0gdFRIR1XkLr8fCQxmAdGkRxDypgyoXSrEJJAumTNjCKkUs8h4ghB13a6VZZuNMAyM8Y2+MVZnxud96gIbsqptzPVIaHBVhD9Y4tMzi70Wh4GAM=",
+          "page_age": null,
+          "title": "Canberra, Australia",
+          "type": "web_search_result",
+          "url": "https://www.ebsco.com/research-starters/geography-and-cartography/canberra-australia/"
+        },
+        {
+          "encrypted_content": "EusICioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDNbD8GxWHTIbqdsAhRoM076TkyZMA1JAb+R/IjA0VQ94is2j0L1q9+WjGqlgLST5nuG7Kbf0zbYZZWdxGurbNkDH8wNqCKOScc58NLwq7gfe+IENd8Zxi3Wn6a82j2slO4tPr+55Ea4KdKsVT68cdKfmP166fdYAOciFPz7CRPArU9j9tmKsM5+ctpXiyH8CUR5pGBf7duNKg/VccnRBWBAka3bipn9ObWuYB2Ru43fL/giqOl6aHRIeGffOrostKtMQeUp+oAtEU+RTzlJQX/0wn1yM8OUkK1yNKZIF8/8/IAk8wTtgbOC1aMYO7TBMP6szkq/OO/s0Ut3ngdeqdMZBHX5oDaaPiEAW7hcVS3Wp3C1d9STTIvVLxTNwM6UhmMwkEhP9z2/IP2t0nUqYQERts72sAH+7J5z18IFr+S/yu7faQYf88aSZtzK55z5kbXpbsitgbpOSoGfEVOr5pgpH/V4k/slInP43WSBn0ccpeIKWd90NRii16nlmGQ/x8XNf8MlZ2m79rLIb5GdxPr6NZqshWC81v228YAaawIXnpuhTYlkU0nebHgOBureg1b1URJ4HlxBv5Nh/P2DqRjQCf204HZgO7sp1iX5XiQ02XzctiPuWAvAnep3oNh6DyfdK7ITuXFiPFa5FBhX0pTnNAWp7hqmSmEFAlvLPbpG7E+6QixwHwcWW31gGiAXiZJxpCZF7NxzQXY2skTBCWIcVs3n3FRUkhleUNs5ZHxIv+4O0AuqeDuZuReeiEbU1QdxwYauWBdV7zDdHlqyoNdzB8p4BCUHA8eDTGewlTInq3i+s5kCm/438flAiQ5z5nUE/35YgkI1nO/GK14ACXyp25EFmYfaJ62oyzPsTQ7jiscoMch67+6W210FgeajMm4QJcSDbPglLVUo4Lz8kCBg2c5faelnfCT2L+0lYY8PYU/e0mW5gr2g2TVwxXuHCduhLRHO+6vc7XxTzi0MieQbW4n1anePwLURCj4vU99F5VoSHxNYCdMuMNvGe0IF8J3A5Sl9NQXr4TEbn+mDBjkE0cPi/LGgQivykizSnrSg9oXyqefOS3UzbjIwYKiXzKvx+CfTB/bG7Ro52FrUCkNNeyKZODj5XV+YfgB9G7PguL/+wIy84iFS6z2Br8fQCInRo6Le6qGd7gn32VO49ea02fouXJEPJ1FdEPjHusxTGd59q8p/Dji65dNuua/8MQI5UrP7UeaeLZ6+71oMo5A2zaBHi0W4RYtlk28+ehDa0Dt1ghDBSmIFJ2Tvgw+t0ebmmFmG+/SHBpFZqCeG5BXdhBbrZRp4I9KgGNDKb8VHYaxIZ6ZQ3V1xMAq7HNvNYO7dWP1eW3asAHQWSAktN4OC5A0wL036d+w06cq2g4OnARt+2s1ulhvEZ/+R6TxHGvzlofRR76BhILonvkxHoXxIoiKBCws9fqZeWctV0GAM=",
+          "page_age": "1586 days ago",
+          "title": "What is the Capital of Australia?",
+          "type": "web_search_result",
+          "url": "https://unacademy.com/content/question-answer/gk/what-is-the-capital-of-australia/"
+        },
+        {
+          "encrypted_content": "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",
+          "page_age": "6 days ago",
+          "title": "What is the Capital of Australia?",
+          "type": "web_search_result",
+          "url": "https://www.mappr.co/capital-cities/australia/"
+        },
+        {
+          "encrypted_content": "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",
+          "page_age": "323 days ago",
+          "title": "Why Canberra is the Capital of Australia",
+          "type": "web_search_result",
+          "url": "https://www.remitly.com/blog/en-au/lifestyle-culture/capital-of-australia/"
+        },
+        {
+          "encrypted_content": "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",
+          "page_age": "741 days ago",
+          "title": "What is the capital of Australia? If you thought it was Sydney, keep on reading",
+          "type": "web_search_result",
+          "url": "https://youtooproject.com/en/blog/australia-en/capital-of-australia-canberra/"
+        },
+        {
+          "encrypted_content": "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",
+          "page_age": "116 days ago",
+          "title": "What Is the Capital City of Australia?",
+          "type": "web_search_result",
+          "url": "https://www.insideaustraliatravel.com/faqs/australia-capital-city"
+        },
+        {
+          "encrypted_content": "EvsGCioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDNgHqf5Rd2Gi45IWQRoM5QFmugBhr78KUEbcIjBmNcGAgmUCZW4sVSJC+aQxxCBlmO/NSyxViF15XRB1pv1Sgqf6g2eHxIXB7WJqrVsq/gUWyXXkKw0HH+q5mqOQmEVoAbiNeoq+BlnZWlxItU/UyxH0mkFwiViI7/HGrcgG6k2AIUC/A0T2QcFLJkbRA3990VGjb7FDttH+0nTU72oUHN1CsrEfJQmmbYcSK58T3bQcFPju4nzUeV4ILBwF4JXtqUrd630xj4nmy3bafwdb7Ltniex3ddNk1bdV44zT3sbLogHpKlCfJkSYju+p6apQxyt/qKsjTMnEdTeIS5U9nhdDbGg5dnkOd0NmES/KTCJY1E2HpRylNdr/3ehW1r/ddtzlQXePhDE9sSTgBx5Gc8qaUFKaNB/uoW7xatqvOI7e7qEhIPu38Szag5nEvuBha2ZpTuASEbY9UvG2HxS2H/pNI/S1ApE5Wb2TiCftLYfvGBeLBhkz/3c0uFVrXD74wGPdNAcXVzgCYivHU7YZMHqnyOH+0eiKPngTW7JkQvgfs+DGXhK6V9AoVeDmcI1ciK3VeV9OcDLVlW8Ucy5C6F7Dyar8cLl13xMmelH9UQAo1MIbf8HOzBaosVuifyXuosr+gRmJw80nvPmPfHwRVRMCFGRb9D9f8RUPkjcun+XCAO9t3l1zm+OdcL/8MLff4LhoWEYt0a2L2y5kkmKD82p+1ODhyPopPe/rN8IT84IEhSdu9fh/F2gnx4qgRMK5q3vSzH46ufYpz4cqIjfUO5Bw1Y7IG+YRkPcJ5r9IGgpCh5JXecLYn57Ecc/PiWnjRfAduqrMgM5RIoe1MximcZixLbobvlcG9MHCQFt882t0iWpOpURQMGM53FlfImVzxvy2elafTA6dPJ/Rpp+q0iAFuzcFDQGdoUiKZdRzq2E5/evlX0ugpVB9pMRdMJsSNJJvO+39b4u0n8VRtI5g0Ll3tYjd6v+4jDTRdGeHYKpur02sZ7zjaTXSAzPcrEk/nWsp14k8rrabuUjdn+9OWUjQPddqA1c5UBEZXvaHFQdYaeC/iMzVcud6EHiHYxuRM2at8KJEq17f7he4dbB61dRcA3Dn1bgU6bMXmJqyGAM=",
+          "page_age": null,
+          "title": "graphsearch.epfl.ch",
+          "type": "web_search_result",
+          "url": "https://graphsearch.epfl.ch/en/concept/31552/concepts?page=1"
+        },
+        {
+          "encrypted_content": "EqQICioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDCeUgGiCSxO+7ToS9xoMCBbgL+woRiauOD5kIjC7mgJt5jYcqWeHXI++uY4qhMigP8R4TTp5cS5hAD1k1SPo6wDA8qTkiuMWqDaS2pYqpwcLKASuebQrljiPvgK8S4GI2KgF63NqXIJPpysROkbJ+FidN+C6qaha1dTkuqS21yKPkF2bwkwD/6hv/bfK+xRQYbKZZU4iAkunk4WLwXFNcuNJjMe11J1hGZeGjzKOdBKXpDCI3U6qyce6eei+82PDoOw0l5dgnpAUjtR7GgXZlVU+BT+BGsVDvh3mROM1pQjsf0fsYE1FxrhYPp37wDVjPqg8YWvD5K44axqOB3kqP7DOOGA+kanB57XGYSj3UDpOi0J2R+0udcxJGj52DIJnrmzNmFRSr9rGTfWTxodhMAkgQl8LKLGCIHXCkq7Ori440BQBushdBJQANCwKV2o1F/3I43O0g9pxL28SenJjgZHV4TdRB6PQ+qS9q79x9cp2aidzleuQznj5KAbs1Bl7SP4mhaEf1OPFLDXgP1pJj2SJhcrpKQfJQL1MZUHme2rLEmFpFi7LAnBQ6IC4A5TL8ipaxNOXLx4lDi39YPoCyGQoQp64oOruvuqohyYuKSxdEXhwoEKSm6r0cKVd6ZkDibC5MSjLO1lV0TtwRn4a/Tixn4WxonAvwXgFE/hFhrhJz1v4PzAl7F4gmAeEASnxwuSq4P61GSvn5HHPA39H7z8xbM9spS/ywaVm6p8ULcF24qPKQLzaoF3LngULfniiJ8bFeLku3/M7MG2BIm8ChBDaROzPzo6fnm/Bvt7F0PtOPu7tL9qnHDV0Za9sArBlXnBqG6LRsGrD1kVwf3FpcVy537ie8vrAVCm4oFI4hY/mA8zIpbYtM4I4imzhjUvQRCustnivvdt8RnrR78pL3EQcxCO2WH5D6tLYM+CfNonOrdiQSPTXUmQyWeDitxs4o/fbqEhBvDG5T1kA6oGy9R3PFgN5nzKBRfHqEOqyuDM7AD5eWmytoBIXcSXcSJPT6WNEYsXq6uTD2Yc4TCYzbR7bBa6DkGYUaMqWwtYCiK4dMWiygoNrnyw9O2W+xBIK90dZNQit5YZ5jTKPgZer76DEYoQ/8tK9E8wLYyuTbsy6p3l4b3nPZBWiQeryjUx9Ycm5IfAsc4Jm7b5LoS6Dlxgsl6RJnrxnu4GdoR8L7mXnBFrY60nsTSvbO3KOh4FNBtNzK4k3gghunTeJGw1IcqOM78O/q1LrYncVcwjjzMCLc0or7rS9fjKUUN8W+tHUJc8xOrQLBvejwffvNhqkclxUFm3zp1vYfchimM7HAUy+0Y40R66ELldJoTzoJaCk6HzfooMdNhgD",
+          "page_age": null,
+          "title": "graphsearch.epfl.ch",
+          "type": "web_search_result",
+          "url": "https://graphsearch.epfl.ch/en/concept/556494/concepts?page=2"
+        }
+      ],
+      "tool_use_id": "srvtoolu_01H8shUW3jg8yFeLnvkEox4M",
+      "type": "web_search_tool_result"
+    },
+    {
+      "citations": [
+        {
+          "cited_text": "The capital of Australia is Canberra, located in the southeast between the larger cities of Sydney and Melbourne.\n\n",
+          "encrypted_index": "Eo8BCioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDFxEQhW1iZ2kY2x4LRoMGkBtHgON5vFE0RBBIjCZ/EIRtR3B4EvcaQO5A4el7sVa68V5aqMxNDIo7YDiNE93kM46e1VtyJ9TcPWnLN0qE73fy+Dd6TpBBpI7WM/843k+bU0YBA==",
+          "title": "What is the capital of Australia?",
+          "type": "web_search_result_location",
+          "url": "https://www.britannica.com/question/What-is-the-capital-of-Australia"
+        }
+      ],
+      "text": "The capital of Australia is Canberra, located in the southeast between the larger cities of Sydney and Melbourne.",
+      "type": "text"
+    },
+    {
+      "text": " ",
+      "type": "text"
+    },
+    {
+      "citations": [
+        {
+          "cited_text": "It became the federal capital in 1927 after Parliament moved from Melbourne.\n\n",
+          "encrypted_index": "Eo8BCioIFBgCIiQyMzRkNmVmMi03ZTM1LTQyZmUtYjVkZi00Yjc1MmEwMDE4YzgSDJHYEG1s050iAjQ0CBoMFoumL9/sxq7r/xwEIjByIRUylddBLBSY7PLWue2t5oBf1i2r2YLSh0QqiTvkbiaO3ePrg1oXNAca+SQs2FMqE+j2zjwGen2Z+uOzp4GcHazDjdcYBA==",
+          "title": "What Is the Capital City of Australia?",
+          "type": "web_search_result_location",
+          "url": "https://www.insideaustraliatravel.com/faqs/australia-capital-city"
+        }
+      ],
+      "text": "It became the federal capital in 1927 after Parliament moved from Melbourne.",
+      "type": "text"
+    }
+  ],
+  "model": "claude-haiku-4-5-20251001",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "not_available",
+    "input_tokens": 11044,
+    "output_tokens": 130,
+    "server_tool_use": {
+      "web_fetch_requests": 0,
+      "web_search_requests": 1
+    },
+    "service_tier": "standard"
+  },
+  "diagnostics": null
+}
