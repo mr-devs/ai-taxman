@@ -202,3 +202,103 @@ def test_a_sampling_parameter_is_sent_when_set(key, value):
 def test_out_of_range_sampling_values_are_refused(block):
     with pytest.raises(ValidationError):
         request_for({**BASE, **block})
+
+
+# -- extra -------------------------------------------------------------------
+
+
+def test_extra_passes_through_unknown_api_parameters():
+    assert request_for({**BASE, "extra": {"service_tier": "standard_only"}})["service_tier"] == (
+        "standard_only"
+    )
+
+
+def test_extra_passes_a_null_through_as_is():
+    """`extra:` is the escape hatch: what is written is what is sent, nulls included."""
+    payload = request_for({**BASE, "extra": {"inference_geo": None}})
+
+    assert "inference_geo" in payload
+    assert payload["inference_geo"] is None
+
+
+def test_extra_can_add_to_an_object_taxman_also_fills():
+    """Effort and an output format share `output_config`; neither displaces the other."""
+    fmt = {"type": "json_schema", "schema": {"type": "object"}}
+    payload = request_for({**BASE, "effort": "low", "extra": {"output_config": {"format": fmt}}})
+
+    assert payload["output_config"] == {"effort": "low", "format": fmt}
+
+
+def test_extra_can_fill_an_object_taxman_left_out():
+    fmt = {"type": "json_schema", "schema": {"type": "object"}}
+
+    assert request_for({**BASE, "extra": {"output_config": {"format": fmt}}})["output_config"] == {
+        "format": fmt
+    }
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"model": "claude-other"},
+        {"max_tokens": 5},
+        {"messages": []},
+        {"system": "sneaky"},
+        {"temperature": 0.5},
+        {"thinking": {"type": "adaptive"}},
+        {"thinking": {"display": "summarized"}},
+        {"output_config": {"effort": "max"}},
+        {"output_config": None},
+    ],
+)
+def test_extra_cannot_override_a_setting_taxman_names(extra):
+    """Otherwise `extra:` could quietly bypass a named setting's checks and defaults."""
+    with pytest.raises(ValidationError, match="extra"):
+        request_for({**BASE, "extra": extra})
+
+
+def test_extra_cannot_ask_for_a_stream():
+    """A stream is not a response; there would be nothing whole to record."""
+    with pytest.raises(ValidationError, match="stream"):
+        request_for({**BASE, "extra": {"stream": True}})
+
+
+def test_a_request_never_carries_changes_from_the_one_before():
+    """Two requests from one audit share its `extra:`; merging must not write back into it."""
+    block = {**BASE, "effort": "low", "extra": {"output_config": {"format": {"type": "x"}}}}
+    config = AnthropicProvider().validate_model_config(block)
+    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    first = build_request(Request(message=message, repeat=0, model=config))
+    first["output_config"]["format"]["type"] = "changed"
+
+    second = build_request(Request(message=message, repeat=1, model=config))
+
+    assert second["output_config"]["format"] == {"type": "x"}
+
+
+def test_every_key_taxman_sends_is_protected_from_extra():
+    """A new named setting must join SET_BY_TAXMAN, or `extra:` could override it."""
+    from ai_taxman.providers.anthropic.config import SET_BY_TAXMAN
+
+    block = {
+        **BASE,
+        "max_tokens": 16000,
+        "effort": "low",
+        "temperature": 1.0,
+        "top_p": 0.99,
+        "top_k": 5,
+        "thinking": {"type": "enabled", "budget_tokens": 2048, "display": "summarized"},
+    }
+    payload = request_for(block, system_prompt="Be terse.")
+
+    for path in leaf_paths(payload):
+        assert any(path == key or path.startswith(f"{key}.") for key in SET_BY_TAXMAN), path
+
+
+def leaf_paths(payload, prefix=""):
+    for key, value in payload.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict) and value:
+            yield from leaf_paths(value, f"{path}.")
+        else:
+            yield path

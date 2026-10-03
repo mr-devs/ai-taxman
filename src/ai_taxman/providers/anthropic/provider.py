@@ -16,6 +16,8 @@ the runner writes it verbatim.
 
 from __future__ import annotations
 
+import copy
+import inspect
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
@@ -84,7 +86,10 @@ class AnthropicProvider(Provider):
         client = self._require_client()
         # An explicit timeout also stops the SDK refusing a large `max_tokens` as
         # "may take longer than 10 minutes": the audit's timeout_s is the limit.
-        response = await client.messages.create(**build_request(request), timeout=timeout_s)
+        named, unnamed = _split_by_sdk_signature(build_request(request), client)
+        response = await client.messages.create(
+            **named, extra_body=unnamed or None, timeout=timeout_s
+        )
         # `to_dict` keeps only the fields Anthropic actually sent, under the API's
         # own names. `model_dump` would add a null for every field the SDK merely
         # knows about, so `raw` would no longer be the body that came back.
@@ -139,7 +144,23 @@ def build_request(request: Request) -> dict[str, Any]:
         payload["thinking"] = config.thinking.model_dump(exclude_none=True)
     if request.system_prompt:
         payload["system"] = request.system_prompt
+
+    _merge(payload, config.extra)
     return payload
+
+
+def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
+    """Write `extra` into `payload`, filling in objects rather than replacing them.
+
+    Validation has already refused any path that would touch a setting taxman
+    names, so this only adds. Values are copied: every request in a run shares
+    the audit's one `extra`, and none may write back into it.
+    """
+    for key, value in extra.items():
+        if isinstance(value, dict) and value and isinstance(payload.get(key), dict):
+            _merge(payload[key], value)
+        else:
+            payload[key] = copy.deepcopy(value)
 
 
 def render_template() -> str:
@@ -188,6 +209,26 @@ def _new_client(api_key: str | None) -> AsyncAnthropic:
         raise ProviderDependencyError(INSTALL_HINT) from exc
 
     return AsyncAnthropic(api_key=api_key, max_retries=0)
+
+
+#: Keywords `messages.create` takes about the HTTP call rather than the request
+#: body. A body field of the same name must not be mistaken for one of these.
+_SDK_REQUEST_OPTIONS = frozenset({"extra_headers", "extra_query", "extra_body", "timeout"})
+
+
+def _split_by_sdk_signature(
+    payload: dict[str, Any], client: AsyncAnthropic
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Separate the parameters `messages.create` names from those it does not.
+
+    The SDK refuses a keyword it has never heard of, but `extra:` exists for
+    parameters newer than the installed SDK. Those travel in `extra_body`, which
+    the SDK adds to the JSON body untouched.
+    """
+    known = set(inspect.signature(client.messages.create).parameters) - _SDK_REQUEST_OPTIONS
+    named = {key: value for key, value in payload.items() if key in known}
+    unnamed = {key: value for key, value in payload.items() if key not in known}
+    return named, unnamed
 
 
 def _is_anthropic_error(exc: BaseException) -> bool:

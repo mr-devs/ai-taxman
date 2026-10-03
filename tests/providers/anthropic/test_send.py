@@ -137,3 +137,24 @@ async def test_the_response_is_json_safe(wire):
     raw = await send(a_request())
 
     assert json.loads(json.dumps(raw)) == raw
+
+
+async def test_a_parameter_newer_than_the_sdk_still_reaches_anthropic(wire):
+    """`extra:` exists for exactly this; the SDK's own signature must not refuse it."""
+    request = a_request(
+        {"name": "claude-opus-5-5", "max_tokens": 1024, "extra": {"brand_new": {"x": 1}}}
+    )
+
+    await send(request)
+
+    assert json.loads(wire.requests[0].content) == build_request(request)
+
+
+async def test_extra_cannot_reach_the_sdk_own_request_options(wire):
+    """`extra:` describes the request body; it never changes the audit's timeout."""
+    request = a_request({"name": "claude-opus-5-5", "max_tokens": 1024, "extra": {"timeout": 1}})
+
+    await send(request, timeout_s=42.0)
+
+    assert wire.requests[0].extensions["timeout"]["read"] == 42.0
+    assert json.loads(wire.requests[0].content)["timeout"] == 1

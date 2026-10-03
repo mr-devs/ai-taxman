@@ -6,9 +6,10 @@ to `AnthropicProvider.validate_model_config`, which returns one of these.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ai_taxman.providers.anthropic.models import (
     EFFORTS,
@@ -32,7 +33,12 @@ class _Block(BaseModel):
         template validates as-is.
         """
         if isinstance(block, dict):
-            return {key: value for key, value in block.items() if not _blank(value)}
+            return {
+                key: value
+                for key, value in block.items()
+                # `extra:` is sent as written, so only a wholly blank one is dropped.
+                if not (value is None if key == "extra" else _blank(value))
+            }
         return block
 
 
@@ -41,6 +47,27 @@ def _blank(value: Any) -> bool:
     if isinstance(value, dict):
         return all(_blank(inner) for inner in value.values())
     return value is None
+
+
+#: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
+#: anything else - a key inside one of these objects included, so `output_config`
+#: can carry a `format` beside the audit's effort - but never one of these.
+SET_BY_TAXMAN = frozenset(
+    {
+        "model",
+        "max_tokens",
+        "messages",
+        "system",
+        "temperature",
+        "top_p",
+        "top_k",
+        "output_config.effort",
+        "thinking",
+    }
+)
+
+#: Request keys taxman never sends, because `send` could not record the result.
+NEVER_SENT = {"stream": "a stream is not a response, so there would be nothing whole to record"}
 
 
 #: What `taxman audits new` writes for `max_tokens`. Room for a considered answer
@@ -102,8 +129,30 @@ class AnthropicModelConfig(_Block):
     top_p: float | None = Field(default=None, ge=0, le=1)
     top_k: int | None = Field(default=None, ge=1)
 
+    #: Escape hatch for API parameters this config does not name yet. Merged into
+    #: the request as written - but never over one it does name.
+    extra: dict[str, Any] = Field(default_factory=dict)
+
     #: Last, as in the template: it is a nested block.
     thinking: AnthropicThinking = Field(default_factory=AnthropicThinking)
+
+    @field_validator("extra")
+    @classmethod
+    def _extra_names_only_what_taxman_does_not(cls, extra: dict[str, Any]) -> dict[str, Any]:
+        """Overriding a named setting would bypass its checks, and its defaults."""
+        paths = list(leaf_paths(extra))
+        for path in paths:
+            if path in NEVER_SENT:
+                raise ValueError(f"`extra:` cannot set {path}: {NEVER_SENT[path]}.")
+        taken = sorted({key for key in SET_BY_TAXMAN for path in paths if _overlaps(path, key)})
+        if taken:
+            raise ValueError(
+                f"`extra:` cannot set {', '.join(taken)}: taxman sets "
+                f"{'it' if len(taken) == 1 else 'them'} from this audit. Use the named "
+                "setting in `model:` instead (the system prompt is the audit's "
+                "`system_prompt:`)."
+            )
+        return extra
 
     @model_validator(mode="after")
     def _thinking_leaves_room_to_answer(self) -> AnthropicModelConfig:
@@ -115,6 +164,21 @@ class AnthropicModelConfig(_Block):
                 f"({self.max_tokens}): thinking and the answer share it."
             )
         return self
+
+
+def leaf_paths(block: dict[str, Any], prefix: str = "") -> Iterator[str]:
+    """Every dotted path in `block` that ends in a value rather than a further object."""
+    for key, value in block.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict) and value:
+            yield from leaf_paths(value, f"{path}.")
+        else:
+            yield path
+
+
+def _overlaps(path: str, key: str) -> bool:
+    """Whether writing `path` would change `key`: the same, inside it, or replacing it."""
+    return path == key or path.startswith(f"{key}.") or key.startswith(f"{path}.")
 
 
 #: Documented in the generated template, in this order, after `name` and `max_tokens`.
