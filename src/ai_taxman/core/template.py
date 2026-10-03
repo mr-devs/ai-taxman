@@ -12,6 +12,10 @@ have, and may say more in `json_schema_extra`:
   exactly the values the field accepts.
 - `blank`: what leaving the setting blank does, for a field whose default is
   None - "no limit", say, or "not sent, so the model's own default applies".
+- `docs`: a link to the provider's documentation for the setting.
+- `template`: False to leave the setting out of the file altogether.
+
+pydantic's own `examples=` are written in as the user would type them.
 """
 
 from __future__ import annotations
@@ -39,7 +43,7 @@ NOUNS: dict[type, tuple[str, str]] = {
 }
 
 #: What a field may say about itself in `json_schema_extra`. See the module docstring.
-DOC_KEYS = frozenset({"options", "blank"})
+DOC_KEYS = frozenset({"options", "blank", "docs", "template"})
 
 
 def render_block(
@@ -59,6 +63,7 @@ def render_block(
     settings = [
         _render_setting(key, field, indent=indent, value=values.get(key), defaults=defaults)
         for key, field in model.model_fields.items()
+        if _doc(key, field).get("template", True)
     ]
     return [line for i, setting in enumerate(settings) for line in ([""] if i else []) + setting]
 
@@ -74,7 +79,7 @@ def _render_setting(
     block = _block_model(field.annotation)
     if block is not None:
         inner = render_block(block, indent=indent + 2, values=value, defaults=defaults)
-        return [*lines, f"{pad}{key}:", *inner]
+        return [*lines, *_docs_line(pad, doc), f"{pad}{key}:", *inner]
     allowed = _options(field)
     if allowed:
         lines += _option_lines(key, pad, allowed, doc.get("options"))
@@ -82,6 +87,9 @@ def _render_setting(
     if kind:
         lines.append(_label(pad, "Type", kind))
     lines.append(_default_line(key, field, pad, doc.get("blank")))
+    for i, example in enumerate(field.examples or []):
+        lines.append(_label(pad, "" if i else "Example", _yaml_value(example)))
+    lines += _docs_line(pad, doc)
     if value is None and defaults and not field.is_required():
         value = field.get_default(call_default_factory=True)
     written = _yaml_value(value)
@@ -110,6 +118,11 @@ def _default_line(key: str, field: FieldInfo, pad: str, blank: Any) -> str:
             )
         return _label(pad, "Default", _yaml_value(default))
     return _label(pad, "Default", f"blank ({blank})" if blank else "blank")
+
+
+def _docs_line(pad: str, doc: dict[str, Any]) -> list[str]:
+    """The link, whole: a URL broken across lines cannot be followed."""
+    return [_label(pad, "Docs", doc["docs"])] if "docs" in doc else []
 
 
 def _label(pad: str, name: str, text: str) -> str:

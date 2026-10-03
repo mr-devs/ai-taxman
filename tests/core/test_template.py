@@ -361,3 +361,77 @@ def test_writing_defaults_reaches_into_nested_blocks():
         execution: Execution = Field(default_factory=Execution, description="A block.")
 
     assert "  repeats: 1" in render_block(Outer, defaults=True)
+
+
+# --- examples, links, and settings left out ----------------------------------
+
+
+def test_an_example_is_written_as_the_user_would_write_it():
+    class One(BaseModel):
+        domains: list[str] | None = Field(
+            default=None, description="A.", examples=[["cdc.gov", "who.int"]]
+        )
+
+    assert label(render_block(One), "domains", "Example") == "[cdc.gov, who.int]"
+
+
+def test_further_examples_line_up_under_the_first():
+    class One(BaseModel):
+        country: str | None = Field(default=None, description="A.", examples=["US", "GB"])
+
+    lines = comment_above(render_block(One), "country")
+
+    assert lines[-2:] == ["#   Example:  US", "#             GB"]
+
+
+def test_a_link_to_the_providers_documentation_comes_last():
+    class One(BaseModel):
+        temperature: float | None = Field(
+            default=None,
+            description="A.",
+            examples=[0.2],
+            json_schema_extra={"docs": "https://example.com/temperature"},
+        )
+
+    lines = comment_above(render_block(One), "temperature")
+
+    assert lines[-2:] == ["#   Example:  0.2", "#   Docs:     https://example.com/temperature"]
+
+
+def test_a_long_link_is_never_broken():
+    url = "https://example.com/" + "a" * 100
+
+    class One(BaseModel):
+        setting: int | None = Field(default=None, description="A.", json_schema_extra={"docs": url})
+
+    assert label(render_block(One), "setting", "Docs") == url
+
+
+def test_a_block_can_link_to_its_documentation():
+    class Outer(BaseModel):
+        search: Location = Field(
+            default_factory=Location,
+            description="Web search.",
+            json_schema_extra={"docs": "https://example.com/search"},
+        )
+
+    assert comment_above(render_block(Outer), "search") == [
+        "# Web search.",
+        "#   Docs:     https://example.com/search",
+    ]
+
+
+def test_a_setting_can_be_left_out_of_the_file():
+    class One(BaseModel):
+        shown: int | None = Field(default=None, description="A.")
+        extra: dict[str, Any] = Field(default_factory=dict, json_schema_extra={"template": False})
+
+    assert not any(line.startswith("extra") for line in render_block(One))
+
+
+def test_the_last_setting_is_not_followed_by_a_blank_line():
+    class One(BaseModel):
+        shown: int | None = Field(default=None, description="A.")
+        extra: dict[str, Any] = Field(default_factory=dict, json_schema_extra={"template": False})
+
+    assert render_block(One)[-1] == "shown:"
