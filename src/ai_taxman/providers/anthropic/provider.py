@@ -109,6 +109,8 @@ def build_request(request: Request) -> dict[str, Any]:
         "max_tokens": config.max_tokens,
         "messages": request_messages,
     }
+    if request.system_prompt:
+        payload["system"] = request.system_prompt
     return payload
 
 
