@@ -169,10 +169,8 @@ def test_web_search_is_set_in_a_search_block_inside_the_model_block():
     assert parsed["search"]["web_search"] is None
 
 
-def test_the_search_block_says_its_settings_need_web_search():
+def test_the_search_block_says_where_its_missing_settings_went():
     lines = PROVIDER.render_template().splitlines()
     index = lines.index("  search:")
 
-    assert lines[index - 1] == (
-        "  # Google Search. web_search must be true to use any other setting in this block."
-    )
+    assert "docs/provider-apis/gemini.md" in lines[index - 1]

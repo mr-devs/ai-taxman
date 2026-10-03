@@ -70,34 +70,17 @@ NEVER_SENT = {
 
 
 class GeminiSearchConfig(_Block):
-    """The `search:` block: grounding with Google Search, and its settings.
+    """The `search:` block: grounding with Google Search.
 
-    The Interactions API's `google_search` tool takes nothing but `search_types`:
-    no domain filters and no location. Names are Google's own.
-
-    There is no `tool_choice` here. On this API, `generation_config.tool_choice:
-    any` turns the built-in search into a client-side function call or a 400
-    rather than forcing a search; see docs/provider-apis/gemini.md.
+    `web_search` is its only setting. The Interactions API's `google_search` tool
+    documents `search_types`, and `generation_config.tool_choice` would seem to
+    force a search, but live, either one turns the built-in search into a
+    client-side function call (or a 400) - no search, no answer. Neither is
+    offered; see docs/provider-apis/gemini.md for what was seen.
     """
 
     #: Give the model the `google_search` tool.
     web_search: bool = False
-
-    #: Which kinds of result to search for. Blank leaves Google's default.
-    search_types: list[Literal["web_search", "image_search"]] | None = Field(
-        default=None, min_length=1
-    )
-
-    @model_validator(mode="after")
-    def _settings_need_web_search(self) -> GeminiSearchConfig:
-        """A setting for a tool that is not sent would be recorded but never used."""
-        chosen = sorted(self.model_fields_set - {"web_search"})
-        if chosen and not self.web_search:
-            raise ValueError(
-                f"{', '.join(chosen)} set in `search:`, but `web_search` is not true. "
-                "Set `web_search: true`, or leave the other search settings blank."
-            )
-        return self
 
 
 class GeminiModelConfig(_Block):
@@ -188,11 +171,7 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     ),
 )
 
-#: The `search:` block, in this order, below a comment saying it needs web_search.
+#: The `search:` block, below a comment saying where its other settings went.
 SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     ("web_search", "true to ground answers with Google Search."),
-    (
-        "search_types",
-        "[web_search], [image_search], or both. Blank = Google's default.",
-    ),
 )
