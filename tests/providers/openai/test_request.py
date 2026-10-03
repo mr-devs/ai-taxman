@@ -166,3 +166,59 @@ def test_an_unknown_model_name_is_still_allowed(provider):
     config = provider.validate_model_config({"name": "gpt-6-turbo-unreleased"})
 
     assert isinstance(config, OpenAIModelConfig)
+
+
+# --- the search block -----------------------------------------------------
+
+
+def search(**settings):
+    return {"name": "gpt-5", "search": settings}
+
+
+def test_a_search_setting_without_web_search_is_refused(provider):
+    """An audit must not record settings that were never sent."""
+    with pytest.raises(ValidationError, match="web_search"):
+        request_for(search(search_context_size="low"))
+
+
+def test_a_search_setting_with_web_search_false_is_refused(provider):
+    with pytest.raises(ValidationError, match="web_search"):
+        request_for(search(web_search=False, search_context_size="low"))
+
+
+def test_blank_search_settings_need_no_web_search(provider):
+    """A fresh template leaves every key blank."""
+    block = search(web_search=None, search_context_size=None, return_token_budget=None)
+
+    assert "tools" not in request_for(block)
+
+
+def tool(**settings):
+    return request_for(search(web_search=True, **settings))["tools"][0]
+
+
+def test_search_context_size_goes_on_the_tool(provider):
+    assert tool(search_context_size="high")["search_context_size"] == "high"
+
+
+def test_search_context_size_is_low_medium_or_high(provider):
+    with pytest.raises(ValidationError):
+        tool(search_context_size="huge")
+
+
+def test_external_web_access_goes_on_the_tool(provider):
+    assert tool(external_web_access=False)["external_web_access"] is False
+
+
+def test_return_token_budget_goes_on_the_tool(provider):
+    assert tool(return_token_budget="unlimited")["return_token_budget"] == "unlimited"
+
+
+def test_return_token_budget_is_default_or_unlimited(provider):
+    """The docs: `null`, numbers, and other strings are rejected."""
+    with pytest.raises(ValidationError):
+        tool(return_token_budget=10_000)
+
+
+def test_unset_tool_settings_are_left_to_openai(provider):
+    assert tool() == {"type": "web_search"}

@@ -26,6 +26,7 @@ from ai_taxman.providers.openai.config import (
     SEARCH_TEMPLATE_FIELDS,
     TEMPLATE_FIELDS,
     OpenAIModelConfig,
+    OpenAISearchConfig,
 )
 from ai_taxman.providers.openai.models import DEFAULT_MODEL, KNOWN_MODELS
 
@@ -129,12 +130,22 @@ def build_request(request: Request) -> dict[str, Any]:
     if config.reasoning_effort is not None:
         payload["reasoning"] = {"effort": config.reasoning_effort}
     if config.search.web_search:
-        payload["tools"] = [{"type": "web_search"}]
+        payload["tools"] = [_web_search_tool(config.search)]
     if request.system_prompt:
         payload["instructions"] = request.system_prompt
 
     payload.update(config.extra)
     return payload
+
+
+def _web_search_tool(search: OpenAISearchConfig) -> dict[str, Any]:
+    """The `web_search` tool, carrying only the settings the audit chose."""
+    tool: dict[str, Any] = {"type": "web_search"}
+    for key in ("search_context_size", "external_web_access", "return_token_budget"):
+        value = getattr(search, key)
+        if value is not None:
+            tool[key] = value
+    return tool
 
 
 def render_template() -> str:
@@ -151,7 +162,7 @@ def render_template() -> str:
         lines.append(f"  {key}:  # {comment}")
     lines += [
         "",
-        "  # Web search. If web_search is not true, the other search settings are ignored.",
+        "  # Web search. web_search must be true to use any other setting in this block.",
         "  search:",
     ]
     for key, comment in SEARCH_TEMPLATE_FIELDS:

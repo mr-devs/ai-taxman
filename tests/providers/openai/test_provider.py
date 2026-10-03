@@ -73,7 +73,7 @@ def test_web_search_is_set_in_a_search_block_inside_the_model_block():
     parsed = yaml.safe_load(PROVIDER.render_template())["model"]
 
     assert "web_search" not in parsed
-    assert parsed["search"] == {"web_search": None}
+    assert parsed["search"]["web_search"] is None
 
 
 def test_the_search_block_says_its_settings_need_web_search():
@@ -81,7 +81,7 @@ def test_the_search_block_says_its_settings_need_web_search():
     index = lines.index("  search:")
 
     assert lines[index - 1] == (
-        "  # Web search. If web_search is not true, the other search settings are ignored."
+        "  # Web search. web_search must be true to use any other setting in this block."
     )
 
 
