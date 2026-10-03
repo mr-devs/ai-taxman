@@ -126,6 +126,9 @@ class AnthropicSearchConfig(_Block):
     #: Which version of the tool. Blank sends the newest.
     tool_version: WebSearchVersion | None = None
 
+    #: The most searches Claude may run for one message.
+    max_uses: int | None = Field(default=None, ge=1)
+
     @model_validator(mode="after")
     def _settings_need_web_search(self) -> AnthropicSearchConfig:
         """A setting for a tool that is not sent would be recorded but never used."""
@@ -243,4 +246,5 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "web_search_20250305 | web_search_20260209 | web_search_20260318. "
         "Blank = web_search_20260318.",
     ),
+    ("max_uses", "Most searches per message. Blank = no limit."),
 )

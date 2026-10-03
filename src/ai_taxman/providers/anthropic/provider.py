@@ -159,7 +159,15 @@ def build_request(request: Request) -> dict[str, Any]:
 
 def _web_search_tool(search: AnthropicSearchConfig) -> dict[str, Any]:
     """The web search tool, carrying only the settings the audit chose."""
-    return {"type": search.tool_version or DEFAULT_WEB_SEARCH_VERSION, "name": "web_search"}
+    tool: dict[str, Any] = {
+        "type": search.tool_version or DEFAULT_WEB_SEARCH_VERSION,
+        "name": "web_search",
+    }
+    for key in ("max_uses",):
+        value = getattr(search, key)
+        if value is not None:
+            tool[key] = value
+    return tool
 
 
 def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:

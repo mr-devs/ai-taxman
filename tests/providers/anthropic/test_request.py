@@ -359,3 +359,16 @@ def test_a_search_setting_without_web_search_is_refused():
 def test_extra_cannot_add_tools_of_its_own():
     with pytest.raises(ValidationError, match="tools"):
         request_for({**BASE, "extra": {"tools": []}})
+
+
+def test_max_uses_goes_on_the_tool():
+    assert tool(max_uses=3)["max_uses"] == 3
+
+
+def test_max_uses_is_a_positive_number():
+    with pytest.raises(ValidationError, match="max_uses"):
+        search(max_uses=0)
+
+
+def test_unset_tool_settings_are_left_to_anthropic():
+    assert set(tool()) == {"type", "name"}
