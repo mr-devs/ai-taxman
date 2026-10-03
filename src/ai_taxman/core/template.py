@@ -285,5 +285,5 @@ def _yaml_value(value: Any) -> str:
         return yaml_scalar(value)
     if isinstance(value, float) and value.is_integer():
         value = int(value)  # `120`, as the user would write it, not `120.0`
-    text = yaml.safe_dump(value, default_flow_style=True, width=float("inf"))
+    text = yaml.safe_dump(value, default_flow_style=True, width=float("inf"), allow_unicode=True)
     return text.removesuffix("\n...\n").rstrip("\n")

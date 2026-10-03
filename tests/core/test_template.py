@@ -402,6 +402,15 @@ def test_an_example_is_written_as_the_user_would_write_it():
     assert label(render_block(One), "domains", "Example") == "[cdc.gov, who.int]"
 
 
+def test_a_list_example_keeps_its_letters_as_written():
+    class One(BaseModel):
+        domains: list[str] | None = Field(
+            default=None, description="A.", examples=[["münchen.de", "zürich.ch"]]
+        )
+
+    assert label(render_block(One), "domains", "Example") == "[münchen.de, zürich.ch]"
+
+
 def test_further_examples_line_up_under_the_first():
     class One(BaseModel):
         country: str | None = Field(default=None, description="A.", examples=["US", "GB"])
