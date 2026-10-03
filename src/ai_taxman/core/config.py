@@ -56,21 +56,19 @@ class OutputConfig(_Strict):
     """
 
     dir: str = Field(
-        description="The folder each run writes its responses and manifest to, relative "
-        "to the project root. {audit} and {run_id} are filled in at run time. Keep "
-        "{run_id}: a folder holds one run, so without it the next run is refused."
+        description="Where responses and manifest are written to, relative to the project root. "
+        "{audit} and {run_id} are filled in at run time."
     )
     filename: str = Field(
         default=DEFAULT_OUTPUT_FILENAME,
-        description="The file in that folder that holds the raw responses, one JSON "
-        "object per line.",
+        description="Filename for the responses file in the `output` directory.",
     )
     compress: bool = Field(
         default=False, description="Gzip the responses file as it is written, adding .gz."
     )
     log_dir: str = Field(
-        description="The folder each run's log is written to, as <run_id>.log, relative "
-        "to the project root. {audit} and {run_id} are filled in at run time."
+        description="Path to directory where the log file is written, saved as <run_id>.log, and "
+        "relative to the project root. {audit} and {run_id} are filled in at run time."
     )
 
 
@@ -80,14 +78,12 @@ class ExecutionConfig(_Strict):
     repeats: int = Field(
         default=1,
         ge=1,
-        description="How many times each message is sent. All repeats share one pool and "
-        "go out interleaved, not as separate passes over the file.",
+        description="How many times each message is sent.",
     )
     max_concurrency: int = Field(
         default=8,
         ge=1,
-        description="How many requests are in flight at once. Lower it if the provider "
-        "rate-limits you; raise it to finish sooner.",
+        description="Max number of simultaneous requests.",
     )
     batch: bool = Field(
         default=False,
@@ -97,55 +93,44 @@ class ExecutionConfig(_Strict):
     timeout_s: float = Field(
         default=120.0,
         gt=0,
-        description="Seconds to wait for one attempt at a response before giving up on "
-        "it. Raise it for long answers or slow models.",
+        description="Seconds to wait for a response before an attempt fails.",
     )
     max_retries: int = Field(
         default=5,
         ge=0,
-        description="How many times to retry a request that failed for a passing reason, "
-        "such as a rate limit, a timeout, or a server error, waiting longer each time. "
-        "Any other failure is recorded at once.",
+        description="How many times to retry a request after a rate limit, timeout, or "
+        "server error.",
     )
     on_error: Literal["continue", "stop"] = Field(
         default="continue",
-        description="What to do when a request still fails after its retries.",
+        description="What to do when a request fails after all retries.",
         json_schema_extra={
             "options": {
-                "continue": "record the failure and keep sending",
-                "stop": "send nothing more; requests already sent finish, and the run "
-                "ends as stopped_early",
+                "continue": "record the failure and keep going",
+                "stop": "stop sending; the run ends as stopped_early",
             }
         },
     )
     shuffle: bool = Field(
         default=False,
-        description="Send the requests in a random order rather than in file order.",
+        description="Send requests in random order instead of file order.",
     )
 
 
 class AuditConfig(_Strict):
     """One audit, as loaded from its YAML file."""
 
-    audit: str = Field(
-        description="The audit's name, which must match this file's name. `taxman "
-        "collect` runs the audit by it, and it fills in {audit} in the output folders."
-    )
-    provider: str = Field(
-        description="The AI provider this audit sends messages to. The settings under "
-        "model: are this provider's own, so to audit another provider, make a new audit "
-        "with `taxman audits new`."
-    )
+    audit: str = Field(description="This audit's name, which must match this file's name.")
+    provider: str = Field(description="The AI provider this audit sends messages to.")
     messages: str = Field(
-        description="The plain text file of messages to send, relative to the project "
-        "root, one message per line. Blank lines and lines starting with # are skipped."
+        description="A filepath, relative to the project root, of messages to send."
     )
 
     #: None sends none.
     system_prompt: str | None = Field(
         default=None,
-        description="A file of system prompt text, relative to the project root, sent "
-        "with every message. Each provider sends it the way its own API takes one.",
+        description="A filepath, relative to the project root, of a system prompt to send "
+        "with every message.",
         json_schema_extra={"blank": "no system prompt"},
     )
 
@@ -153,15 +138,12 @@ class AuditConfig(_Strict):
     #: fallback: this name, or nothing. Required unless the provider needs no key.
     api_key_env: str | None = Field(
         default=None,
-        description="The name of the environment variable that holds this audit's API "
-        "key: the name, not the key itself. Export the variable in your shell. taxman "
-        "reads this name and no other, and never stores a key.",
+        description="The name of the environment variable that holds the API key to use "
+        "for this audit.",
         json_schema_extra={"required": True},
     )
 
-    output: OutputConfig = Field(
-        description="Where each run's responses, manifest, and log are written."
-    )
+    output: OutputConfig = Field(description="Where output files are written.")
     execution: ExecutionConfig = Field(
         default_factory=ExecutionConfig, description="How the messages are sent."
     )
