@@ -13,7 +13,17 @@ from typing import Any
 import pytest
 
 from ai_taxman.core import registry
+from ai_taxman.core.discovery import Layout
 from ai_taxman.providers.base import Provider, Request
+
+#: Every folder directly under the project root. Most tests build a project by
+#: hand, and short paths keep them readable; the defaults are tested on their own.
+FLAT = Layout(data="data", audits="audits", messages="messages", prompts="prompts", logs="logs")
+
+
+@pytest.fixture
+def flat_layout():
+    return FLAT
 
 
 @dataclass

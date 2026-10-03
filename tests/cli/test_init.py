@@ -177,7 +177,7 @@ def test_init_starts_a_project_where_there_is_none(invoke, leave_project, tmp_pa
 
     assert result.exit_code == 0
     assert (tmp_path / MARKER_FILENAME).is_file()
-    assert (tmp_path / "audits" / "probe.yaml").is_file()
+    assert (tmp_path / "taxman" / "audits" / "probe.yaml").is_file()
 
 
 def test_it_says_it_started_a_project(invoke, leave_project):

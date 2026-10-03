@@ -11,10 +11,12 @@ import pytest
 from ai_taxman.core.discovery import (
     MARKER_FILENAME,
     AuditRef,
+    Layout,
     audits_dir,
     find_audit,
     find_project_root,
     list_audits,
+    read_layout,
     require_project_root,
     write_marker,
 )
@@ -25,7 +27,7 @@ from ai_taxman.core.errors import AuditNotFoundError, ConfigError, NotATaxmanPro
 def project(tmp_path):
     """A project root with a marker and an empty `audits/` directory."""
     root = tmp_path / "project"
-    (root / "audits").mkdir(parents=True)
+    (root / "taxman" / "audits").mkdir(parents=True)
     write_marker(root)
     return root
 
@@ -114,7 +116,91 @@ def test_writing_a_marker_is_idempotent(tmp_path):
 
 
 def test_the_audits_directory_hangs_off_the_root(project):
-    assert audits_dir(project) == project / "audits"
+    assert audits_dir(project) == project / "taxman" / "audits"
+
+
+# --- the folders a project uses -------------------------------------------
+
+
+def test_a_new_marker_records_the_default_folders(project):
+    assert read_layout(project) == Layout(
+        data="taxman/data",
+        audits="taxman/audits",
+        messages="taxman/messages",
+        prompts="taxman/prompts",
+        logs="taxman/logs",
+    )
+
+
+def test_the_marker_records_the_folders_chosen(tmp_path):
+    write_marker(tmp_path, Layout(audits="studies", data="results"))
+
+    layout = read_layout(tmp_path)
+
+    assert layout.audits == "studies"
+    assert layout.data == "results"
+    assert layout.messages == "taxman/messages"
+
+
+def test_audits_are_found_in_the_folder_the_marker_names(tmp_path):
+    write_marker(tmp_path, Layout(audits="studies"))
+    expected = make(tmp_path / "studies", "election")
+
+    assert find_audit("election", root=tmp_path) == expected
+
+
+def test_a_folder_missing_from_the_marker_takes_its_default(tmp_path):
+    (tmp_path / MARKER_FILENAME).write_text(
+        "taxman_project: 2\npaths:\n  audits: studies\n", encoding="utf-8"
+    )
+
+    layout = read_layout(tmp_path)
+
+    assert layout.audits == "studies"
+    assert layout.data == "taxman/data"
+
+
+def test_a_marker_from_an_older_taxman_is_refused(tmp_path):
+    (tmp_path / MARKER_FILENAME).write_text("taxman_project: 1\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="taxman init"):
+        require_project_root(tmp_path)
+
+
+def test_an_unreadable_marker_cannot_name_its_folders(project):
+    (project / MARKER_FILENAME).write_text("{{ not yaml\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match=MARKER_FILENAME):
+        read_layout(project)
+
+
+def test_a_folder_the_marker_points_outside_the_project_is_refused(tmp_path):
+    (tmp_path / MARKER_FILENAME).write_text(
+        "taxman_project: 2\npaths:\n  data: ../elsewhere\n", encoding="utf-8"
+    )
+
+    with pytest.raises(ConfigError, match="elsewhere"):
+        read_layout(tmp_path)
+
+
+@pytest.mark.parametrize("value", ["/abs/data", "../data", "a/../../b", "", "  ", ".", "~/data"])
+def test_a_folder_must_be_a_relative_path_inside_the_project(value):
+    with pytest.raises(ConfigError):
+        Layout(data=value)
+
+
+def test_a_folder_is_written_in_its_plainest_form():
+    assert Layout(data=" results//raw/ ").data == "results/raw"
+
+
+def test_two_purposes_cannot_share_a_folder():
+    with pytest.raises(ConfigError, match="data"):
+        Layout(data="shared", logs="shared")
+
+
+def test_one_folder_cannot_sit_inside_another():
+    with pytest.raises(ConfigError, match="audits"):
+        Layout(audits="work", data="work/data")
 
 
 # --- finding one audit ----------------------------------------------------
@@ -165,8 +251,8 @@ def test_unknown_audit_lists_what_is_available(project):
     assert "refusals" in message
 
 
-def test_unknown_audit_with_none_available_suggests_init(project):
-    with pytest.raises(AuditNotFoundError, match="taxman init"):
+def test_unknown_audit_with_none_available_suggests_creating_one(project):
+    with pytest.raises(AuditNotFoundError, match="taxman audits new"):
         find_audit("typo", root=project)
 
 

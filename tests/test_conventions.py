@@ -136,13 +136,18 @@ def test_the_project_scope_rule_is_written_down_in_claude_md():
     assert "project-scoped" in text.lower()
 
 
-def test_the_marker_is_a_marker_not_a_config_file():
-    """One key, forever. A project-level setting is the config channel we deleted."""
+def test_the_marker_holds_a_version_and_folders_and_nothing_else():
+    """Folders only. An audit setting in the marker is the config channel we deleted."""
     import yaml
 
-    from ai_taxman.core.discovery import MARKER_TEXT, MARKER_VERSION, MARKER_VERSION_KEY
+    from ai_taxman.core.discovery import (
+        MARKER_PATHS_KEY,
+        MARKER_VERSION_KEY,
+        Layout,
+        render_marker,
+    )
 
-    assert yaml.safe_load(MARKER_TEXT) == {MARKER_VERSION_KEY: MARKER_VERSION}
+    assert set(yaml.safe_load(render_marker(Layout()))) == {MARKER_VERSION_KEY, MARKER_PATHS_KEY}
 
 
 def test_core_ignores_every_other_key_in_the_marker(tmp_path):
@@ -160,7 +165,7 @@ def test_core_ignores_every_other_key_in_the_marker(tmp_path):
     plain = load_audit(audit).model_dump(mode="json")
 
     (tmp_path / MARKER_FILENAME).write_text(
-        "taxman_project: 1\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
+        "taxman_project: 2\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
         encoding="utf-8",
     )
 

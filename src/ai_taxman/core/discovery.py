@@ -1,10 +1,10 @@
-"""The project root, and resolving an audit name to the file that defines it.
+"""The project root, the folders it uses, and finding an audit inside it.
 
 taxman is project-scoped from top to bottom. A project is any directory holding
-a `taxman.yaml` marker, and its audits live in exactly one place:
-`<root>/audits/<name>.yaml`. There is no user-global audit directory, no search
-fallback, and no precedence rule — one name resolves to one file, or to an error
-naming the directory that was searched.
+a `taxman.yaml` marker, written by `taxman init`, and its audits live in exactly
+one place: the audits folder that marker names. There is no user-global audit
+directory, no search fallback, and no precedence rule — one name resolves to one
+file, or to an error naming the directory that was searched.
 
 The root is found by walking *up* from the working directory to the nearest
 marker, the way git finds `.git`, so every command works from anywhere inside a
@@ -13,16 +13,18 @@ project. The marker is a visible file rather than the presence of `audits/`:
 keep, and a walk-up matching it would adopt an unrelated folder as a project
 root and write collected data into it.
 
-`taxman.yaml` is a marker, not a config file. The only key read from it is its
-schema version, which exists so a project written by a newer taxman is refused
-rather than misread. Settings live in the audit.
+The marker records the project's folders (`Layout`) and nothing else. Only the
+audits folder is read at run time, because finding an audit by name needs it.
+The rest are written into each new audit by `taxman audits new`, so an audit
+still names every path it uses and a run never depends on a setting outside
+the file that describes it.
 """
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import dataclass, fields
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -38,20 +40,85 @@ YAML_SUFFIXES = (".yaml", ".yml")
 #: The file whose presence makes a directory a taxman project.
 MARKER_FILENAME = "taxman.yaml"
 
-#: The only key core reads out of the marker. See the module docstring.
 MARKER_VERSION_KEY = "taxman_project"
-MARKER_VERSION = 1
+MARKER_VERSION = 2
 
-MARKER_TEXT = f"""\
-# Marks the root of a taxman project. Audits live in ./audits, and the relative
-# paths inside them (messages, output.dir) resolve against this directory.
-#
-# This is a marker, not a config file: settings belong in the audit YAML, which
-# `taxman init` writes fully commented.
-{MARKER_VERSION_KEY}: {MARKER_VERSION}
-"""
+#: The marker's block of folders.
+MARKER_PATHS_KEY = "paths"
 
-AUDITS_DIR_NAME = "audits"
+#: What each folder holds, in the order `taxman init` asks about them.
+FOLDER_PURPOSES = {
+    "data": "Collected data",
+    "audits": "Audit files",
+    "messages": "Message files",
+    "prompts": "System prompts",
+    "logs": "Run logs",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class Layout:
+    """The folders a project uses, each relative to its root.
+
+    Every folder is checked on construction: a relative path that stays inside
+    the project, not the root itself, and neither shared with nor nested inside
+    another folder. A layout that exists is a layout that is safe to write to.
+    """
+
+    data: str = "taxman/data"
+    audits: str = "taxman/audits"
+    messages: str = "taxman/messages"
+    prompts: str = "taxman/prompts"
+    logs: str = "taxman/logs"
+
+    def __post_init__(self) -> None:
+        for purpose in FOLDER_PURPOSES:
+            object.__setattr__(self, purpose, check_folder(getattr(self, purpose), purpose))
+
+        chosen = {purpose: PurePosixPath(getattr(self, purpose)) for purpose in FOLDER_PURPOSES}
+        for purpose, path in chosen.items():
+            for other, other_path in chosen.items():
+                if other == purpose:
+                    continue
+                if path == other_path:
+                    raise ConfigError(
+                        f"`{purpose}` and `{other}` are both {path}. Give each its own folder."
+                    )
+                if other_path in path.parents:
+                    raise ConfigError(
+                        f"`{purpose}` ({path}) is inside `{other}` ({other_path}). "
+                        "Give each its own folder."
+                    )
+
+    def as_dict(self) -> dict[str, str]:
+        return {purpose: getattr(self, purpose) for purpose in FOLDER_PURPOSES}
+
+
+def check_folder(value: str, purpose: str) -> str:
+    """Return `value` as a clean relative folder, or say why it cannot be one."""
+    text = str(value).strip()
+    if not text:
+        raise ConfigError(f"The `{purpose}` folder is empty. Give a path like taxman/{purpose}.")
+
+    path = PurePosixPath(text.replace("\\", "/"))
+    if path.is_absolute() or text.startswith("~"):
+        raise ConfigError(
+            f"The `{purpose}` folder {text!r} is not relative. Folders are written "
+            "relative to the project root, so the project still works after it is "
+            "moved or cloned."
+        )
+    if ".." in path.parts:
+        raise ConfigError(
+            f"The `{purpose}` folder {text!r} leads outside the project. Every folder "
+            "has to be inside it."
+        )
+    if not path.parts or path == PurePosixPath("."):
+        raise ConfigError(
+            f"The `{purpose}` folder cannot be the project root itself. "
+            f"Give a folder like taxman/{purpose}."
+        )
+    return path.as_posix()
+
 
 #: Home for `doctor`'s remembered answers - a fact about the machine, never
 #: about an audit. Nothing project-scoped may be stored here.
@@ -101,12 +168,17 @@ def require_project_root(start: Path | None = None) -> Path:
         searched = Path(start) if start is not None else Path.cwd()
         raise NotATaxmanProjectError(
             f"this directory is not a taxman project: no {MARKER_FILENAME} in "
-            f"{searched} or any parent directory. Start one with "
-            "`taxman init <provider> <audit>`, or change to a directory inside "
-            "an existing project."
+            f"{searched} or any parent directory. Start one with `taxman init`, "
+            "or change to a directory inside an existing project."
         )
 
     version = _marker_version(root / MARKER_FILENAME)
+    if version < MARKER_VERSION:
+        raise ConfigError(
+            f"{root / MARKER_FILENAME} was written by an earlier version of taxman, "
+            "before a project recorded its folders. Delete it and run `taxman init` "
+            "in that directory to set the project up again."
+        )
     if version > MARKER_VERSION:
         raise ConfigError(
             f"{root / MARKER_FILENAME} was written by a newer version of taxman "
@@ -116,18 +188,74 @@ def require_project_root(start: Path | None = None) -> Path:
     return root
 
 
-def write_marker(root: Path) -> Path:
+def render_marker(layout: Layout) -> str:
+    """The text of a marker recording `layout`, commented for the person editing it."""
+    width = max(len(purpose) for purpose in FOLDER_PURPOSES) + 1
+    folders = [
+        f"  {purpose + ':':<{width}} {getattr(layout, purpose)}  # {label}"
+        for purpose, label in FOLDER_PURPOSES.items()
+    ]
+    return "\n".join(
+        [
+            "# Marks the root of a taxman project: every taxman command run in this",
+            "# directory or below it works on this project.",
+            "#",
+            "# The folders taxman uses, relative to this directory. `taxman audits new`",
+            "# writes them into each audit it creates, so a change here applies to",
+            "# audits created afterwards. Audits themselves are always looked up in",
+            "# `audits`.",
+            f"{MARKER_VERSION_KEY}: {MARKER_VERSION}",
+            f"{MARKER_PATHS_KEY}:",
+            *folders,
+            "",
+        ]
+    )
+
+
+def write_marker(root: Path, layout: Layout | None = None) -> Path:
     """Make `root` a taxman project, leaving an existing marker untouched."""
     path = Path(root) / MARKER_FILENAME
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(MARKER_TEXT, encoding="utf-8")
+        path.write_text(render_marker(layout or Layout()), encoding="utf-8")
     return path
+
+
+def read_layout(root: Path) -> Layout:
+    """The folders the marker at `root` records.
+
+    A folder the marker leaves out takes its default, so a hand-edited marker
+    only has to name what it changes.
+    """
+    path = Path(root) / MARKER_FILENAME
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ConfigError(f"Could not read the project's folders from {path}: {exc}") from exc
+
+    folders = data.get(MARKER_PATHS_KEY) if isinstance(data, dict) else None
+    if folders is None:
+        folders = {}
+    if not isinstance(folders, dict):
+        raise ConfigError(f"`{MARKER_PATHS_KEY}:` in {path} must be a mapping of folders.")
+
+    known = {field.name for field in fields(Layout)}
+    unknown = sorted(set(folders) - known)
+    if unknown:
+        raise ConfigError(
+            f"{path} names folders taxman does not use: {', '.join(unknown)}. "
+            f"The folders are: {', '.join(FOLDER_PURPOSES)}."
+        )
+
+    try:
+        return Layout(**{key: str(value) for key, value in folders.items() if value is not None})
+    except ConfigError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
 
 
 def audits_dir(root: Path) -> Path:
     """The one directory a project's audits live in."""
-    return Path(root) / AUDITS_DIR_NAME
+    return Path(root) / read_layout(root).audits
 
 
 def find_audit(
@@ -229,7 +357,7 @@ def _not_found_message(name: str, directory: Path, available: list[AuditRef]) ->
     if not available:
         return (
             f"No audit named {name!r}, and there are no audits in {directory}. "
-            "Create one with `taxman init <provider> <audit>`."
+            "Create one with `taxman audits new <provider> <audit>`."
         )
     names = ", ".join(ref.name for ref in available)
     return f"No audit named {name!r} in {directory}. Available audits: {names}."

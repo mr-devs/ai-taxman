@@ -63,11 +63,11 @@ def test_run_audit_reports_progress(tmp_path, fake_provider):
     assert all(isinstance(record, ResponseRecord) for record in seen)
 
 
-def test_load_audit_takes_an_audit_name_like_the_cli(tmp_path, monkeypatch):
+def test_load_audit_takes_an_audit_name_like_the_cli(tmp_path, monkeypatch, flat_layout):
     from ai_taxman.core.discovery import write_marker
 
     make_project(tmp_path)
-    write_marker(tmp_path)
+    write_marker(tmp_path, flat_layout)
     (tmp_path / "messages" / "nested").mkdir()
     monkeypatch.chdir(tmp_path / "messages" / "nested")
 
@@ -76,11 +76,11 @@ def test_load_audit_takes_an_audit_name_like_the_cli(tmp_path, monkeypatch):
     assert config.source_path == tmp_path / "audits" / "probe.yaml"
 
 
-def test_run_audit_takes_an_audit_name(tmp_path, monkeypatch, fake_provider):
+def test_run_audit_takes_an_audit_name(tmp_path, monkeypatch, fake_provider, flat_layout):
     from ai_taxman.core.discovery import write_marker
 
     make_project(tmp_path)
-    write_marker(tmp_path)
+    write_marker(tmp_path, flat_layout)
     monkeypatch.chdir(tmp_path)
 
     assert run_audit("probe").n_ok == 2

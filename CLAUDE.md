@@ -229,9 +229,9 @@ package. There is no user-global audit, and **there never will be**.
 
 - **No `~/.taxman/audits/`.** No global audit directory, no search fallback, no
   local-shadows-global precedence, and no `source: local | global` on a discovered audit.
-- **One name resolves to exactly one file**: `<project root>/audits/<name>.yaml`. If it
-  isn't there, that is a hard error naming the root that was searched — never a quiet
-  second lookup somewhere else.
+- **One name resolves to exactly one file**: `<name>.yaml` in the audits folder the
+  project's marker names. If it isn't there, that is a hard error naming the directory
+  that was searched — never a quiet second lookup somewhere else.
 - **Outside a project is an error, not a fallback.** A command that needs an audit and
   finds no project root says so plainly ("this directory is not a taxman project") instead
   of guessing at the current working directory.
@@ -262,12 +262,18 @@ The marker is a **visible file**, not a hidden `.taxman/` directory and not the 
 compliance, security, smart-contract — and a walk-up that matched it would happily adopt a
 stranger's folder of PDFs as a project root and write `data/` into it.
 
-`taxman.yaml` is a **marker, not a config file**. Core reads its schema version and nothing
-else. Do not add a setting to it, ever: a project-level default is the same second
-configuration channel that `taxman setup` and `~/.taxman/providers/<name>.yaml` were, and
-it is deleted for the same reasons. Settings live in the audit, which `taxman init` writes
-fully commented. `tests/test_conventions.py` fails the suite if core reads any other key
-out of the marker.
+`taxman.yaml` records the project's **folders and nothing else**: a schema version and a
+`paths:` block (`data`, `audits`, `messages`, `prompts`, `logs`), each relative to the
+root. `core/discovery.Layout` checks them — relative, inside the project, none shared or
+nested. Do not add an audit setting to it, ever: a project-level default for a run is the
+same second configuration channel that `taxman setup` and
+`~/.taxman/providers/<name>.yaml` were, and it is deleted for the same reasons.
+
+Only `audits` is read at run time, because finding an audit by name needs it. The other
+folders are written into each new audit by `taxman audits new`, so an audit still names
+every path it uses and the manifest records it. Collection never reads a folder from the
+marker. `tests/test_conventions.py` fails the suite if the marker grows another key, or
+if an audit setting smuggled into it has any effect.
 
 `taxman init` creates the marker when there isn't one — that is what makes a directory a
 project. There is no separate "init a project" command to learn.
@@ -288,7 +294,7 @@ src/ai_taxman/
 docs/provider-apis/   # API docs per provider - read before touching provider code
 ```
 
-Audit YAMLs resolve to `<project root>/audits/<name>.yaml`, and nowhere else.
+Audit YAMLs resolve to `<audits folder>/<name>.yaml`, and nowhere else.
 
 ## Commands
 

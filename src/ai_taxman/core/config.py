@@ -31,12 +31,15 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ai_taxman.core.discovery import (
-    AUDITS_DIR_NAME,
     YAML_SUFFIXES,
     find_audit,
     find_project_root,
 )
 from ai_taxman.core.errors import ConfigError
+
+#: A loose file with no marker above it, sitting in a directory of this name,
+#: resolves against that directory's parent.
+_LOOSE_AUDITS_DIR = "audits"
 
 DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
 DEFAULT_OUTPUT_FILENAME = "responses.jsonl"
@@ -94,7 +97,7 @@ class AuditConfig(_Strict):
         marked = find_project_root(directory)
         if marked is not None:
             return marked
-        if directory.name == AUDITS_DIR_NAME:
+        if directory.name == _LOOSE_AUDITS_DIR:
             return directory.parent
         return directory
 

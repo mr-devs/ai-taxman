@@ -11,7 +11,7 @@ def runner():
 
 
 @pytest.fixture
-def invoke(runner, tmp_path, monkeypatch):
+def invoke(runner, tmp_path, monkeypatch, flat_layout):
     """Run the CLI inside an isolated taxman project with an isolated TAXMAN_HOME.
 
     `tmp_path` is marked as a project root, because that is where almost every
@@ -20,7 +20,7 @@ def invoke(runner, tmp_path, monkeypatch):
     """
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("TAXMAN_HOME", str(tmp_path / "taxman-home"))
-    write_marker(tmp_path)
+    write_marker(tmp_path, flat_layout)
 
     def run(*args):
         return runner.invoke(app, list(args))

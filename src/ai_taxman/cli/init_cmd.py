@@ -22,7 +22,7 @@ import typer
 from ai_taxman.cli.completion import complete_provider
 from ai_taxman.cli.render import API_KEY_ENV_PLACEHOLDER, render_audit
 from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
-from ai_taxman.core.discovery import audits_dir, find_project_root, write_marker
+from ai_taxman.core.discovery import MARKER_FILENAME, audits_dir, find_project_root, write_marker
 from ai_taxman.core.registry import get_provider
 from ai_taxman.providers.base import Provider
 
@@ -51,6 +51,7 @@ def init(
     started_a_project = root is None
     if root is None:
         root = Path.cwd()
+        write_marker(root)
 
     target = audits_dir(root) / f"{audit}.yaml"
     if target.exists():
@@ -67,7 +68,7 @@ def init(
         api_key_env=_api_key_env(resolved),
     )
 
-    marker = write_marker(root)
+    marker = root / MARKER_FILENAME
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
 
