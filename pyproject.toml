@@ -44,7 +44,7 @@ classifiers = [
 
 [project.optional-dependencies]
 openai = ["openai>=1.60"]
-anthropic = ["anthropic>=0.40"]
+anthropic = ["anthropic>=1.2"]
 all = ["ai-taxman[openai,anthropic]"]
 
 [project.scripts]

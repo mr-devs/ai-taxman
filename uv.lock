@@ -42,7 +42,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "ai-taxman", extras = ["openai", "anthropic"], marker = "extra == 'all'" },
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=1.2" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.60" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
