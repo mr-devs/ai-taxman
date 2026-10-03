@@ -5,6 +5,8 @@ that down above the key. So what the file says a setting takes is read from the
 same field that validates it, and the two cannot drift apart.
 """
 
+from typing import Literal
+
 import pytest
 import yaml
 from pydantic import BaseModel, Field
@@ -163,3 +165,101 @@ def test_a_nested_block_has_no_type_line():
     lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "location")
 
     assert lines == ["# Where to search from."]
+
+
+# --- a fixed set of options -------------------------------------------------
+
+
+def test_a_fixed_set_is_listed_as_options_instead_of_a_type():
+    class One(BaseModel):
+        setting: Literal["low", "medium", "high"] | None = Field(default=None, description="A.")
+
+    lines = render_block(One)
+
+    assert label(lines, "setting", "Options") == "low | medium | high"
+    assert label(lines, "setting", "Type") is None
+
+
+def test_each_option_can_say_what_it_means():
+    class One(BaseModel):
+        on_error: Literal["continue", "stop"] = Field(
+            default="continue",
+            description="What to do.",
+            json_schema_extra={
+                "options": {"continue": "keep going", "stop": "end the run"},
+            },
+        )
+
+    lines = comment_above(render_block(One), "on_error")
+
+    assert lines[1:3] == [
+        "#   Options:  continue  keep going",
+        "#             stop      end the run",
+    ]
+
+
+def test_options_are_listed_in_the_order_validation_declares_them():
+    class One(BaseModel):
+        # Values no other test uses: typing caches `X | None` across equal
+        # Literals, and `Literal["b", "a"] == Literal["a", "b"]`.
+        setting: Literal["zulu", "yankee"] | None = Field(
+            default=None,
+            description="A.",
+            json_schema_extra={"options": {"yankee": "first", "zulu": "second"}},
+        )
+
+    lines = comment_above(render_block(One), "setting")
+
+    assert lines[1].endswith("zulu    second")
+
+
+def test_a_long_meaning_wraps_under_its_own_column():
+    class One(BaseModel):
+        setting: Literal["a", "b"] | None = Field(
+            default=None,
+            description="A.",
+            json_schema_extra={"options": {"a": "word " * 30, "b": "short"}},
+        )
+
+    lines = comment_above(render_block(One), "setting")
+    column = lines[1].index("word")
+
+    assert all(len(line) <= 80 for line in lines)
+    assert lines[2][:column].strip() == "#"
+    assert lines[2][column:].startswith("word")
+
+
+def test_meanings_must_cover_exactly_the_options_validation_takes():
+    """A documented option the field rejects, or an accepted one left out, is a lie."""
+
+    class One(BaseModel):
+        setting: Literal["a", "b"] | None = Field(
+            default=None, description="A.", json_schema_extra={"options": {"a": "only a"}}
+        )
+
+    with pytest.raises(ValueError, match="setting"):
+        render_block(One)
+
+
+def test_a_list_of_options_says_it_takes_a_list():
+    class One(BaseModel):
+        setting: list[Literal["text", "image"]] | None = Field(
+            default=None, min_length=1, description="A."
+        )
+
+    lines = render_block(One)
+
+    assert label(lines, "setting", "Options") == "text | image"
+    assert label(lines, "setting", "Type") == "list of the options above, at least 1"
+
+
+def test_an_unknown_documentation_key_is_refused():
+    """A misspelt key would drop its text from the file without a word."""
+
+    class One(BaseModel):
+        setting: int | None = Field(
+            default=None, description="A.", json_schema_extra={"optoins": {}}
+        )
+
+    with pytest.raises(ValueError, match="optoins"):
+        render_block(One)

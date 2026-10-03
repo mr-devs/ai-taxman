@@ -6,7 +6,10 @@ the field that validates it, so the two cannot drift apart. Core renders its own
 blocks with this, and each provider renders its `model:` block with it.
 
 A field documents itself with `description=`, which every rendered field must
-have.
+have, and may say more in `json_schema_extra`:
+
+- `options`: what each value of a `Literal` means, keyed by value. It must name
+  exactly the values the field accepts.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from __future__ import annotations
 import textwrap
 import types
 from collections.abc import Mapping
-from typing import Any, Union, get_args, get_origin
+from typing import Any, Literal, Union, cast, get_args, get_origin
 
 import yaml
 from pydantic import BaseModel
@@ -32,6 +35,9 @@ NOUNS: dict[type, tuple[str, str]] = {
     int: ("whole number", "whole numbers"),
     float: ("number", "numbers"),
 }
+
+#: What a field may say about itself in `json_schema_extra`. See the module docstring.
+DOC_KEYS = frozenset({"options"})
 
 
 def render_block(
@@ -56,11 +62,15 @@ def render_block(
 def _render_setting(key: str, field: FieldInfo, *, indent: int, value: Any) -> list[str]:
     if not field.description:
         raise ValueError(f"`{key}` has no description to explain it in the audit file.")
+    doc = _doc(key, field)
     pad = " " * indent
     lines = _wrap(field.description, pad)
     block = _block_model(field.annotation)
     if block is not None:
         return [*lines, f"{pad}{key}:", *render_block(block, indent=indent + 2, values=value)]
+    allowed = _options(field)
+    if allowed:
+        lines += _option_lines(key, pad, allowed, doc.get("options"))
     kind = _describe_type(field)
     if kind:
         lines.append(_label(pad, "Type", kind))
@@ -68,15 +78,67 @@ def _render_setting(key: str, field: FieldInfo, *, indent: int, value: Any) -> l
     return [*lines, f"{pad}{key}: {written}" if written else f"{pad}{key}:"]
 
 
+def _doc(key: str, field: FieldInfo) -> dict[str, Any]:
+    """What the field says about itself beyond its description."""
+    extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
+    unknown = sorted(set(extra) - DOC_KEYS)
+    if unknown:
+        raise ValueError(f"`{key}` documents itself with unknown keys: {', '.join(unknown)}.")
+    return extra
+
+
 def _label(pad: str, name: str, text: str) -> str:
-    return f"{pad}#   {name + ':':<10}{text}"
+    """One labelled line, e.g. `#   Type:     number`. No name continues the one above."""
+    heading = f"{name}:" if name else ""
+    return f"{pad}#   {heading:<10}{text}"
+
+
+def _options(field: FieldInfo) -> tuple[str, ...]:
+    """The values a `Literal` setting, or a list of them, accepts, in declared order."""
+    kind = _strip_none(field.annotation)
+    if get_origin(kind) is list:
+        (kind,) = get_args(kind)
+    return get_args(kind) if get_origin(kind) is Literal else ()
+
+
+def _option_lines(key: str, pad: str, allowed: tuple[str, ...], meanings: Any) -> list[str]:
+    if meanings is None:
+        return textwrap.wrap(
+            " | ".join(allowed),
+            WIDTH,
+            initial_indent=_label(pad, "Options", ""),
+            subsequent_indent=_label(pad, "", ""),
+            break_on_hyphens=False,
+        )
+    meanings = cast(dict[str, str], meanings)
+    if set(meanings) != set(allowed):
+        raise ValueError(
+            f"`{key}` explains the options {', '.join(sorted(meanings))}, "
+            f"but accepts {', '.join(allowed)}."
+        )
+    width = max(len(option) for option in allowed) + 2
+    lines = []
+    for i, option in enumerate(allowed):
+        lines += textwrap.wrap(
+            meanings[option],
+            WIDTH,
+            initial_indent=_label(pad, "" if i else "Options", f"{option:<{width}}"),
+            subsequent_indent=_label(pad, "", " " * width),
+            break_on_hyphens=False,
+        )
+    return lines
 
 
 def _describe_type(field: FieldInfo) -> str | None:
-    """What the setting takes, with its bounds, e.g. `number, 0 to 2`."""
+    """What the setting takes, with its bounds, e.g. `number, 0 to 2`.
+
+    None for a single option from a fixed set: its options line says it all.
+    """
     kind = _strip_none(field.annotation)
     if get_origin(kind) is list:
         (item,) = get_args(kind)
+        if get_origin(item) is Literal:
+            return f"list of the options above{_length_bounds(field)}"
         if item not in NOUNS:
             return None
         return f"list of {NOUNS[item][1]}{_length_bounds(field)}"
