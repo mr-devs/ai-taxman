@@ -22,7 +22,11 @@ from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.base import Provider, Request
-from ai_taxman.providers.gemini.config import TEMPLATE_FIELDS, GeminiModelConfig
+from ai_taxman.providers.gemini.config import (
+    GENERATION_CONFIG_KEYS,
+    TEMPLATE_FIELDS,
+    GeminiModelConfig,
+)
 from ai_taxman.providers.gemini.models import DEFAULT_MODEL, KNOWN_MODELS
 
 if TYPE_CHECKING:
@@ -129,6 +133,13 @@ def build_request(request: Request) -> dict[str, Any]:
         "input": request.message.text,
         "store": config.store,
     }
+    generation_config = {
+        key: getattr(config, key)
+        for key in GENERATION_CONFIG_KEYS
+        if getattr(config, key) is not None
+    }
+    if generation_config:
+        payload["generation_config"] = generation_config
     if request.system_prompt:
         payload["system_instruction"] = request.system_prompt
     return payload

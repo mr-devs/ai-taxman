@@ -65,3 +65,28 @@ def test_the_system_prompt_becomes_the_system_instruction():
 
 def test_no_system_prompt_sends_no_system_instruction():
     assert "system_instruction" not in request_for(BASE)
+
+
+# -- generation config -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "key, value", [("temperature", 0.2), ("top_p", 0.9), ("max_output_tokens", 256)]
+)
+def test_a_generation_setting_goes_in_generation_config(key, value):
+    assert request_for({**BASE, key: value})["generation_config"] == {key: value}
+
+
+def test_settings_share_one_generation_config():
+    payload = request_for({**BASE, "temperature": 1.0, "max_output_tokens": 64})
+
+    assert payload["generation_config"] == {"temperature": 1.0, "max_output_tokens": 64}
+
+
+@pytest.mark.parametrize(
+    "block",
+    [{"temperature": 2.1}, {"temperature": -0.1}, {"top_p": 1.1}, {"max_output_tokens": 0}],
+)
+def test_out_of_range_generation_values_are_refused(block):
+    with pytest.raises(ValidationError, match=next(iter(block))):
+        request_for({**BASE, **block})
