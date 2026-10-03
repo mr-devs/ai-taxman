@@ -197,7 +197,7 @@ def test_every_key_taxman_sends_is_protected_from_extra():
         "thinking_level": "low",
         "thinking_summaries": "auto",
         "store": True,
-        "search": {"web_search": True, "search_types": ["web_search"]},
+        "search": {"web_search": True, "search_types": ["web_search"], "tool_choice": "any"},
     }
     payload = request_for(block, system_prompt="Be terse.")
 
@@ -261,3 +261,29 @@ def test_a_search_setting_without_web_search_is_refused():
 def test_extra_cannot_add_tools_of_its_own():
     with pytest.raises(ValidationError, match="cannot set tools"):
         request_for({**BASE, "extra": {"tools": []}})
+
+
+def test_tool_choice_any_makes_the_model_use_a_tool_first():
+    assert search(tool_choice="any")["generation_config"] == {"tool_choice": "any"}
+
+
+def test_tool_choice_shares_generation_config_with_the_other_settings():
+    payload = request_for(
+        {**BASE, "temperature": 0.5, "search": {"web_search": True, "tool_choice": "auto"}}
+    )
+
+    assert payload["generation_config"] == {"temperature": 0.5, "tool_choice": "auto"}
+
+
+def test_tool_choice_is_left_to_google_unless_set():
+    assert "generation_config" not in search()
+
+
+def test_tool_choice_is_auto_or_any():
+    with pytest.raises(ValidationError, match="search.tool_choice"):
+        search(tool_choice="required")
+
+
+def test_extra_cannot_set_tool_choice():
+    with pytest.raises(ValidationError, match="cannot set generation_config.tool_choice"):
+        request_for({**BASE, "extra": {"generation_config": {"tool_choice": "none"}}})
