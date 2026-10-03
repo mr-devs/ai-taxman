@@ -133,8 +133,8 @@ Created taxman/audits/election-probe.yaml
 
 Next:
   1. Write your messages, one per line, in taxman/messages/election-probe.txt
-  2. Review the settings in election-probe.yaml, including `api_key_env`
-  3. taxman collect election-probe
+  2. Review settings in taxman/audits/election-probe.yaml.
+  3. To collect data as specified in taxman/audits/election-probe.yaml, run `taxman collect election-probe`.
 ```
 
 That is the whole command — there are no other arguments or flags. Every setting is written

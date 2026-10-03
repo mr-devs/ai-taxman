@@ -73,12 +73,6 @@ def test_the_scaffolded_file_still_parses_as_yaml(invoke, tmp_path):
     assert isinstance(read(tmp_path, "probe"), dict)
 
 
-def test_it_says_the_key_variable_must_be_exported(invoke):
-    result = invoke("audits", "new", "openai", "probe")
-
-    assert "api_key_env" in result.output
-
-
 def test_settings_are_written_at_their_defaults(invoke, tmp_path):
     """Nothing is pre-filled from the command line; the file carries the defaults."""
     audit = read(tmp_path, "probe") if invoke("audits", "new", "openai", "probe") else None
@@ -122,8 +116,21 @@ def test_the_generated_model_block_validates_against_the_provider(invoke, tmp_pa
 def test_tells_the_user_what_to_do_next(invoke):
     result = invoke("audits", "new", "openai", "election-probe")
 
-    assert "messages/election-probe.txt" in result.output
-    assert "taxman collect election-probe" in result.output
+    assert "  1. Write your messages, one per line, in messages/election-probe.txt" in result.output
+    assert "  2. Review settings in audits/election-probe.yaml." in result.output
+    assert (
+        "  3. To collect data as specified in audits/election-probe.yaml, "
+        "run `taxman collect election-probe`." in result.output
+    )
+
+
+def test_next_steps_name_the_audit_file_by_its_path_in_the_project(invoke, tmp_path):
+    custom_project(tmp_path)
+
+    result = invoke("audits", "new", "openai", "probe")
+
+    assert "Review settings in study/audits/probe.yaml." in result.output
+    assert "as specified in study/audits/probe.yaml," in result.output
 
 
 def test_refuses_to_overwrite_an_existing_audit(invoke, tmp_path):

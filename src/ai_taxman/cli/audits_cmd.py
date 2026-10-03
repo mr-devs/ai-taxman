@@ -82,8 +82,11 @@ def new_command(
     typer.echo("")
     typer.echo("Next:")
     typer.echo(f"  1. Write your messages, one per line, in {display_path(root / messages)}")
-    typer.echo(f"  2. Review the settings in {target.name}, including `api_key_env`")
-    typer.echo(f"  3. taxman collect {audit}")
+    typer.echo(f"  2. Review settings in {display_path(target)}.")
+    typer.echo(
+        f"  3. To collect data as specified in {display_path(target)}, "
+        f"run `taxman collect {audit}`."
+    )
 
 
 def _api_key_env(provider: Provider) -> str | None:
