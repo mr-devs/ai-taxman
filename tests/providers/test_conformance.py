@@ -68,13 +68,40 @@ def test_template_validates_as_written(provider):
     assert provider.describe_model(config) in provider.known_models()
 
 
-def test_every_template_setting_is_explained(provider):
-    """By a comment on its own line, or by the comment directly above it."""
-    body = provider.render_template().splitlines()[1:]
+def unexplained_settings(template):
+    """Each setting in `template` that is not explained in full by the comment above it.
 
-    for previous, line in zip(body, body[1:], strict=False):
-        if line.strip() and not line.lstrip().startswith("#") and "#" not in line:
-            assert previous.lstrip().startswith("#"), line
+    In full means the comment says what the setting does and, unless it is a block
+    of further settings, what it is when left alone.
+    """
+    lines = template.splitlines()[1:]
+    missing = []
+    for index, line in enumerate(lines):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        above = []
+        for previous in reversed(lines[:index]):
+            if not previous.lstrip().startswith("#"):
+                break
+            above.insert(0, previous.strip().removeprefix("#").strip())
+        following = next((later for later in lines[index + 1 :] if later.strip()), "")
+        is_block = following.startswith(" " * (len(line) - len(line.lstrip()) + 2))
+        says_default = any(text.startswith(("Default:", "Required:")) for text in above)
+        if not above or "#" in line or not (is_block or says_default):
+            missing.append(line.strip())
+    return missing
+
+
+def test_every_template_setting_explains_itself_in_full(provider):
+    """`render_block` writes this; a hand-written template would have to match it."""
+    assert unexplained_settings(provider.render_template()) == []
+
+
+def test_an_inline_comment_is_not_an_explanation():
+    """The old style: a one-line hint beside the key says nothing about blank."""
+    assert unexplained_settings("model:\n  temperature:  # 0.0 - 2.0\n") == [
+        "temperature:  # 0.0 - 2.0"
+    ]
 
 
 def test_an_unknown_setting_is_refused(provider):

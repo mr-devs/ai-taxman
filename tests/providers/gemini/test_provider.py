@@ -69,15 +69,6 @@ def comment_above(key):
     return above
 
 
-@pytest.mark.parametrize(
-    "key", [key for key in GeminiModelConfig.model_fields if key not in ("extra", "search")]
-)
-def test_every_setting_says_what_it_is_when_left_alone(key):
-    above = comment_above(key)
-
-    assert any(line.startswith(("Default:", "Required:")) for line in above), above
-
-
 def test_max_output_tokens_says_thinking_counts_toward_it():
     assert "thinking included" in " ".join(comment_above("max_output_tokens"))
 

@@ -77,17 +77,6 @@ def test_the_extra_escape_hatch_stays_out_of_the_template():
     assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
 
 
-@pytest.mark.parametrize(
-    "key",
-    [key for key in OpenAIModelConfig.model_fields if key not in ("extra", "search")]
-    + [k for k in OpenAISearchConfig.model_fields if k not in ("user_location", "image_settings")],
-)
-def test_every_setting_says_what_it_is_when_left_alone(key):
-    above = comment_above(key)
-
-    assert any(line.startswith(("Default:", "Required:")) for line in above), above
-
-
 def test_max_output_tokens_says_what_it_counts():
     assert "reasoning tokens included" in " ".join(comment_above("max_output_tokens"))
 

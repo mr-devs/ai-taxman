@@ -10,7 +10,6 @@ from ai_taxman.providers.anthropic.config import (
     DEFAULT_MAX_TOKENS,
     AnthropicModelConfig,
     AnthropicSearchConfig,
-    AnthropicThinking,
 )
 from ai_taxman.providers.anthropic.models import DEFAULT_MODEL
 from ai_taxman.providers.anthropic.provider import PROVIDER, AnthropicProvider
@@ -96,18 +95,6 @@ def comment_above(key):
             break
         above.insert(0, line.strip().removeprefix("#").strip())
     return above
-
-
-@pytest.mark.parametrize(
-    "key",
-    [key for key in AnthropicModelConfig.model_fields if key not in ("extra", "thinking", "search")]
-    + list(AnthropicThinking.model_fields)
-    + [key for key in AnthropicSearchConfig.model_fields if key != "user_location"],
-)
-def test_every_setting_says_what_it_is_when_left_alone(key):
-    above = comment_above(key)
-
-    assert any(line.startswith(("Default:", "Required:")) for line in above), above
 
 
 def test_max_tokens_says_thinking_counts_toward_it():
