@@ -10,7 +10,7 @@ docs/provider-apis/gemini.md.
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import Literal
 
 #: Offered by `taxman audits new gemini` and tab completion. First entry is the default.
 KNOWN_MODELS: tuple[str, ...] = (
@@ -35,6 +35,3 @@ DEFAULT_MODEL = KNOWN_MODELS[0]
 #: on the pairing. It is the Interactions API's only thinking control: there is no
 #: `thinking_budget`.
 ThinkingLevel = Literal["minimal", "low", "medium", "high"]
-
-#: The same levels as a tuple, for templates and completion.
-THINKING_LEVELS: tuple[str, ...] = get_args(ThinkingLevel)
