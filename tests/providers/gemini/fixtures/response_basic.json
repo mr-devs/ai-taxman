@@ -1,0 +1,70 @@
+{
+  "status": "completed",
+  "usage": {
+    "total_tokens": 7,
+    "total_input_tokens": 6,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 6
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 1,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 0,
+    "raw_prompt_token": 35,
+    "model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 35
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 5
+          }
+        ]
+      }
+    ],
+    "non_grounding_model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 35
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 5
+          }
+        ]
+      }
+    ]
+  },
+  "created": "2026-10-03T22:02:07Z",
+  "updated": "2026-10-03T22:02:07Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "EnMKcQFpFH0T7zUtBfiGGn2XjD+qgNmsBDr10nDcwekSjAsxfjY5O9RiYEkFQfv48gTio9Lj+wtaXKPQmPha0YcEQvz1L3ZgUrkTlv+O/N7LM3Sj4zLXySjKecKH+te7Xu63ZOPrW22Z8YFzM4oe/FZDjBqf",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "Red",
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-3.1-flash-lite"
+}

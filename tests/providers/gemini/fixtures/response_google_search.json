@@ -1,0 +1,179 @@
+{
+  "status": "completed",
+  "usage": {
+    "total_tokens": 128,
+    "total_input_tokens": 12,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 12
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 116,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 0,
+    "grounding_tool_count": [
+      {
+        "type": "google_search",
+        "count": 1,
+        "search_query_count": 1
+      }
+    ],
+    "raw_prompt_token": 3003,
+    "model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 228
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 24
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 3003
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 120
+          }
+        ]
+      }
+    ],
+    "non_grounding_model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 228
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 24
+          }
+        ]
+      },
+      {
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 120
+          }
+        ]
+      }
+    ]
+  },
+  "created": "2026-10-03T22:02:14Z",
+  "updated": "2026-10-03T22:02:14Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "id": "call_846327",
+      "signature": "EvcBCvQBCAIS7wEBaRR9E80jezw7ypKxeIn41IcJ5v0X6WOc2nJayr876uncn+hLiIEShtCJmjI3ZC1l19+oi+30ibl9M2GRQ+z7/RaA1F7nEcq5EYv3vbz0LbRyGFlEQWyzDLtyXGi9uM12LyNuzPJoMgxcfl6wCrdRzZ9rukDGft5c4lqigXvkYB3EaAHTHvGa7FhsjS/7DqanYF/6+zuITIxFMwBPJdqCm/CEZkkGHQ09zidL/YztE2r70LFVhY1XUV9cR4MnT/Hwsp1+jB1zzySWoiWc1gIZtSfpi5EiSKz1gQsN1Loxwxu5ynY72MHBgpw4iJqz5g==",
+      "type": "google_search_call",
+      "arguments": {
+        "queries": [
+          "what is the capital of Australia?"
+        ]
+      },
+      "search_type": "web_search"
+    },
+    {
+      "call_id": "call_846327",
+      "signature": "CAISxT0BaRR9EzuXmYW0cNgdaAnu3caXCJywtIG9mgMi1Sfhy97pFJbMNOrVzqJ/ZXjrLTk3QRx7ixMJguTOK1zZjBHYZBDj4OsubDL4eBaU95ITbLPX2WKy9cP48OTuE1CycdsFZrhSanWJyC+0an9zHIIIzMQZRyCQZ/pfeJVJczbXgTexX+VJzZsBIB5YSrfW96cOKNipky/wQ29IdV/2BzuQTyaTBNpLzRXycUZEsaqWGQ4PNv0kGosFRDoAktSuo1/JvmXW04AX5Mx51DjTcS/NgsF0B1usPxqaWnSV6JpK1eNrmT/v61z8aldUJeGyxCDtP0EQ46nxbLvkw+zLON57oqHbXrioxGCv+r1GHiiGZC8k8nC4iYpNjeS/57F7TAxr6ihDpTmwZr9iCWx+ieXbN9/UEanZm8ivxjse77fx60wPa05MBdl3qoKJyYhMXAF6XnZx1OnxdkwYGGMQ2mncnknxrTTTPqT+Avz2+hIMuKWBZySKR9E6fFEX+YU0aE38KnuPKT9PlAkX1WsqfahRlppgSYTsTLaG52vm0Hr/7UQh1zxId99OnuAtHX6s6esxGlenTk9McbobO5V5JP1bJjtMqHDXkYaw5s8/VxGeBKTK10G39v9Q1KRuAa0lkZpJbi0U2ZQekmQIdLtXlmeTZk8rKxjijX1Ro5uM8+Dg2b6qgsDIMoMvjN2CjBBDwOLYxry2JCbUxjSfSgeJRJ4J3nPAQPY9mVhwsyiZdvaNN3r2Jmm7a3bvU/rbIkt7F+QdpKI3rA+h1iI/gg9J2zC1ozkOLLawK6l2tHbjB3zbYxqDDh0NaH6fJ50ybGPpH5mU1FCWbov9fwq2KSE3YkRl6eU7Cka7HIG1iIqvJjFbPJsSrc06MrmfHtjx5a1jPTTARIPtwVuTE/iZAAl3pxnvSRHlIEH9tznX2Rkj4soCqHa89lJQTpE9YgDcVkEewZTodX/EpGhAARawVJ/rP9jn76rTIrH3bSDLIKFmDzSei5pVfHUWUHU4ywo4zEHX1CTFpEf/5VEgPu7K+MS7d50wiqxdKJn8RojBSHfjuuywILTx207u0OPzNgCu63dGBmrC46a01qIj2AEcwih+5G7l2hWqD/rLuZ/n/eEcs1EzCTaV52AqpvLrwG5IUSKgI6e0JffzRjPqhh5V7sruGPQtc2nO+sLCw39/nG4O7vrTFPSB44Ep6FOw94NyAJ0wO/1N8RNW7JshW3vRfEyyUiTjMmAWAEAsMyJjzeTbxPLvqCiXeLOl+s+eoXZ7wUyjR0gYNTjmzSClAC2/24+Zem+rZb6h6kSiwzYbX45oqZyAU5BKJ5017ryj1+rRSR7AgELqMIffS0+SovNcVYH2/lp7B4imFsJU06jYt6W5ow2yqfQz03RugI7yHOPU6ryvSfymHsDoTvCtDJuLGmUp9KstOynmuw//3N4nls7xfBEYQMLmnavZPVQDPqsiLqfICtwiv/54yfEbtAOl63xFU6AiyGn0Fbp4j5PJQSQu3f5+CS5j9CeSz/GDPkih1cJgEIptyStOcPljk7mQe4gvuxVFaYsd1SyCzvXFLMN/+m1gSkC+nalF1t3j1xsVeQMeyHnSXtMoKS0sYHAHuMTiZic2ABHJlvC6XvusBF8IMtQu1yC+6mkD2OhuOmR/qdO3XrT8tuj9CSmjNiZ7zQljvoDg3ZItOrrlaBwuBe8luN1b6ioh3T2YcOP9uNSpJjTLAaMSSUF0uSCPXuhDkawf+mY9rd3JLnc0AMF2zxs+OGWCDgYgdF65k6BDl+PdsmwRkTY9cvRjzwZ5t0JCpGdfSebWai5d3RLQ0x3XnMr5A4+RCHjJEQ/EPZUgfI/wHHgqux2j+ra+GhCsmebbOORxIpWjw8GOOXe/BKUM2NKzp4svJLyo9TbG1vShJWgkJTbuV9tsl/RYAWS/BkpBLoOFZlfqNGWfjd2WhNNyfnF62BeWGxJFsuBX4PjgBJOven+hNYwKinXAzmlh8NNvwVKaMIjpEBktO/RWJPpq7fMK82oK19IBT5IiU114jBLV3ogpWUg8MaXP6DAiWRUpBpvVQH4gfeh3obDYZ8TwQuVBGAwO540Fy/dbORT79n8mgd4+szbGweQH3V8iaLr0s8MNky3P5GQFPaczOolB2/O4Tk9BcHqS8t9v24cL06n0MYOw0+44dFYALq2aNvYsn9u+P4atY6Jwpxzw3bv+4Cp/E3xuYL+GvzivXjYLXEh4yAk22MjH2BKp4RBCUNmrnzcZw/Uju2cNYmdPUFAGqtXYJ86jVClINhZubW94bdqIj0Y4gbsb3FRmc2CwTMDymlyovgWs6oH6yBTbrn13VmEKISbfxllz3nYTpneakqk8lD11En942HfCJN6OHaZz0MIF8xYLQeT1RmrzGgX3WgRCpZnYbCElCblwMsbaARmg/V7IwzAUdxnlrMyUHhk3zrwLOE/hN99t4DcFbJQd51wGHoWvEF2XQvxNzpmspRiDLCPVFq8fCA6yKOzuG8mwuJHnJMDCFu+6VbUB0JgdELEcsLHgM0d7wy7pgRzOPYjm5t8h/2Kjk2ca0D5vCZBNMDwXRI5hwD5nzBb2mCx1iuvzbvJ8dLmAcAw4NSB7oUHDnbLXLe2vRKMtCpNQxXnKiyLoUMhKNmFgujZnCckBUc0r5f9jsAdtAFc6lq+w7CaLslELUKfeUf0cCFFGaThJCfKvLALjhkzifvNwOPLDa80QbIVwgO3qPDPontzM40H53sp8iTar9cQxo2Buo6UV5vwjlmszhNolWzbB6cVU/ybnonVhmNN3+FSFE8KSTrWMts+YgjVwdKXAPwLXF+rUBEa6P/Gm0hOGUYxIFI0aBZn/zYWQZy85G6iv5hwc3vistb922hT1GnjmIcWg3IKWp0pqP6f2hOmEn6GTjq1JvQQT3K/Tl2oMZ0Vj0VStJfH47PthtycNl3LDKkQsER6NLeJHNpER7OYB8Ll3v/ESfaZx2gcrhhNjy6Ye+Nf9z7xMX1F0uNGJsA4UGOwU6adCUdnag8ZrOlqucx7hoVXkInX7CpAj/jsYAFz3UUD6LJCYBS7HLdWE3lOGnruI+WKRGF50Kf4gqwOgJtDDrDiUtnF4E//U9nDZMWINKfVQjovgQ24tNkLaHnpSDECLO4cRWGNGVToJ/BxMYVL1BZTuXmyyAbOby/82cLHwnwhzypWv+pBU4nlBaddR7tGDQCPImWgDe0IxaJcZm8DWv5jwzNDZeAZWTfbjSBdvaSOf/rozrJFWkJfJkMp40FeMeqhNDCWhe8jYORJa+Ul60KC2Ud5Pz7ezrPlaJ6czr8xmTh5Dbjx0tG1epuqUn4NqjUYjlBfC12eDuNbilTih31PqoOlU8oQB5p+pIIoA6FGleE9YJgwx1uVlLInoX67Yh0z1WVK9wzVXiM8AanLMmVoBGYmyqxf9t23PZ9A/er7kMrknX7zFuEdJe5eeyAhRvyXlwU/5wjFkq4e5f3cj0TJMvDU+2FapFJkkfTuFSO0YAvDloz4rIF3sh/O+yn8BORPQrslUEFeRFsBJe5iAfLyXCoFRkZt0YoTV4z0CZLXvzKaefqzsArv7sdBwL0MVHzlV5o98xeFuu/fswMXfDhw7jU04pmVdrTsLCGl22gDaSn5HhcuoFIfDbU5XC30dAi2YTs257qH0LHySTD7qyofhSruFt2dDBL6D97FPXvk7EO3NG1Os39q8ZQDOVs8WF7bCeU0ynOnh1waoKLyrV5Z2rJJbR4I2jM08iqpVw1qDGSKHwfaord65u1o4rgW3HyBJFq8EvlPi9qiLV5jJ4FnYmpBkiUpqDM94vYMs1ITi35hcUiyNxKFgGmIhC6BEbPYp4z+T94JAUVBjpRwkPQxnvUo18W5+oCRQQRQb4lNHnjPasKXGnJifuHlxnlhwQzBtM62scxyf1ny+YokkdHSAA+hdsRMCvRnMEJHEN9V4tm01GfVJzignvF1mLHkBnUziAXimEndfvHbrMDdBPYUh6iYp/aYhkm3KwxG7g8EJXt8vQafQy5uCX31HS6sh5ar3z+Jia+P055IBYwuucUL60hyvUV6yfHhvlpYuJ/HlQOvVRkTRWG3N3Um0IW/KfR2tobT7du801haH8OCJfLaSe2BF4J3ijgojd8VnTTgJnaYut6t9WpJiVbhec701tng/t8Uhz3hHNC75xghcYIRFbYZlqEPk5+4JvzLYU3dxm8XmtxWYwcimOhH8/XXTPWUnbM06A6epl3OqZVQV6cP4nUsOwVwoQR5CDa0P0xUkUvr7byjvr0w67GS0feX1HVyT4SJR++73+2Tuj9O0Hh7DDYPmJm2+7cHF6vUV56QTHA6Holn9NhUJ2ozkpMQpPVzju8jzqhdA2N6dF/WzTM5cAFRP6A9FhoAFjh7sfqs/htPcnRHXjz2J1CyhZilLY6EncWOZ4sqZ791ZXTyNBk4GuwKJjZOSBKD+4kQfBEOna2QwBrkyOogEEAjqfKzOkbahfdA5JbZnqUXs+a5eEbvoDXpYSpOsB3R6bXXYD+FRDVAmndLOJ4CygPLKI8w38bEG+z1MpAodzF2sTX8oRDSzezEzLFTfB7F7hb+EULPUZ+8zpa47eOH5k5OYO5dy3t79xHJfkKCPTjkb0VB65KfEB4JZHYU7AcO1XRTId5rRQM3k/lZtCXJWhjtiK5CJs/pEwg+h22FzptXgoHsppPS+rZ+IPf1+n7oKDVLCFRYwljgcpXB9hzzWZkaT7TAnHySfVuzlKy+N3kExUuSRfNgIf51zSVNG6txdhfow2Fms8lINkZaAxksgK+QDrS6XHtvf5UebK69zvk+pV0dOnvbbQFYb4Pv5E0W/pUkLq+e4WbR2uG/zsoESbxc1FFywt9m8A/hmPX62ua/kxp/nek3QvH5RnUlNuXq1LUPK80EbW+lXaXCmq7pd4PmX1NarVLMm+biWHOQZQVwUV/P/4udQ32uQ4tEJMBKLdOEvdwi/GcLvIoAhhVjSUXa8F4oAPfScM9/3HYA8Ob2ixUKdFM/+zbfO0FqSTwhPaS2q0uqteb84IE9R7n8beYXpdNip79cIwud9yPgqUJtY31KIjx8tQH8JAhen0VkvxuvWPHrlXwTr0Sun2neVDK9/JzqGH4+20IA2S3mEYM1urLdADHsxSHiLPisqcJ1v+VwQEKek+9BUoJJbjJe+fwHB0kRboTPbQgwCnG/jgFPX9vOX5osTa8AkZTwiVYiPgqsTtHwfY2eO2vS4EmPs9s5IsCJnwVx8wlzVKe1oru8oAN/cvAVJlRZi+ePAmkprWFjRLgmd6tbV0uy9mRlfhYdv+Qe+eQ6EPfJjo9LlzCGaa86Lt9dHQ2bpZpvuP9DsLiLMZ5nlve4XIomW9cLYNM/4xhyiZ6+/5rW60TcyZ13uXBPnULf7U8LnGrzHiiTb6HM1P7EbmRUHZrVgm0Wm5hZyX8eWuDKKlT7h535BmhK+72M2yLwo3qucpiGkPjw9co3/B8i6kBjSTWtMXTe5KURuf4uHs/x8qAGiLNuLJJX7kJmj3olNalohrvcYkjw5B8V77Cbhn/4Yy6528EqwWa7DKn5ArxEh5EDNfGvZxmt1wSY7zF6HKGOftmhWZp1lmIlbYPmWrXjY5p6qFyetl6Fmq3i8vRh2CVvmhJ0EfuCvgD+Y/8YAVJ2Vd6ZvrZZ8ytMK3cOAFNf+nIlZOYQ6qhTUeXLa7agAkZwcD87UBkRSoSzaGmHtiVvj1bn4LDHbwKEPfNswSvUkUWiX/tMrlrT6d7RyGWczPKZ63mF5G6WO6aDiSOljkHA5Oa2yimGLH/ulcRsDK1N0LjGtCF7sVQOy8hR3+Ma5EIducDw9BYojfqT9JdxmEPoyKhrXN4Rrbf+8GC0vDMn82WAonuDLoUAG/37Lg381cLkzlxZgY8j7/IpwXIU55bFChafo6nQdeucvQrknu+OmDVluxqwxvxa4fPwU066rShQOCCNfJYkrZlKduoGB93jKq5R16J236eRfbGqri1nO06qCGNgvObAcLT1bl4t958K1jthi60RxnVfH99CFh4H40lIyu/ZSH70l8ywee4znR7UdKTeNy7sAH+PSQ0Sl8sqkQX4qE8r6Y5y02RY31ybVXVTF8061ihfzavZgrKwvVYxbSyvzGEhCRxK4+ttV+RzIH+F7PIdWx91w9iUHRu+b2w4dQB8aq2dE2ryyBx1YThE10nYxtIo0WfvVppbtvWVnrT3mL0LjYguXRj4Q8IhAcBS+2nhrX6wE72nK/DklcPtBHGOR67veH+oljV5ACpBP8Jg+jnby03Ga1tdr+yhUvGIYG3E6OIQpzEFoGQSAAjsTbGn8nbjomTF8ZKla7JzhRpVl8EwrLuCC3N4bfjPSxCJ4ry0aJYl65UhARCm4pWvHAE3v2GFjfKiFfU5PTro82aiqJ1FVw0S1f/DQlkGW7jt4AmTc0HxJyClehtJ9EN765pwTP4Ou6uZZjZlLKEnkwObBxTQ+8BKAWZuyYX33T8/9A06TmfX/5s0V/1Br6N9QVVXx7pLcjmpWq7SuoqxNCY3UNUXIwhAH6o80w6EoyRJczW/UyipVSj7tv7zoA1Y7yhZ0gc4wlcV0qzXMupX2Y2E+meBXIG5la2AQFCljARne/3Ck5ZqBhuzC3xyrD0HkjCsOWdQQ6xJN3EkosOZi+KAgt9yLzWG7uVGOoYzvOz2eyPx7xrh4MpJf0kj4m7ykwoi7QljWVlvz+ASNrAqok1KU5BcUjfYD8bjWE+aKUlgwhgLNAEq0kcg8OJ4MDnssHUjw3ac2vkTbAST0hw5oPmjaHmUkvZIutk4qd5mutZmHr1P9Yyc+Ir+itJ64svZI+EoNpwKtY3GEnk4pNX1GU15F+E/FLQrUQBJ8D7sfDSGbkeHmaz3Biyft67MZMRK2qiFTxYesvZdySD3RAXPRm7fRKX+X5kmM6328RkNsRv9lO0FRHEALTdDDwpMRsW7s8d9n30NlIc2P7CCpuE8PsydpkJgAkr4rwk0g84ss3G87/jprhmr7noeRG0NIH5rXhd8+syFZ5pTCBaBnO7PvMQu4IrSFUbRZERZE6YevFAjvYdfYbcxEWIejnIi1X/cA5bbtBRSZUUSNrjD2mTNb0fqCALuD9zcJKgkJ5hJDh2fdf7Ucb2ZsPbYnXaj0EKtH+zrpDfh0P6jq2GjV16BiiO/YUYr8LioA8euwboB3J/Uk5nL00C9TRE2WxTbr1JcQYToWAWYdRtJeZzVnvllUso+Kv/PGtQcGci+Pbw/TYYqhtNwJigEUBz15AWa0mWifQveIMTLnKZEdb8fDoKlD4BHFx6BvZSQlBYgGDYfHu+2csI3/2z178UyqCrpDfpxJG8SJOlQKQh2VOQI89Ise6YpA/g1j0r+cOt/YmK4rfgvXYZ5VyAROsnBkJLnhGnPXyQtQOyrjxvscW5eYbDNhCLAe0JjZRb6x4oilppaynxdiEDlNlROPUNJJWy7vwz64zXSt7yTEa4hXnazHf57a6/kYRS3dNLCBNFisirI3C4qQiMSR9IFsz2HI4hp7G13YE+DSFC7tKKS/kfN0l8c4gh7hWlYiDB5DMvxaIVw7EVlacOuhpUfS6qL5R/evOZXVLGRHhCB0OXDJLXEiN+XI839DKie/14Sd+PXel8IuP/0XIbChiWcInwiPHV7NLhLlL0qO2DH8qnlIPTC0BDYrE56xUL/GGbm1ptpDHZ2e44li4uAN54PLO1gGPFiBNmw//MjSSBpMJ+hah/oSTk8OL3APYx7dIfrj6fghCbagIJ2QzoK1IIwFFTJWB6k9/FRgZlrrN/EM9YPDNNhSxd7/oYlmizbGkfEy2Y4NhxJRoDIEW/YMIOF+CmhFtL59a+UzRVje7e9seaGnOOzqgEcasHv7OidWXX6bpjLRL97p4Z3Sy/8Awsb0V+9igXR/7wk4VB4FF3orEJaeKKAs80mfoGupTNW/rYaCR/lVeQmZh+9bM1uw69jAVarThZG9J7wSuTm1VsL8sSQs8qOLKLHvN4847hurFz9oC9rUddE41UXKH41xMV6BkE9UOMQCOQJG8LzCcVrTr7Q6a05bUh6a619iBX+33nJYqJfy7GrtD8oxP/nIh3Rocn7YEUvyQQ37gqF7hw2NCwH5Rrzlud5I4sXiarjU31oUq6YPdGmKdGduOyAJdjLufvhI6+aGLI0qCw/qqc8fGrWsfTUz0kaB0ZAvS2mFrRUv62js7OsGLwL0z1onPdkPY02AoJv+9IIhvM0/ItOekL4micG8+RdEN9qciW1H1WEPDOlpHPWUHOhmNfk81ipQ74GG3nUKCxpdZ/3Ogz8KF6XTPTuw/0mtH9P6E5inhwQTulduPVoFMZIgzKgaapumj0dD5rwOLBat+x3N5brNeqOHwnhDH+qigMjDTpj2VVS9DKjVEbff+HQ2XcNFPSfYdYbyuqh/NM+M6PpC1AFDuK+n4ZDR950WFn2GlJ11w3oQsu7dHuX/6yVbBRqSig3teV8LYL8+zGI6Y6R1qhTNx8zY6+SdMlxFFhLMy/CyDG5C0hLHGIT9lR0SMQAb29QUIRpEGWswBP00X9n1omwYKQOlHcMm+kh5fmr7VikkuEUU3qNo3yL9m3RO3+G2jSrNEvIV5wg/1Owd8yFJ3A+3AqdfrCgGExisXUEq2DbhR4cG7uYYkUzpG64nmp5ZYln9BkAdUlgdCa6Ooc+tsr/J7/EKbFI+41qY5oQ4KAaswcDWsDypp1nJOvGmLq2CYToV3UoPMeXfA8GqDoSakHqSbrGlkBoNEhFsI00t4SlfSMTnen+/U1skVl4TmBT42w0QgJcC0BAVd/oyb6EdgRM5Nk5FVOgWdfk5ZlmoXscPpIdyiyoR7e4soSoJpcC8znJdiJ7GJJakqkJPbY+LZ9sHYGZKW3v5hNw4UwJASlolmoE1waSu7loAGqDYbaypQSg8gO1AJ4+HeKhDH8qEkhMSVfjwbPdacC09bTp8/N9Xl4F198+6DoabGCpTCLjZ2Hz0eMAQEXdmL3XaasVniJTkx65RvQnXf1D11W+d94KTD5c4WBxNPV5gqsS2pG+Kfzcd2wAwqDq+hDA51YV/6Y61fqE7hGSYeIy20ZOmEA0oiI2IEO5nNa4NsG6W75s95A0dKRg331aSsYG7QlQH1ipx1NNp0JQZ4LzYnFL0kJkOArDuH6/MafXDbyjCmFvZWE9Nf5ZXFaTzvZ60aiZmjt2Biq9qxNznWRR7wP0KPrKa/azPC09SarmjJ/2/UvyOElYJuiwC60V5YcclRPyrNNaknPWNlC1OrZ14/M2Isfhs+TMC+YTA/KhEHNjoJwxb9EAEjSbuhZ2mEy9sEm5TDu34Nk4IvRu768P+koFis9ZeZ7gpUrVvAvIyJYJABXBH8LLgw5t4IBH4QdiSctOBM4r4EwOhbsFB7BsRhQI4btmOFc7BUjxQm1iJbJ0x1fPe27JXSiUMpxZyDnnHukTQW/QI6iacG2czuFlVtzm8ip/BIJ2rl83qpdu6peiw/z+CHl97mbz1fKZudPb7wbmpXkhjdL3vN3sLRCIaVlIMdlzgFDlR6q8boBjiKAVuUGNrcUPY6F9S3VJU0V+4Z9dw5XMJehdNlaKAtvUtkhfSML+e1+8lkdYF411Nadsygza781/pTaN9JqbzoPOxikk0jr0tpyz1Kc2kMYrGRDDOD0TTm+sqeXoag0bKnbrmguPS4witpGfrFoKhI0r0zfjUpQFswD7Wd55kEYiqmdK+yqhk+yZJN3lyW3+97xHtjiFeGlugm17CVNWbDEV+6ScwBRBvOoapzA5k2jcGXY7xSzuJhHpjTr82Xb0sL7Uo52dRkQcMUBF1DI1imP/KAQfgZgTAp3TmBn+q2HYbvnLRasF+AaYPaEwWHAE2CWzYVU6mJYYuB/PruqFn2Whi1t0iH2f2hK0KJHoEXX+78gQoHhby9+8laB8TC98lLpDxEVUYsWal43Es56Axtq1MikZYLZAp3LxH4jj8GfSEMzunfrXdmr6nOeTQCQg0dbaI9sF95rPvg3fJl24WqOm8t/EXrsZeSGDpyh1v2+q4Xs4Y7MWgWjoeoIDZyaPDnr0zGZuRvpp6L5Hq7iAe/otNVNpJC7UAiLfjCZWxanz1kJubgJp2x7Fxcq4kp0xe8iYi+ErUNCYmkZPeGZP2cPMB1uyp/gNV6eA1FCtUgMkp7ERvrA5xpN6OfMilB4mcW6H/q7PgvXcDL7nNLf6+vo34JfRnw+xF5R0o9uD9YX7Kz1ViHW/m5+SDYrDjHQqIzBDw741QfZuYTBLEzxc2KZUBSgtkJ7yMV8XsU9sH7wmsGe+Ms7Fg0j3Qhi4QDCm3g7N2L3XsjWPFksH8RKcfujQhGChI8INhtL46dlIGgLN4ksmizo3dCFMr8BUrOgrjf/5zFc+3qWQNQz+D6fN4riO5gIgnnSoexZAe5EuNCmf5LhYssbVGuHOKFiz27pbZIK6gmgIjvtYeejxlefENBoOTl0pv5Uly1A==",
+      "type": "google_search_result",
+      "result": [
+        {
+          "search_suggestions": "<style>\n.container {\n  align-items: center;\n  border-radius: 8px;\n  display: flex;\n  font-family: Google Sans, Roboto, sans-serif;\n  font-size: 14px;\n  line-height: 20px;\n  padding: 8px 12px;\n}\n.chip {\n  display: inline-block;\n  border: solid 1px;\n  border-radius: 16px;\n  min-width: 14px;\n  padding: 5px 16px;\n  text-align: center;\n  user-select: none;\n  margin: 0 8px;\n  -webkit-tap-highlight-color: transparent;\n}\n.carousel {\n  overflow: auto;\n  scrollbar-width: none;\n  white-space: nowrap;\n  margin-right: -12px;\n}\n.headline {\n  display: flex;\n  margin-right: 4px;\n}\n.gradient-container {\n  position: relative;\n}\n.gradient {\n  position: absolute;\n  transform: translate(3px, -9px);\n  height: 36px;\n  width: 9px;\n}\n@media (prefers-color-scheme: light) {\n  .container {\n    background-color: #fafafa;\n    box-shadow: 0 0 0 1px #0000000f;\n  }\n  .headline-label {\n    color: #1f1f1f;\n  }\n  .chip {\n    background-color: #ffffff;\n    border-color: #d2d2d2;\n    color: #5e5e5e;\n    text-decoration: none;\n  }\n  .chip:hover {\n    background-color: #f2f2f2;\n  }\n  .chip:focus {\n    background-color: #f2f2f2;\n  }\n  .chip:active {\n    background-color: #d8d8d8;\n    border-color: #b6b6b6;\n  }\n  .logo-dark {\n    display: none;\n  }\n  .gradient {\n    background: linear-gradient(90deg, #fafafa 15%, #fafafa00 100%);\n  }\n}\n@media (prefers-color-scheme: dark) {\n  .container {\n    background-color: #1f1f1f;\n    box-shadow: 0 0 0 1px #ffffff26;\n  }\n  .headline-label {\n    color: #fff;\n  }\n  .chip {\n    background-color: #2c2c2c;\n    border-color: #3c4043;\n    color: #fff;\n    text-decoration: none;\n  }\n  .chip:hover {\n    background-color: #353536;\n  }\n  .chip:focus {\n    background-color: #353536;\n  }\n  .chip:active {\n    background-color: #464849;\n    border-color: #53575b;\n  }\n  .logo-light {\n    display: none;\n  }\n  .gradient {\n    background: linear-gradient(90deg, #1f1f1f 15%, #1f1f1f00 100%);\n  }\n}\n</style>\n<div class=\"container\">\n  <div class=\"headline\">\n    <svg class=\"logo-light\" width=\"18\" height=\"18\" viewBox=\"9 9 35 35\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M42.8622 27.0064C42.8622 25.7839 42.7525 24.6084 42.5487 23.4799H26.3109V30.1568H35.5897C35.1821 32.3041 33.9596 34.1222 32.1258 35.3448V39.6864H37.7213C40.9814 36.677 42.8622 32.2571 42.8622 27.0064V27.0064Z\" fill=\"#4285F4\"/>\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M26.3109 43.8555C30.9659 43.8555 34.8687 42.3195 37.7213 39.6863L32.1258 35.3447C30.5898 36.3792 28.6306 37.0061 26.3109 37.0061C21.8282 37.0061 18.0195 33.9811 16.6559 29.906H10.9194V34.3573C13.7563 39.9841 19.5712 43.8555 26.3109 43.8555V43.8555Z\" fill=\"#34A853\"/>\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M16.6559 29.8904C16.3111 28.8559 16.1074 27.7588 16.1074 26.6146C16.1074 25.4704 16.3111 24.3733 16.6559 23.3388V18.8875H10.9194C9.74388 21.2072 9.06992 23.8247 9.06992 26.6146C9.06992 29.4045 9.74388 32.022 10.9194 34.3417L15.3864 30.8621L16.6559 29.8904V29.8904Z\" fill=\"#FBBC05\"/>\n      <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M26.3109 16.2386C28.85 16.2386 31.107 17.1164 32.9095 18.8091L37.8466 13.8719C34.853 11.082 30.9659 9.3736 26.3109 9.3736C19.5712 9.3736 13.7563 13.245 10.9194 18.8875L16.6559 23.3388C18.0195 19.2636 21.8282 16.2386 26.3109 16.2386V16.2386Z\" fill=\"#EA4335\"/>\n    </svg>\n    <svg class=\"logo-dark\" width=\"18\" height=\"18\" viewBox=\"0 0 48 48\" xmlns=\"http://www.w3.org/2000/svg\">\n      <circle cx=\"24\" cy=\"23\" fill=\"#FFF\" r=\"22\"/>\n      <path d=\"M33.76 34.26c2.75-2.56 4.49-6.37 4.49-11.26 0-.89-.08-1.84-.29-3H24.01v5.99h8.03c-.4 2.02-1.5 3.56-3.07 4.56v.75l3.91 2.97h.88z\" fill=\"#4285F4\"/>\n      <path d=\"M15.58 25.77A8.845 8.845 0 0 0 24 31.86c1.92 0 3.62-.46 4.97-1.31l4.79 3.71C31.14 36.7 27.65 38 24 38c-5.93 0-11.01-3.4-13.45-8.36l.17-1.01 4.06-2.85h.8z\" fill=\"#34A853\"/>\n      <path d=\"M15.59 20.21a8.864 8.864 0 0 0 0 5.58l-5.03 3.86c-.98-2-1.53-4.25-1.53-6.64 0-2.39.55-4.64 1.53-6.64l1-.22 3.81 2.98.22 1.08z\" fill=\"#FBBC05\"/>\n      <path d=\"M24 14.14c2.11 0 4.02.75 5.52 1.98l4.36-4.36C31.22 9.43 27.81 8 24 8c-5.93 0-11.01 3.4-13.45 8.36l5.03 3.85A8.86 8.86 0 0 1 24 14.14z\" fill=\"#EA4335\"/>\n    </svg>\n    <div class=\"gradient-container\"><div class=\"gradient\"></div></div>\n  </div>\n  <div class=\"carousel\">\n<a class=\"chip\" href=\"https://www.google.com/search?q=what+is+the+capital+of+Australia%3F&client=app-vertex-grounding&safesearch=active\">what is the capital of Australia?</a>\n  </div>\n</div>"
+        }
+      ],
+      "is_error": false
+    },
+    {
+      "signature": "EnMKcQFpFH0TKA4pql/7yy8Agd9ZDFz5qAOL7QjIkkrg5fTE0BjigzvNi3M1kj+tCDh+0MTTywHdSP6BI6ahEWhzEZ96XWeAwHcq1m3qpkYaM43Ba55IRzjzUrk9VFtL/7VwWJ3Ed6lH/+054eZEJg1PMnLq",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "The capital of Australia is **Canberra**.\n\nIt was chosen as the site for the nation's capital in 1908 as a compromise between Sydney and Melbourne, Australia's two largest cities. Located in the Australian Capital Territory (ACT), Canberra serves as the seat of the Australian government.",
+          "annotations": [
+            {
+              "start_index": 0,
+              "end_index": 40,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGB_NKagXh-oFvdqqnUSt-hvy2zn92xsxMq3V6NRAXufd4E6SS6QiOdMBixnER18KxSRbSTSw6oV_E1rHugYSV6DSNgWXAGA_2hF-dGcWLbxv9E2DxgmBmQqPemzXRx6VC05JP4LwPr4MSHktXN2sXD",
+              "title": "expedia.com",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 0,
+              "end_index": 40,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEFPTxQ3n02WBLQFztNq-MPRyR8lKqMe2IQeKPuBFdNWvjU4m2XA2l_UU5tRkTh0vcKIQY8kkBfXn4UUPoHEBr9wJeVduZ9PX8P64WKRXkZvIP4cTe96bF_4l4k7xTRXxM=",
+              "title": "britannica.com",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 0,
+              "end_index": 40,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGpatrM07BLBuYoUaxNBYTdAVOIOCm4yOBHiwc02rtTOZThccLwzXVwjwvY7MS_grpZ6cOlvXWPBHsPfO47ZL1FWKTx8v2fZm7pYvmVK0IfsEejaBuEhGcg4B_lMxO8GoSz0C2bzt41Fay95iNKQXuqlW1tss6XTQ==",
+              "title": "insideaustraliatravel.com",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 43,
+              "end_index": 178,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFVU4ahlkf3XVoZYo2IeJwz50ld-ZdRQIVVD6r-EaYoFGXeUIkmAOKCy3sa8jSCWHPiAusdYj4hTLgwWwvQGvkSFVI2zbHJSjF_XGcixJmx7bLI7Rbk0L-HjbK3tg==",
+              "title": "wikipedia.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 43,
+              "end_index": 178,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGkro8NuHQzkvBlNwEJCmYqPsir_FSCRRKHd_LtdMlnGNwagEcVB3FWF1B9YRcMqYEheVeGvLfMG0OnEaXwKhjKo7MA8b71SBrRTteQO3-vP-Y6mlrNl06CwHUVAXCjpzIKoR2QA9c_SHMla22rdbjHlpiaZLNH05UfMrQyPui2",
+              "title": "worldatlas.com",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 180,
+              "end_index": 287,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFVU4ahlkf3XVoZYo2IeJwz50ld-ZdRQIVVD6r-EaYoFGXeUIkmAOKCy3sa8jSCWHPiAusdYj4hTLgwWwvQGvkSFVI2zbHJSjF_XGcixJmx7bLI7Rbk0L-HjbK3tg==",
+              "title": "wikipedia.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 180,
+              "end_index": 287,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHgHa12z9O-8bPV4QrgEWDh3Us3Jj7ip1q7xr8a8ry64Z5vsGpMIkSDYxg3JPl8s25CvnnX91dpaeTDK8vLvPYLMoliMMc6OW4_VjgIXb2civz11KB_J6xurXsDlHvElZn6gZx5Ctxxngz4sPPRB4wWWxGymFT5SiN6ILF2kMGZ4tw=",
+              "title": "nca.gov.au",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 180,
+              "end_index": 287,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGThDzRz_GboHHP-V7CTlcsSabR0k2hrUjaLehpeU8Y6bPX3RC8Oxlfpx90GyW9hDXUlgLpAuIwG6RCZfqSbumWLQ7E5uke19UHcO69ncV2qFgWe-mecVzMsng_ISY1h-ifaV_VgQ==",
+              "title": "canberra.com.au",
+              "type": "url_citation"
+            }
+          ],
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-3.1-flash-lite"
+}
