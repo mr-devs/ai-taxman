@@ -309,6 +309,15 @@ def test_a_real_background_run_logs_to_the_logs_folder(echo_project, plugin_path
     assert str(log) in result.stderr
 
 
+def test_a_background_run_logs_where_log_file_says(echo_project, plugin_path):
+    result = run_taxman(echo_project, plugin_path, "--background", "--log-file", "run.log")
+
+    log = echo_project / "run.log"
+    assert wait_for(lambda: "run complete" in log.read_text(encoding="utf-8")), result.stderr
+    assert "run.log" in result.stderr
+    assert not (echo_project / "logs").exists()
+
+
 def test_a_real_background_run_cleans_up_its_pid_file_when_it_finishes(echo_project, plugin_path):
     run_taxman(echo_project, plugin_path, "--background")
 

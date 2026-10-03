@@ -104,6 +104,7 @@ def collect(
             config=config,
             provider=provider,
             run_id=run_id,
+            log_file=log_file,
             repeats=repeats,
             concurrency=concurrency,
             log_level=log_level,
@@ -194,6 +195,7 @@ def _start_in_background(
     config: AuditConfig,
     provider: Provider,
     run_id: str | None,
+    log_file: Path | None,
     repeats: int | None,
     concurrency: int | None,
     log_level: str,
@@ -218,7 +220,11 @@ def _start_in_background(
     directory = resolve_output_dir(config, run_id=run_id)
     directory.mkdir(parents=True, exist_ok=True)
 
-    log_file = resolve_log_file(config, run_id=run_id)
+    # The user's --log-file if they gave one, as in the foreground. Made absolute
+    # here so the path the child writes is the one printed below.
+    log_file = (
+        log_file.resolve() if log_file is not None else resolve_log_file(config, run_id=run_id)
+    )
     pid_file = directory / PID_FILENAME
     argv = build_child_command(
         audit,
