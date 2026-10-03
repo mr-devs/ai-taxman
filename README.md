@@ -75,11 +75,11 @@ $ taxman init
 Setting up a taxman project in /Users/you/research/election-study
 Each folder is relative to this directory. Press Enter to keep the default.
 
-  Collected data  [taxman/data]:
-  Audit files     [taxman/audits]:
-  Message files   [taxman/messages]:
-  System prompts  [taxman/prompts]:
-  Run logs        [taxman/logs]:
+  Collected data [taxman/data]:
+  Audit files    [taxman/audits]:
+  Message files  [taxman/messages]:
+  System prompts [taxman/prompts]:
+  Run logs       [taxman/logs]:
 Started a taxman project at /Users/you/research/election-study
   taxman.yaml marks the root and records its folders:
     Collected data  taxman/data/
