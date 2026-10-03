@@ -141,8 +141,6 @@ def build_request(request: Request) -> dict[str, Any]:
         for key in GENERATION_CONFIG_KEYS
         if getattr(config, key) is not None
     }
-    if config.search.web_search and config.search.tool_choice is not None:
-        generation_config["tool_choice"] = config.search.tool_choice
     if generation_config:
         payload["generation_config"] = generation_config
     if config.search.web_search:

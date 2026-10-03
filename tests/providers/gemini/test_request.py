@@ -197,7 +197,7 @@ def test_every_key_taxman_sends_is_protected_from_extra():
         "thinking_level": "low",
         "thinking_summaries": "auto",
         "store": True,
-        "search": {"web_search": True, "search_types": ["web_search"], "tool_choice": "any"},
+        "search": {"web_search": True, "search_types": ["web_search"]},
     }
     payload = request_for(block, system_prompt="Be terse.")
 
@@ -263,27 +263,20 @@ def test_extra_cannot_add_tools_of_its_own():
         request_for({**BASE, "extra": {"tools": []}})
 
 
-def test_tool_choice_any_makes_the_model_use_a_tool_first():
-    assert search(tool_choice="any")["generation_config"] == {"tool_choice": "any"}
+def test_the_search_block_offers_no_tool_choice():
+    """Forcing a tool does not force a Google Search on the Interactions API.
+
+    Live, on 2026-10-03, `generation_config.tool_choice: any` with the built-in
+    `google_search` tool made gemini-3.1-flash-lite either return a client-side
+    `function_call` step for `google_search` - no search, no answer - or fail with
+    a 400, "Model generated too many tool calls". Without it, the search runs. So
+    it is not offered as a search setting; `extra:` can still send it.
+    """
+    with pytest.raises(ValidationError, match="tool_choice"):
+        search(tool_choice="any")
 
 
-def test_tool_choice_shares_generation_config_with_the_other_settings():
-    payload = request_for(
-        {**BASE, "temperature": 0.5, "search": {"web_search": True, "tool_choice": "auto"}}
-    )
+def test_extra_can_still_send_a_tool_choice():
+    payload = request_for({**BASE, "extra": {"generation_config": {"tool_choice": "any"}}})
 
-    assert payload["generation_config"] == {"temperature": 0.5, "tool_choice": "auto"}
-
-
-def test_tool_choice_is_left_to_google_unless_set():
-    assert "generation_config" not in search()
-
-
-def test_tool_choice_is_auto_or_any():
-    with pytest.raises(ValidationError, match="search.tool_choice"):
-        search(tool_choice="required")
-
-
-def test_extra_cannot_set_tool_choice():
-    with pytest.raises(ValidationError, match="cannot set generation_config.tool_choice"):
-        request_for({**BASE, "extra": {"generation_config": {"tool_choice": "none"}}})
+    assert payload["generation_config"] == {"tool_choice": "any"}

@@ -58,7 +58,6 @@ SET_BY_TAXMAN = frozenset(
         "generation_config.max_output_tokens",
         "generation_config.thinking_level",
         "generation_config.thinking_summaries",
-        "generation_config.tool_choice",
         "tools",
     }
 )
@@ -75,6 +74,10 @@ class GeminiSearchConfig(_Block):
 
     The Interactions API's `google_search` tool takes nothing but `search_types`:
     no domain filters and no location. Names are Google's own.
+
+    There is no `tool_choice` here. On this API, `generation_config.tool_choice:
+    any` turns the built-in search into a client-side function call or a 400
+    rather than forcing a search; see docs/provider-apis/gemini.md.
     """
 
     #: Give the model the `google_search` tool.
@@ -84,10 +87,6 @@ class GeminiSearchConfig(_Block):
     search_types: list[Literal["web_search", "image_search"]] | None = Field(
         default=None, min_length=1
     )
-
-    #: Sent as `generation_config.tool_choice`. `any` makes the model use a tool
-    #: before answering; with `auto` it may not search at all.
-    tool_choice: Literal["auto", "any"] | None = None
 
     @model_validator(mode="after")
     def _settings_need_web_search(self) -> GeminiSearchConfig:
@@ -195,9 +194,5 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     (
         "search_types",
         "[web_search], [image_search], or both. Blank = Google's default.",
-    ),
-    (
-        "tool_choice",
-        "auto | any. any makes the model search before answering. Blank = auto.",
     ),
 )
