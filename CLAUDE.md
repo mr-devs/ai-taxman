@@ -125,12 +125,12 @@ never named.
 Core owns "read the variable this audit names". Providers own "use this key". A provider
 never reads the environment itself, and never sees a variable name.
 
-**Always use `SML_`-prefixed key variables.** Whenever you name a key variable yourself, use
-`SML_<PROVIDER>_API_KEY`, never the bare SDK name. That covers `api_key_env:` in a scratch or
-example audit, a live test, and a one-off script. For example: `SML_OPENAI_API_KEY`,
-`SML_ANTHROPIC_API_KEY`, `SML_GEMINI_API_KEY`, `SML_XAI_API_KEY`, `SML_PERPLEXITY_API_KEY`.
-A provider's `default_api_key_env` is the exception: it documents the provider SDK's own
-convention for taxman's users, so it stays unprefixed.
+**Live tests read the provider's own variable, unless `TAXMAN_LIVE_KEY_PREFIX` says
+otherwise.** Each `test_live.py` names `$TAXMAN_LIVE_KEY_PREFIX` + `PROVIDER.default_api_key_env`
+in `api_key_env:`, so a prefix of `MY_` reads `MY_OPENAI_API_KEY`. Which keys a developer bills
+is a fact about their machine: the prefix is set in their shell, never in the repo, and
+nothing under `src/` reads it. When you name a key variable yourself — a scratch audit, a
+one-off script — build it the same way, from the prefix the shell exports.
 
 ## There is no configuration command
 

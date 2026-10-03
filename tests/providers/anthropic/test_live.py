@@ -1,8 +1,8 @@
 """Real Messages API calls, end to end through `run_audit`.
 
-Deselected by default. Run with `uv run pytest -m live -k anthropic`, with
-ANTHROPIC_API_KEY exported. Each test sends one short message to a cheap model,
-so a full pass costs a few cents.
+Deselected by default. Run with `uv run pytest -m live -k anthropic`, with the
+variable `KEY` names exported. Each test sends one short message to a cheap
+model, so a full pass costs a few cents.
 """
 
 import json
@@ -14,8 +14,12 @@ import pytest
 from ai_taxman.core.config import load_audit
 from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.runner import run_audit_async
+from ai_taxman.providers.anthropic import PROVIDER
 
-KEY = "ANTHROPIC_API_KEY"
+#: The variable the SDK reads by convention, or that name behind the prefix in
+#: TAXMAN_LIVE_KEY_PREFIX: `MY_` reads MY_ANTHROPIC_API_KEY. Set the prefix in your
+#: shell, never in the repo; taxman itself never reads it.
+KEY = os.environ.get("TAXMAN_LIVE_KEY_PREFIX", "") + PROVIDER.default_api_key_env
 
 pytestmark = [
     pytest.mark.live,
