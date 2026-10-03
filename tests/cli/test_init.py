@@ -72,6 +72,30 @@ def test_it_asks_about_every_folder(invoke, runner, leave_project, terminal):
         assert label in result.output
 
 
+def test_it_asks_in_the_order_the_folders_are_used(invoke, runner, leave_project, terminal):
+    output = answer(invoke, runner, "", "", "", "", "").output
+    labels = ["Audit files", "Message files", "System prompts", "Collected data", "Run logs"]
+
+    positions = [output.index(label) for label in labels]
+
+    assert positions == sorted(positions)
+
+
+def test_the_summary_lists_the_folders_in_the_same_order(invoke, leave_project):
+    output = invoke("init", "--yes").output
+    folders = [
+        "taxman/audits/",
+        "taxman/messages/",
+        "taxman/prompts/",
+        "taxman/data/",
+        "taxman/logs/",
+    ]
+
+    positions = [output.index(folder) for folder in folders]
+
+    assert positions == sorted(positions)
+
+
 def test_enter_keeps_each_default(invoke, runner, leave_project, tmp_path, terminal):
     result = answer(invoke, runner, "", "", "", "", "")
 
@@ -80,7 +104,7 @@ def test_enter_keeps_each_default(invoke, runner, leave_project, tmp_path, termi
 
 
 def test_an_answer_replaces_the_default(invoke, runner, leave_project, tmp_path, terminal):
-    answer(invoke, runner, "results", "", "", "", "")
+    answer(invoke, runner, "", "", "", "results", "")
 
     assert read_layout(tmp_path).data == "results"
     assert (tmp_path / "results").is_dir()
@@ -89,7 +113,7 @@ def test_an_answer_replaces_the_default(invoke, runner, leave_project, tmp_path,
 def test_a_folder_outside_the_project_is_asked_again(
     invoke, runner, leave_project, tmp_path, terminal
 ):
-    result = answer(invoke, runner, "../elsewhere", "results", "", "", "", "")
+    result = answer(invoke, runner, "", "", "", "../elsewhere", "results", "")
 
     assert "outside the project" in result.output
     assert read_layout(tmp_path).data == "results"
@@ -97,7 +121,7 @@ def test_a_folder_outside_the_project_is_asked_again(
 
 def test_folders_that_collide_are_asked_again(invoke, runner, leave_project, tmp_path, terminal):
     """A clash only shows once every answer is in, so the round starts over."""
-    result = answer(invoke, runner, "shared", "", "", "", "shared", "", "", "", "", "own-logs")
+    result = answer(invoke, runner, "", "", "", "shared", "shared", "", "", "", "", "own-logs")
 
     assert "Give each its own folder" in result.output
     layout = read_layout(tmp_path)

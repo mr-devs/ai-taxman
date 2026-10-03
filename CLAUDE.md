@@ -15,7 +15,7 @@ The one canonical workflow, and the thing every design decision must keep simple
 ```
 
 `taxman init` sets up a **project**, once, before any audit. It asks where each folder
-goes — data, audits, messages, prompts, logs — offering a default under `taxman/`, and
+goes — audits, messages, prompts, data, logs — offering a default under `taxman/`, and
 `--yes` accepts every default. It refuses to run inside an existing project. It never asks
 about a provider or an audit setting.
 
@@ -277,7 +277,7 @@ compliance, security, smart-contract — and a walk-up that matched it would hap
 stranger's folder of PDFs as a project root and write `data/` into it.
 
 `taxman.yaml` records the project's **folders and nothing else**: a schema version and a
-`paths:` block (`data`, `audits`, `messages`, `prompts`, `logs`), each relative to the
+`paths:` block (`audits`, `messages`, `prompts`, `data`, `logs`), each relative to the
 root. `core/discovery.Layout` checks them — relative, inside the project, none shared or
 nested. Do not add an audit setting to it, ever: a project-level default for a run is the
 same second configuration channel that `taxman setup` and

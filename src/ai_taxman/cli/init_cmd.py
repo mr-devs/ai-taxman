@@ -46,7 +46,7 @@ def init(
 ) -> None:
     """Set up a taxman project in this directory.
 
-    Asks where collected data, audits, messages, system prompts, and logs should
+    Asks where audits, messages, system prompts, collected data, and logs should
     go, relative to this directory. Press Enter to keep a default.
     """
     here = Path.cwd()

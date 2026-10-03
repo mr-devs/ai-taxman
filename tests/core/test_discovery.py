@@ -132,6 +132,15 @@ def test_a_new_marker_records_the_default_folders(project):
     )
 
 
+def test_the_marker_lists_folders_in_the_order_they_are_used(project):
+    """Audits, then what they send, then what a run produces."""
+    import yaml
+
+    folders = yaml.safe_load((project / MARKER_FILENAME).read_text(encoding="utf-8"))["paths"]
+
+    assert list(folders) == ["audits", "messages", "prompts", "data", "logs"]
+
+
 def test_the_marker_records_the_folders_chosen(tmp_path):
     write_marker(tmp_path, Layout(audits="studies", data="results"))
 

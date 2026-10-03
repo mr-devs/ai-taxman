@@ -46,12 +46,14 @@ MARKER_VERSION = 2
 #: The marker's block of folders.
 MARKER_PATHS_KEY = "paths"
 
-#: What each folder holds, in the order `taxman init` asks about them.
+#: What each folder holds, in the order a project uses them: the audits, what they
+#: send, then what a run produces. `taxman init` asks, and the marker lists, in
+#: this order.
 FOLDER_PURPOSES = {
-    "data": "Collected data",
     "audits": "Audit files",
     "messages": "Message files",
     "prompts": "System prompts",
+    "data": "Collected data",
     "logs": "Run logs",
 }
 
@@ -65,10 +67,10 @@ class Layout:
     another folder. A layout that exists is a layout that is safe to write to.
     """
 
-    data: str = "taxman/data"
     audits: str = "taxman/audits"
     messages: str = "taxman/messages"
     prompts: str = "taxman/prompts"
+    data: str = "taxman/data"
     logs: str = "taxman/logs"
 
     def __post_init__(self) -> None:
