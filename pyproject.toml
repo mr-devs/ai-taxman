@@ -74,7 +74,9 @@ asyncio_mode = "auto"
 markers = [
     "live: hits real provider APIs; deselected by default",
 ]
-addopts = "-m 'not live'"
+# importlib, so each provider's tests can mirror the others' file names
+# (tests/providers/<name>/test_provider.py) without a collection clash.
+addopts = "-m 'not live' --import-mode=importlib"
 
 [tool.ruff]
 line-length = 100
