@@ -37,6 +37,7 @@ _EXPORTS = {
     "AuditNotFoundError": "ai_taxman.core.errors",
     "ConfigError": "ai_taxman.core.errors",
     "MessageFileError": "ai_taxman.core.errors",
+    "NotATaxmanProjectError": "ai_taxman.core.errors",
     "ProviderDependencyError": "ai_taxman.core.errors",
     "ProviderError": "ai_taxman.core.errors",
     "ProviderNotFoundError": "ai_taxman.core.errors",
@@ -56,6 +57,7 @@ if TYPE_CHECKING:  # pragma: no cover - for type checkers and editors only
         AuditNotFoundError,
         ConfigError,
         MessageFileError,
+        NotATaxmanProjectError,
         ProviderDependencyError,
         ProviderError,
         ProviderNotFoundError,
@@ -99,6 +101,7 @@ __all__ = [
     # errors
     "TaxmanError",
     "AuditNotFoundError",
+    "NotATaxmanProjectError",
     "ConfigError",
     "MessageFileError",
     "ProviderDependencyError",

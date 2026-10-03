@@ -95,3 +95,22 @@ def test_load_audit_by_name_outside_a_project_says_so(tmp_path, monkeypatch):
 
     with pytest.raises(TaxmanError, match="not a taxman project"):
         load_audit("probe")
+
+
+def test_every_error_load_audit_raises_by_name_is_importable(tmp_path, monkeypatch):
+    """A caller has to be able to catch what the API documents it raises."""
+    import pytest
+
+    from ai_taxman import AuditNotFoundError, NotATaxmanProjectError
+    from ai_taxman.core.discovery import write_marker
+
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(NotATaxmanProjectError):
+        load_audit("probe")
+
+    write_marker(tmp_path)
+    with pytest.raises(AuditNotFoundError):
+        load_audit("probe")
+
+    assert "NotATaxmanProjectError" in ai_taxman.__all__
+    assert "AuditNotFoundError" in ai_taxman.__all__

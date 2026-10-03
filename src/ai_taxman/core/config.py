@@ -129,7 +129,10 @@ def load_audit(path: str | Path) -> AuditConfig:
     project around the working directory. Anything ending in `.yaml` or `.yml`
     is read as a path.
 
-    Raises `ConfigError` — with the offending file named — for anything wrong.
+    Raises `ConfigError`, with the offending file named, for anything wrong with
+    the file. Looking up a name can also raise `NotATaxmanProjectError` (no
+    project around the working directory) or `AuditNotFoundError` (no audit by
+    that name). All three are `TaxmanError`s, so catch that to handle any of them.
     """
     path = Path(path)
     if path.suffix not in YAML_SUFFIXES:
