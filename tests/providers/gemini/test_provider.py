@@ -7,7 +7,7 @@ import yaml
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.base import Provider
-from ai_taxman.providers.gemini.config import TEMPLATE_FIELDS
+from ai_taxman.providers.gemini.config import GeminiModelConfig
 from ai_taxman.providers.gemini.models import DEFAULT_MODEL
 from ai_taxman.providers.gemini.provider import PROVIDER, GeminiProvider
 
@@ -48,9 +48,49 @@ def test_template_names_the_default_model():
 def test_template_leaves_every_other_parameter_blank_as_documentation():
     parsed = yaml.safe_load(PROVIDER.render_template())["model"]
 
-    for key, _ in TEMPLATE_FIELDS:
+    for key in set(GeminiModelConfig.model_fields) - {"name", "extra", "search"}:
         assert key in parsed, f"{key} is missing from the template"
         assert parsed[key] is None, f"{key} should be blank"
+
+
+def test_the_extra_escape_hatch_stays_out_of_the_template():
+    assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
+
+
+def comment_above(key):
+    """The comment above `key:` in the template, at any depth, without its `#`s."""
+    lines = PROVIDER.render_template().splitlines()
+    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
+    above = []
+    for line in reversed(lines[:index]):
+        if not line.lstrip().startswith("#"):
+            break
+        above.insert(0, line.strip().removeprefix("#").strip())
+    return above
+
+
+@pytest.mark.parametrize(
+    "key", [key for key in GeminiModelConfig.model_fields if key not in ("extra", "search")]
+)
+def test_every_setting_says_what_it_is_when_left_alone(key):
+    above = comment_above(key)
+
+    assert any(line.startswith(("Default:", "Required:")) for line in above), above
+
+
+def test_max_output_tokens_says_thinking_counts_toward_it():
+    assert "thinking included" in " ".join(comment_above("max_output_tokens"))
+
+
+def test_store_says_how_long_google_would_keep_it():
+    above = " ".join(comment_above("store"))
+
+    assert "55 days" in above
+    assert "Default:  false" in comment_above("store")
+
+
+def test_thinking_level_lists_every_documented_level():
+    assert "Options:  minimal | low | medium | high" in comment_above("thinking_level")
 
 
 # -- the key comes from core, never from the environment -------------------
@@ -170,7 +210,4 @@ def test_web_search_is_set_in_a_search_block_inside_the_model_block():
 
 
 def test_the_search_block_says_where_its_missing_settings_went():
-    lines = PROVIDER.render_template().splitlines()
-    index = lines.index("  search:")
-
-    assert "docs/provider-apis/gemini.md" in lines[index - 1]
+    assert "docs/provider-apis/gemini.md" in " ".join(comment_above("search"))

@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ai_taxman.providers.gemini.models import THINKING_LEVELS, ThinkingLevel
+from ai_taxman.providers.gemini.models import ThinkingLevel
 
 
 class _Block(BaseModel):
@@ -62,6 +62,17 @@ SET_BY_TAXMAN = frozenset(
     }
 )
 
+#: Google's pages, linked from the template. Each is listed, as its markdown twin,
+#: in docs/provider-apis/gemini.md.
+MODELS_DOCS = "https://ai.google.dev/gemini-api/docs/models"
+TEXT_DOCS = "https://ai.google.dev/gemini-api/docs/text-generation"
+THINKING_DOCS = "https://ai.google.dev/gemini-api/docs/thinking"
+INTERACTIONS_DOCS = "https://ai.google.dev/gemini-api/docs/interactions-overview"
+SEARCH_DOCS = "https://ai.google.dev/gemini-api/docs/google-search"
+
+#: What a blank sampling or thinking setting does.
+MODEL_DEFAULT = "not sent, so the model's own default applies"
+
 #: Request keys taxman never sends, because `send` could not record the result.
 NEVER_SENT = {
     "stream": "a stream is not a response, so there would be nothing whole to record",
@@ -79,37 +90,85 @@ class GeminiSearchConfig(_Block):
     offered; see docs/provider-apis/gemini.md for what was seen.
     """
 
-    #: Give the model the `google_search` tool.
-    web_search: bool = False
+    #: Gives the model the `google_search` tool.
+    web_search: bool = Field(default=False, description="Ground answers with Google Search.")
 
 
 class GeminiModelConfig(_Block):
     """Validated Gemini settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
-    name: str
+    name: str = Field(
+        description="The model every message is sent to. Any name Google accepts works.",
+        json_schema_extra={"docs": MODELS_DOCS},
+    )
 
     #: Sent in `generation_config`, and only when set, so the model's own
     #: defaults apply otherwise.
-    temperature: float | None = Field(default=None, ge=0, le=2)
-    top_p: float | None = Field(default=None, ge=0, le=1)
-    #: Thinking counts toward it, so a small cap can leave no room for an answer.
-    max_output_tokens: int | None = Field(default=None, ge=1)
-    thinking_level: ThinkingLevel | None = None
-    #: `auto` returns a summary of the model's thinking in a `thought` step.
-    thinking_summaries: Literal["auto", "none"] | None = None
+    temperature: float | None = Field(
+        default=None,
+        ge=0,
+        le=2,
+        description="How random the sampling is: lower is more focused, higher more varied.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": TEXT_DOCS},
+    )
+    top_p: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Nucleus sampling: the model considers only the most likely tokens "
+        "that make up this share of the probability.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": TEXT_DOCS},
+    )
+    max_output_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="The most tokens a response may use, thinking included, so a small "
+        "cap can leave no room for an answer.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": TEXT_DOCS},
+    )
+    thinking_level: ThinkingLevel | None = Field(
+        default=None,
+        description="How much the model thinks before answering. Not every model takes "
+        "every level, and minimal does not promise no thinking at all.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": THINKING_DOCS},
+    )
+    #: `auto` returns the summary in a `thought` step.
+    thinking_summaries: Literal["auto", "none"] | None = Field(
+        default=None,
+        description="Whether the response includes a summary of the model's thinking.",
+        json_schema_extra={
+            "options": {
+                "auto": "include a summary of the model's thinking",
+                "none": "include no summary",
+            },
+            "blank": "not sent, so none",
+            "docs": THINKING_DOCS,
+        },
+    )
 
-    #: Whether Google keeps the interaction server-side. Off by default, and always
-    #: sent: the Interactions API keeps everything for 55 days unless told not to,
-    #: and an audit should not leave a trail in the account it is auditing from.
-    store: bool = False
+    #: Off by default, and always sent: the Interactions API keeps everything for
+    #: 55 days unless told not to, and an audit should not leave a trail in the
+    #: account it is auditing from.
+    store: bool = Field(
+        default=False,
+        description="Let Google keep the interaction on its servers: 55 days on the "
+        "paid tier, 1 day on the free tier. Off, so an audit leaves no trail in the "
+        "account it runs from.",
+        json_schema_extra={"docs": INTERACTIONS_DOCS},
+    )
 
     #: Escape hatch for API parameters this config does not name yet. Merged into
     #: the request as written - but never over one it does name.
-    extra: dict[str, Any] = Field(default_factory=dict)
+    extra: dict[str, Any] = Field(default_factory=dict, json_schema_extra={"template": False})
 
     #: Last, as in the template: it is the one nested block.
-    search: GeminiSearchConfig = Field(default_factory=GeminiSearchConfig)
+    search: GeminiSearchConfig = Field(
+        default_factory=GeminiSearchConfig,
+        description="Google Search. Its other settings stop the search, so taxman offers "
+        "none of them; see docs/provider-apis/gemini.md.",
+        json_schema_extra={"docs": SEARCH_DOCS},
+    )
 
     @field_validator("extra")
     @classmethod
@@ -152,26 +211,4 @@ GENERATION_CONFIG_KEYS: tuple[str, ...] = (
     "max_output_tokens",
     "thinking_level",
     "thinking_summaries",
-)
-
-
-#: Documented in the generated template, in this order.
-TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
-    ("temperature", "0.0 - 2.0. Leave blank for the model default."),
-    ("top_p", "0.0 - 1.0. Leave blank for the model default."),
-    ("max_output_tokens", "Maximum tokens per response, thinking included."),
-    (
-        "thinking_level",
-        f"{' | '.join(THINKING_LEVELS)}. Gemini 3 models only. Blank = the model's default.",
-    ),
-    ("thinking_summaries", "auto | none. auto returns a summary of the model's thinking."),
-    (
-        "store",
-        "true to let Google keep the interaction (55 days paid tier, 1 day free). Blank = false.",
-    ),
-)
-
-#: The `search:` block, below a comment saying where its other settings went.
-SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
-    ("web_search", "true to ground answers with Google Search."),
 )

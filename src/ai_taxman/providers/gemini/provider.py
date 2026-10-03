@@ -22,11 +22,10 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
+from ai_taxman.core.template import render_block
 from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.gemini.config import (
     GENERATION_CONFIG_KEYS,
-    SEARCH_TEMPLATE_FIELDS,
-    TEMPLATE_FIELDS,
     GeminiModelConfig,
 )
 from ai_taxman.providers.gemini.models import DEFAULT_MODEL, KNOWN_MODELS
@@ -168,23 +167,11 @@ def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
 def render_template() -> str:
     """Return the `model:` block for a new Gemini audit.
 
-    Every parameter appears with a comment saying what it does, blank apart from
-    the model name, so the generated file is the documentation the user edits.
+    Every parameter appears under a comment read from its own field, blank apart
+    from the model name, so the generated file is the documentation the user edits.
     """
-    lines = [
-        "model:",
-        f"  name: {DEFAULT_MODEL}  # The model to send every message to.",
-    ]
-    for key, comment in TEMPLATE_FIELDS:
-        lines.append(f"  {key}:  # {comment}")
-    lines += [
-        "",
-        "  # Google Search. Its other settings stop the search; see docs/provider-apis/gemini.md.",
-        "  search:",
-    ]
-    for key, comment in SEARCH_TEMPLATE_FIELDS:
-        lines.append(f"    {key}:  # {comment}")
-    return "\n".join(lines) + "\n"
+    lines = render_block(GeminiModelConfig, indent=2, values={"name": DEFAULT_MODEL})
+    return "\n".join(["model:", *lines]) + "\n"
 
 
 #: One client per run, so concurrent runs in one process never share a key.
