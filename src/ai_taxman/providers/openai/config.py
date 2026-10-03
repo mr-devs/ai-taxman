@@ -34,7 +34,12 @@ class _Block(BaseModel):
         template validates as-is.
         """
         if isinstance(block, dict):
-            return {key: value for key, value in block.items() if not _blank(value)}
+            return {
+                key: value
+                for key, value in block.items()
+                # `extra:` is sent as written, so only a wholly blank one is dropped.
+                if not (value is None if key == "extra" else _blank(value))
+            }
         return block
 
 
@@ -44,6 +49,23 @@ def _blank(value: Any) -> bool:
         return all(_blank(inner) for inner in value.values())
     return value is None
 
+
+#: Request keys `build_request` sets itself. `extra:` may not touch them.
+SET_BY_TAXMAN = frozenset(
+    {
+        "model",
+        "input",
+        "instructions",
+        "store",
+        "temperature",
+        "top_p",
+        "max_output_tokens",
+        "reasoning",
+        "tools",
+        "tool_choice",
+        "include",
+    }
+)
 
 #: The web-search guide's cap on each domain list.
 MAX_DOMAINS = 100
@@ -156,8 +178,26 @@ class OpenAIModelConfig(_Block):
     store: bool = False
 
     #: Escape hatch for API parameters this config does not name yet. Merged
-    #: into the request as-is.
+    #: into the request as-is - but never over one it does name.
     extra: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("extra")
+    @classmethod
+    def _extra_names_only_what_taxman_does_not(cls, extra: dict[str, Any]) -> dict[str, Any]:
+        """Overriding a named setting would bypass its checks, and its defaults.
+
+        `extra: {include: [...]}` with web search on would quietly drop the
+        default sources, for one.
+        """
+        taken = sorted(set(extra) & SET_BY_TAXMAN)
+        if taken:
+            raise ValueError(
+                f"`extra:` cannot set {', '.join(taken)}: taxman sets "
+                f"{'it' if len(taken) == 1 else 'them'} from this audit. Use the named "
+                "setting in `model:` or `search:` instead (the system prompt is the "
+                "audit's `system_prompt:`)."
+            )
+        return extra
 
     #: Last, as it is in the template: it is the one nested block.
     search: OpenAISearchConfig = Field(default_factory=OpenAISearchConfig)

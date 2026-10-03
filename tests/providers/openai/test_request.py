@@ -368,3 +368,37 @@ def test_image_settings_without_image_results_are_refused(provider):
     """Settings for images the search was never asked for would be recorded but unused."""
     with pytest.raises(ValidationError, match="image"):
         tool(image_settings={"max_results": 3})
+
+
+def test_extra_passes_a_null_through_as_is(provider):
+    """`extra:` is the escape hatch: what is written is what is sent, nulls included."""
+    payload = request_for({"name": "gpt-5", "extra": {"service_tier": None}})
+
+    assert "service_tier" in payload
+    assert payload["service_tier"] is None
+
+
+@pytest.mark.parametrize(
+    "key", ["include", "tool_choice", "tools", "instructions", "temperature", "model", "input"]
+)
+def test_extra_cannot_override_a_setting_taxman_names(provider, key):
+    """Otherwise `extra: {include: [...]}` would quietly drop the default sources."""
+    with pytest.raises(ValidationError, match=key):
+        request_for({"name": "gpt-5", "extra": {key: "anything"}})
+
+
+def test_every_key_taxman_sends_is_protected_from_extra(provider):
+    """A new named setting must join SET_BY_TAXMAN, or `extra:` could override it."""
+    from ai_taxman.providers.openai.config import SET_BY_TAXMAN
+
+    block = {
+        "name": "gpt-5",
+        "temperature": 1.0,
+        "top_p": 0.5,
+        "max_output_tokens": 100,
+        "reasoning_effort": "low",
+        "store": True,
+        "search": {"web_search": True, "tool_choice": "required"},
+    }
+
+    assert set(request_for(block, system_prompt="Be terse.")) <= SET_BY_TAXMAN
