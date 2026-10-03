@@ -121,6 +121,11 @@ def test_every_template_setting_is_explained_in_two_sentences_at_most(provider):
     assert long_explanations(provider.render_template()) == []
 
 
+def test_the_template_points_only_to_what_an_installed_user_has(provider):
+    """`uv tool install` ships no repo, so a template must not send its reader into one."""
+    assert "docs/provider-apis" not in provider.render_template()
+
+
 def test_an_inline_comment_is_not_an_explanation():
     """The old style: a one-line hint beside the key says nothing about blank."""
     assert unexplained_settings("model:\n  temperature:  # 0.0 - 2.0\n") == [

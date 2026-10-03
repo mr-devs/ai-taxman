@@ -161,8 +161,8 @@ class GeminiModelConfig(_Block):
     #: Last, as in the template: it is the one nested block.
     search: GeminiSearchConfig = Field(
         default_factory=GeminiSearchConfig,
-        description="Google Search: its other settings stop the search; "
-        "see docs/provider-apis/gemini.md.",
+        description="Grounding with Google Search. Google's search_types and tool_choice "
+        "are not offered: tested live, both stopped the search.",
         json_schema_extra={"docs": SEARCH_DOCS},
     )
 

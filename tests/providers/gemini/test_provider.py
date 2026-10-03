@@ -200,5 +200,9 @@ def test_web_search_is_set_in_a_search_block_inside_the_model_block():
     assert parsed["search"]["web_search"] is None
 
 
-def test_the_search_block_says_where_its_missing_settings_went():
-    assert "docs/provider-apis/gemini.md" in " ".join(comment_above("search"))
+def test_the_search_block_names_the_documented_settings_it_leaves_out():
+    """Google documents both, so a user will look for them here."""
+    comment = " ".join(comment_above("search"))
+
+    assert "search_types" in comment
+    assert "tool_choice" in comment
