@@ -448,3 +448,28 @@ def test_one_setting_can_be_rendered_on_its_own():
 
     assert lines[:2] == ["# How it is sent.", "execution:"]
     assert "  repeats: 1" in lines
+
+
+def test_an_example_can_be_given_where_only_the_caller_knows_it():
+    """The project's prompts folder, say: no field could know it in advance."""
+
+    class One(BaseModel):
+        path: str | None = Field(default=None, description="A.", examples=["a.txt"])
+
+    lines = render_setting("path", One.model_fields["path"], example="prompts/neutral.txt")
+
+    assert label(lines, "path", "Example") == "prompts/neutral.txt"
+
+
+def test_a_setting_a_run_refuses_blank_says_it_is_required():
+    """Validation may let it through blank while a run still stops without it."""
+
+    class One(BaseModel):
+        key_env: str | None = Field(
+            default=None, description="A.", json_schema_extra={"required": True}
+        )
+
+    lines = render_block(One)
+
+    assert label(lines, "key_env", "Required") == "yes"
+    assert label(lines, "key_env", "Default") is None

@@ -12,6 +12,8 @@ have, and may say more in `json_schema_extra`:
   exactly the values the field accepts.
 - `blank`: what leaving the setting blank does, for a field whose default is
   None - "no limit", say, or "not sent, so the model's own default applies".
+- `required`: True for a setting validation lets through blank but a run
+  refuses, so the file says it is required rather than naming a default.
 - `docs`: a link to the provider's documentation for the setting.
 - `template`: False to leave the setting out of the file altogether.
 
@@ -43,7 +45,7 @@ NOUNS: dict[type, tuple[str, str]] = {
 }
 
 #: What a field may say about itself in `json_schema_extra`. See the module docstring.
-DOC_KEYS = frozenset({"options", "blank", "docs", "template"})
+DOC_KEYS = frozenset({"options", "blank", "required", "docs", "template"})
 
 
 def render_block(
@@ -69,9 +71,18 @@ def render_block(
 
 
 def render_setting(
-    key: str, field: FieldInfo, *, indent: int = 0, value: Any = None, defaults: bool = False
+    key: str,
+    field: FieldInfo,
+    *,
+    indent: int = 0,
+    value: Any = None,
+    defaults: bool = False,
+    example: Any = None,
 ) -> list[str]:
-    """One setting under the comment that explains it, as `render_block` writes each."""
+    """One setting under the comment that explains it, as `render_block` writes each.
+
+    `example` replaces the field's own examples, for one only the caller knows.
+    """
     if not field.description:
         raise ValueError(f"`{key}` has no description to explain it in the audit file.")
     doc = _doc(key, field)
@@ -87,9 +98,10 @@ def render_setting(
     kind = _describe_type(field)
     if kind:
         lines.append(_label(pad, "Type", kind))
-    lines.append(_default_line(key, field, pad, doc.get("blank")))
-    for i, example in enumerate(field.examples or []):
-        lines.append(_label(pad, "" if i else "Example", _yaml_value(example)))
+    lines.append(_default_line(key, field, pad, doc))
+    examples = [example] if example is not None else field.examples or []
+    for i, shown in enumerate(examples):
+        lines.append(_label(pad, "" if i else "Example", _yaml_value(shown)))
     lines += _docs_line(pad, doc)
     if value is None and defaults and not field.is_required():
         value = field.get_default(call_default_factory=True)
@@ -106,10 +118,11 @@ def _doc(key: str, field: FieldInfo) -> dict[str, Any]:
     return extra
 
 
-def _default_line(key: str, field: FieldInfo, pad: str, blank: Any) -> str:
+def _default_line(key: str, field: FieldInfo, pad: str, doc: dict[str, Any]) -> str:
     """What the setting is when the user leaves it alone, or that they cannot."""
-    if field.is_required():
+    if field.is_required() or doc.get("required"):
         return _label(pad, "Required", "yes")
+    blank = doc.get("blank")
     default = field.get_default(call_default_factory=True)
     if default is not None:
         if blank is not None:

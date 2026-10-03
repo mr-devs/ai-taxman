@@ -127,16 +127,37 @@ class ExecutionConfig(_Strict):
 class AuditConfig(_Strict):
     """One audit, as loaded from its YAML file."""
 
-    audit: str
-    provider: str
-    messages: str
+    audit: str = Field(
+        description="The audit's name, which must match this file's name. `taxman "
+        "collect` runs the audit by it, and it fills in {audit} in the output folders."
+    )
+    provider: str = Field(
+        description="The AI provider this audit sends messages to. The settings under "
+        "model: are this provider's own, so to audit another provider, make a new audit "
+        "with `taxman audits new`."
+    )
+    messages: str = Field(
+        description="The plain text file of messages to send, relative to the project "
+        "root, one message per line. Blank lines and lines starting with # are skipped."
+    )
 
-    #: A file of system prompt text, sent with every message. None sends none.
-    system_prompt: str | None = None
+    #: None sends none.
+    system_prompt: str | None = Field(
+        default=None,
+        description="A file of system prompt text, relative to the project root, sent "
+        "with every message. Each provider sends it the way its own API takes one.",
+        json_schema_extra={"blank": "no system prompt"},
+    )
 
     #: The single environment variable holding this audit's API key. There is no
     #: fallback: this name, or nothing. Required unless the provider needs no key.
-    api_key_env: str | None = None
+    api_key_env: str | None = Field(
+        default=None,
+        description="The name of the environment variable that holds this audit's API "
+        "key: the name, not the key itself. Export the variable in your shell. taxman "
+        "reads this name and no other, and never stores a key.",
+        json_schema_extra={"required": True},
+    )
 
     output: OutputConfig = Field(
         description="Where each run's responses, manifest, and log are written."

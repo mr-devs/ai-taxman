@@ -349,26 +349,34 @@ def test_settings_are_in_the_order_a_user_fills_them_in(invoke, tmp_path):
     ]
 
 
-def test_every_top_level_setting_explains_itself(invoke, tmp_path):
-    text = audit_text(invoke, tmp_path)
+@pytest.mark.parametrize("key", ["audit", "provider", "api_key_env", "messages", "system_prompt"])
+def test_every_top_level_setting_explains_itself(invoke, tmp_path, key):
+    """What it does, then what it is when left alone, above the key itself."""
+    above = comment_above(audit_text(invoke, tmp_path), key)
 
-    assert comment_above(text, "audit") == ["# Audit name"]
-    assert comment_above(text, "provider") == ["# AI provider"]
-    assert comment_above(text, "api_key_env") == [
-        "# The name of an environment variable that holds an API key for the provider. "
-        "This is required.",
-        "# For openai this is usually OPENAI_API_KEY.",
-    ]
-    assert comment_above(text, "messages") == [
-        "# Path to the file containing the messages to send. Each line is a separate message;",
-        "# blank lines and lines starting with `#` are skipped.",
-    ]
-    assert comment_above(text, "system_prompt") == [
-        "# Path, relative to the project root, to a file containing the system prompt to send",
-        "# with every message.",
-        "#  - e.g. prompts/neutral.txt",
-        "# Leave blank to exclude a system prompt.",
-    ]
+    assert not above[0].startswith("#   "), above
+    assert any(line.startswith(("#   Default:", "#   Required:")) for line in above), above
+
+
+def test_the_audit_name_says_it_must_match_the_file(invoke, tmp_path):
+    above = " ".join(nested_comment_above(audit_text(invoke, tmp_path), "audit"))
+
+    assert "must match this file's name" in above
+
+
+def test_the_api_key_variable_says_it_is_a_name_not_a_key(invoke, tmp_path):
+    above = nested_comment_above(audit_text(invoke, tmp_path), "api_key_env")
+
+    assert "the name, not the key itself" in " ".join(above)
+    assert "Required: yes" in above
+    assert "Example:  OPENAI_API_KEY" in above
+
+
+def test_a_blank_system_prompt_means_none_is_sent(invoke, tmp_path):
+    above = comment_above(audit_text(invoke, tmp_path), "system_prompt")
+
+    assert "#   Default:  blank (no system prompt)" in above
+    assert "#   Example:  prompts/neutral.txt" in above
 
 
 def test_no_line_ends_in_whitespace(invoke, tmp_path):

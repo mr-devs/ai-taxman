@@ -16,7 +16,6 @@ above it as a hint.
 
 from __future__ import annotations
 
-from ai_taxman.core.discovery import yaml_scalar
 from ai_taxman.providers.base import Provider
 
 #: What `api_key_env:` says until the user replaces it. Deliberately not a valid
@@ -50,46 +49,34 @@ def render_audit(
     from ai_taxman.core.template import render_setting
 
     fields = AuditConfig.model_fields
-    lines = [
-        HEADER.format(audit=audit),
-        "# Audit name",
-        f"audit: {yaml_scalar(audit)}",
-        "",
-        "# AI provider",
-        f"provider: {provider.name}",
-        *(_api_key_block(provider, api_key_env) if api_key_env else []),
-        "",
-        "# Path to the file containing the messages to send. Each line is a separate message;",
-        "# blank lines and lines starting with `#` are skipped.",
-        f"messages: {yaml_scalar(messages)}",
-        "",
-        "# Path, relative to the project root, to a file containing the system prompt to send",
-        "# with every message.",
-        f"#  - e.g. {prompts}/neutral.txt",
-        "# Leave blank to exclude a system prompt.",
-        "system_prompt:",
-        "",
-        *render_setting(
+    settings = [
+        render_setting("audit", fields["audit"], value=audit),
+        render_setting("provider", fields["provider"], value=provider.name),
+        *(
+            [
+                render_setting(
+                    "api_key_env",
+                    fields["api_key_env"],
+                    value=api_key_env,
+                    example=provider.default_api_key_env or None,
+                )
+            ]
+            if api_key_env
+            else []
+        ),
+        render_setting("messages", fields["messages"], value=messages),
+        render_setting("system_prompt", fields["system_prompt"], example=f"{prompts}/neutral.txt"),
+        render_setting(
             "output", fields["output"], value={"dir": output_dir, "log_dir": log_dir}, defaults=True
         ),
-        "",
-        *render_setting("execution", fields["execution"], defaults=True),
+        render_setting("execution", fields["execution"], defaults=True),
+    ]
+    lines = [
+        HEADER.format(audit=audit),
+        *(line for i, setting in enumerate(settings) for line in ([""] if i else []) + setting),
         "",
         f"# Settings below are specific to the {provider.name!r} provider.",
         provider.render_template().rstrip(),
         "",
     ]
     return "\n".join(lines)
-
-
-def _api_key_block(provider: Provider, api_key_env: str) -> list[str]:
-    """The `api_key_env:` field, with instructions the user needs at that moment."""
-    lines = [
-        "",
-        "# The name of an environment variable that holds an API key for the provider. "
-        "This is required.",
-    ]
-    if provider.default_api_key_env:
-        lines.append(f"# For {provider.name} this is usually {provider.default_api_key_env}.")
-    lines.append(f"api_key_env: {api_key_env}")
-    return lines
