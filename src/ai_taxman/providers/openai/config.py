@@ -48,6 +48,11 @@ def _blank(value: Any) -> bool:
 #: The web-search guide's cap on each domain list.
 MAX_DOMAINS = 100
 
+#: The web-search data `include` can ask for: every URL consulted, and the raw
+#: results (which is where image results arrive).
+WebSearchInclude = Literal["web_search_call.action.sources", "web_search_call.results"]
+SOURCES: WebSearchInclude = "web_search_call.action.sources"
+
 
 class OpenAISearchConfig(_Block):
     """The `search:` block: the web-search tool and its settings.
@@ -67,6 +72,14 @@ class OpenAISearchConfig(_Block):
     #: Sent together as the tool's `filters`.
     allowed_domains: list[str] | None = Field(default=None, max_length=MAX_DOMAINS)
     blocked_domains: list[str] | None = Field(default=None, max_length=MAX_DOMAINS)
+
+    #: Request-level, not on the tool. `required` makes the model search before
+    #: answering; with `auto` it may not search at all.
+    tool_choice: Literal["auto", "required"] | None = None
+
+    #: Request-level. Sources are on by default: every URL the model consulted,
+    #: not only those it cited, is what an audit of search needs. `[]` turns it off.
+    include: list[WebSearchInclude] = Field(default_factory=lambda: [SOURCES])
 
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
@@ -146,4 +159,13 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "Only search these domains, e.g. [cdc.gov, who.int]. Up to 100; subdomains included.",
     ),
     ("blocked_domains", "Never search these domains. Up to 100."),
+    (
+        "tool_choice",
+        "auto | required. required makes the model search before answering. Blank = auto.",
+    ),
+    (
+        "include",
+        "Search data to return. Blank = [web_search_call.action.sources], every URL "
+        "consulted. Add web_search_call.results for raw results; [] for none.",
+    ),
 )

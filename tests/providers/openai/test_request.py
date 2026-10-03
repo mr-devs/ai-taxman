@@ -252,3 +252,48 @@ def test_a_domain_with_a_scheme_is_refused_rather_than_rewritten(provider, domai
     """The docs: omit the HTTP or HTTPS prefix. taxman does not edit what was written."""
     with pytest.raises(ValidationError, match="prefix"):
         tool(allowed_domains=[domain])
+
+
+def test_tool_choice_required_makes_the_model_search(provider):
+    payload = request_for(search(web_search=True, tool_choice="required"))
+
+    assert payload["tool_choice"] == "required"
+
+
+def test_tool_choice_is_left_to_openai_unless_set(provider):
+    assert "tool_choice" not in request_for(search(web_search=True))
+
+
+def test_tool_choice_is_auto_or_required(provider):
+    with pytest.raises(ValidationError):
+        request_for(search(web_search=True, tool_choice="none"))
+
+
+def test_web_search_records_every_source_by_default(provider):
+    """The full list of URLs consulted, not only those cited, is the audit's evidence."""
+    payload = request_for(search(web_search=True))
+
+    assert payload["include"] == ["web_search_call.action.sources"]
+
+
+def test_include_can_be_turned_off(provider):
+    assert "include" not in request_for(search(web_search=True, include=[]))
+
+
+def test_include_takes_the_search_results_too(provider):
+    payload = request_for(
+        search(
+            web_search=True, include=["web_search_call.action.sources", "web_search_call.results"]
+        )
+    )
+
+    assert payload["include"] == ["web_search_call.action.sources", "web_search_call.results"]
+
+
+def test_include_takes_only_web_search_data(provider):
+    with pytest.raises(ValidationError):
+        request_for(search(web_search=True, include=["reasoning.encrypted_content"]))
+
+
+def test_without_web_search_nothing_is_included(provider):
+    assert "include" not in request_for(search())

@@ -131,6 +131,10 @@ def build_request(request: Request) -> dict[str, Any]:
         payload["reasoning"] = {"effort": config.reasoning_effort}
     if config.search.web_search:
         payload["tools"] = [_web_search_tool(config.search)]
+        if config.search.tool_choice is not None:
+            payload["tool_choice"] = config.search.tool_choice
+        if config.search.include:
+            payload["include"] = list(config.search.include)
     if request.system_prompt:
         payload["instructions"] = request.system_prompt
 
