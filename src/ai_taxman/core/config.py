@@ -30,7 +30,12 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ai_taxman.core.discovery import AUDITS_DIR_NAME, find_project_root
+from ai_taxman.core.discovery import (
+    AUDITS_DIR_NAME,
+    YAML_SUFFIXES,
+    find_audit,
+    find_project_root,
+)
 from ai_taxman.core.errors import ConfigError
 
 DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
@@ -104,11 +109,17 @@ class AuditConfig(_Strict):
 
 
 def load_audit(path: str | Path) -> AuditConfig:
-    """Load and validate the audit YAML at `path`.
+    """Load and validate an audit, by name or by the path to its YAML.
+
+    A name (`"probe"`) resolves the way `taxman collect probe` does, in the
+    project around the working directory. Anything ending in `.yaml` or `.yml`
+    is read as a path.
 
     Raises `ConfigError` — with the offending file named — for anything wrong.
     """
     path = Path(path)
+    if path.suffix not in YAML_SUFFIXES:
+        path = find_audit(str(path))
 
     try:
         text = path.read_text(encoding="utf-8")

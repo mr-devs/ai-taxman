@@ -488,12 +488,14 @@ wanted.
 ```python
 from ai_taxman import load_audit, run_audit
 
-result = run_audit("audits/election-probe.yaml")
+result = run_audit("election-probe")
 print(result.n_ok, result.n_error, result.output_path)
 ```
 
-`run_audit` also accepts a loaded `AuditConfig`, and takes an `on_record`
-callback if you want to watch responses land.
+An audit name resolves the way it does on the command line, in the project around the
+working directory; a path ending in `.yaml` is read as a path. `run_audit` also accepts a
+loaded `AuditConfig`, and takes an `on_record` callback if you want to watch responses
+land.
 
 ## Output
 
