@@ -13,6 +13,7 @@ import yaml
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderError
 from ai_taxman.core.messages import Message
+from ai_taxman.core.template import SENTENCE_END
 from ai_taxman.providers.base import Provider, Request
 
 PROVIDERS = registry.available_providers()
@@ -95,6 +96,29 @@ def unexplained_settings(template):
 def test_every_template_setting_explains_itself_in_full(provider):
     """`render_block` writes this; a hand-written template would have to match it."""
     assert unexplained_settings(provider.render_template()) == []
+
+
+def long_explanations(template):
+    """Each setting whose explanation, the `# ...` lines above it, runs past two sentences."""
+    lines = template.splitlines()
+    long = []
+    for index, line in enumerate(lines):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        sentences = []
+        for previous in reversed(lines[:index]):
+            if not previous.lstrip().startswith("#"):
+                break
+            if not previous.lstrip().startswith("#  "):
+                sentences.insert(0, previous.lstrip().removeprefix("# "))
+        if len(SENTENCE_END.split(" ".join(sentences))) > 2:
+            long.append(line.strip())
+    return long
+
+
+def test_every_template_setting_is_explained_in_two_sentences_at_most(provider):
+    """Short enough to read at a glance; the docs link carries the rest."""
+    assert long_explanations(provider.render_template()) == []
 
 
 def test_an_inline_comment_is_not_an_explanation():

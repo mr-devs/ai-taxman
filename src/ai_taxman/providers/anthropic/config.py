@@ -91,7 +91,7 @@ THINKING_DOCS = "https://platform.claude.com/docs/en/build-with-claude/thinking"
 WEB_SEARCH_DOCS = "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool"
 
 #: What a blank sampling setting does.
-MODEL_DEFAULT = "not sent, so the model's own default applies"
+MODEL_DEFAULT = "model default"
 
 
 class AnthropicThinking(_Block):
@@ -103,36 +103,34 @@ class AnthropicThinking(_Block):
 
     type: ThinkingType | None = Field(
         default=None,
-        description="How Claude thinks before answering. Which modes a model accepts varies.",
+        description="How Claude thinks before answering. Modes vary by model.",
         json_schema_extra={
             "options": {
-                "adaptive": "Claude decides when and how deeply to think",
-                "enabled": "think up to budget_tokens; older models only",
-                "disabled": "no thinking, on models that allow it",
-                "between_tools": "no up-front thinking; Claude Sonnet 5.5 only, at "
-                "effort high or below",
+                "adaptive": "Claude decides when and how much to think",
+                "enabled": "think up to budget_tokens; older models",
+                "disabled": "no thinking, where allowed",
+                "between_tools": "no up-front thinking; Claude Sonnet 5.5 at effort high or below",
             },
-            "blank": "not sent, so the model's default applies",
+            "blank": MODEL_DEFAULT,
         },
     )
     #: `type: enabled` only, the manual mode older models use.
     budget_tokens: int | None = Field(
         default=None,
         ge=MIN_THINKING_BUDGET,
-        description="The most tokens Claude may spend thinking, with type: enabled "
-        "only. It must be less than max_tokens, which thinking counts toward.",
-        json_schema_extra={"blank": "not sent; type: enabled needs it"},
+        description="Max thinking tokens, for type: enabled only. Must be less than max_tokens.",
+        json_schema_extra={"blank": "not sent"},
     )
     display: ThinkingDisplay | None = Field(
         default=None,
-        description="Whether thinking text comes back. Not with type: disabled or between_tools.",
+        description="Whether thinking text is returned. Not with type: disabled or between_tools.",
         json_schema_extra={
             "options": {
-                "summarized": "a readable summary of Claude's thinking",
-                "omitted": "thinking blocks come back with their text empty",
-                "updates": "beta: as omitted, but notes between tool calls come back",
+                "summarized": "a summary of the thinking",
+                "omitted": "empty thinking blocks",
+                "updates": "beta: empty thinking, plus notes between tool calls",
             },
-            "blank": "not sent, so the model's default applies: omitted on current models",
+            "blank": MODEL_DEFAULT,
         },
     )
 
@@ -161,13 +159,13 @@ class AnthropicUserLocation(_Block):
 
     city: str | None = Field(
         default=None,
-        description="A city, in free text.",
+        description="City name.",
         examples=["Minneapolis"],
         json_schema_extra={"blank": "not sent"},
     )
     region: str | None = Field(
         default=None,
-        description="A region, in free text.",
+        description="Region name.",
         examples=["Minnesota"],
         json_schema_extra={"blank": "not sent"},
     )
@@ -175,13 +173,13 @@ class AnthropicUserLocation(_Block):
     country: str | None = Field(
         default=None,
         pattern=r"^[A-Z]{2}$",
-        description="A two-letter country code, in capitals.",
+        description="Two-letter country code.",
         examples=["US"],
         json_schema_extra={"blank": "not sent"},
     )
     timezone: str | None = Field(
         default=None,
-        description="An IANA time zone.",
+        description="IANA time zone.",
         examples=["America/Chicago"],
         json_schema_extra={"blank": "not sent"},
     )
@@ -199,12 +197,11 @@ class AnthropicSearchConfig(_Block):
     #: Blank sends the newest.
     tool_version: WebSearchVersion | None = Field(
         default=None,
-        description="Which version of the web search tool to send.",
+        description="Web search tool version.",
         json_schema_extra={
             "options": {
-                "web_search_20250305": "basic web search",
-                "web_search_20260209": "adds dynamic filtering: Claude filters results "
-                "with code before reading them",
+                "web_search_20250305": "basic search",
+                "web_search_20260209": "adds dynamic filtering",
                 "web_search_20260318": "adds response_inclusion",
             },
             "blank": f"{DEFAULT_WEB_SEARCH_VERSION}, the newest",
@@ -214,7 +211,7 @@ class AnthropicSearchConfig(_Block):
     max_uses: int | None = Field(
         default=None,
         ge=1,
-        description="The most searches Claude may run for one message.",
+        description="Max searches per message.",
         json_schema_extra={"blank": "no limit"},
     )
 
@@ -222,24 +219,20 @@ class AnthropicSearchConfig(_Block):
     #: `example.com/blog`. Subdomains are included.
     allowed_domains: list[str] | None = Field(
         default=None,
-        description="Search only these domains, subdomains included. Write each without "
-        "http:// or https://; a path, as in example.com/blog, is allowed. Not with "
-        "blocked_domains.",
+        description="Only search these domains, subdomains included. Not with blocked_domains.",
         examples=[["cdc.gov", "who.int"]],
         json_schema_extra={"blank": "any domain"},
     )
     blocked_domains: list[str] | None = Field(
         default=None,
-        description="Never search these domains, written as for allowed_domains. Not "
-        "with allowed_domains.",
+        description="Never search these domains. Not with allowed_domains.",
         examples=[["example.com"]],
-        json_schema_extra={"blank": "none blocked"},
+        json_schema_extra={"blank": "none"},
     )
 
     user_location: AnthropicUserLocation | None = Field(
         default=None,
-        description="An approximate location to localise search results. Leave every "
-        "key blank for none.",
+        description="Approximate location to localise results.",
     )
 
     #: Models without programmatic tool calling need `[direct]` on `_20260209` and
@@ -247,23 +240,21 @@ class AnthropicSearchConfig(_Block):
     allowed_callers: list[WebSearchCaller] | None = Field(
         default=None,
         min_length=1,
-        description="Who may run a search: Claude directly, or code Claude runs to "
-        "filter the results first. [direct] turns dynamic filtering off; models without "
-        "programmatic tool calling need it.",
+        description="Who may run searches. "
+        "[direct] turns off dynamic filtering; models without programmatic tool calling need it.",
         examples=[["direct"]],
-        json_schema_extra={"blank": "not sent, so the tool version's default applies"},
+        json_schema_extra={"blank": "the tool version's default"},
     )
 
     response_inclusion: Literal["full", "excluded"] | None = Field(
         default=None,
-        description="Whether result blocks that code execution already used come back "
-        "in the response. web_search_20260318 only.",
+        description="Whether results code execution consumed come back. web_search_20260318 only.",
         json_schema_extra={
             "options": {
-                "full": "every result block comes back",
-                "excluded": "drop result blocks a finished code execution call consumed",
+                "full": "return them",
+                "excluded": "drop them",
             },
-            "blank": "not sent, so full",
+            "blank": "full",
         },
     )
 
@@ -273,10 +264,10 @@ class AnthropicSearchConfig(_Block):
         description="Whether Claude must search.",
         json_schema_extra={
             "options": {
-                "auto": "Claude decides whether to search",
-                "any": "Claude uses a tool before answering; current models reject it",
+                "auto": "Claude decides",
+                "any": "Claude must use a tool first; current models reject it",
             },
-            "blank": "not sent, so auto",
+            "blank": "auto",
         },
     )
 
@@ -322,33 +313,32 @@ class AnthropicModelConfig(_Block):
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
     name: str = Field(
-        description="The model every message is sent to. Any name Anthropic accepts works.",
+        description="The model to send every message to.",
         json_schema_extra={"docs": MODELS_DOCS},
     )
 
     #: Required: the Messages API has no default, and rejects a request without it.
     max_tokens: int = Field(
         ge=1,
-        description="The most tokens a response may use, thinking included. Anthropic "
-        "requires it, and a response that reaches it stops mid-answer. Raise "
-        "execution.timeout_s with it.",
+        description="Max tokens per response, thinking included. "
+        "A response that hits it is cut off.",
         json_schema_extra={"docs": CREATE_DOCS},
     )
 
     #: Sent as `output_config.effort`. Blank leaves the model's own default.
     effort: Effort | None = Field(
         default=None,
-        description="How much work Claude puts into a response, thinking included. Not "
-        "every model takes every level.",
+        description="How much effort Claude puts into a response, thinking included. "
+        "Levels vary by model.",
         json_schema_extra={
             "options": {
-                "low": "the most efficient: big token savings, some loss of capability",
-                "medium": "balanced, with moderate token savings",
-                "high": "as many tokens as the task needs",
-                "xhigh": "extended capability for long-horizon work",
-                "max": "the most capability, with no limit on token spending",
+                "low": "fastest and cheapest",
+                "medium": "balanced",
+                "high": "thorough",
+                "xhigh": "for long-horizon work",
+                "max": "no limit on token spending",
             },
-            "blank": "not sent, so the model's own default applies: high on most models",
+            "blank": MODEL_DEFAULT,
             "docs": EFFORT_DOCS,
         },
     )
@@ -359,24 +349,21 @@ class AnthropicModelConfig(_Block):
         default=None,
         ge=0,
         le=1,
-        description="How random the sampling is. Models after Claude Opus 4.6 accept "
-        "only 1.0, so leave it blank for them.",
+        description="Sampling randomness. Models after Claude Opus 4.6 accept only 1.0.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
     )
     top_p: float | None = Field(
         default=None,
         ge=0,
         le=1,
-        description="Nucleus sampling: Claude considers only the most likely tokens "
-        "that make up this share of the probability. Models after Claude Opus 4.6 "
-        "accept only 0.99 or more.",
+        description="Nucleus sampling threshold. "
+        "Models after Claude Opus 4.6 accept only 0.99 or more.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
     )
     top_k: int | None = Field(
         default=None,
         ge=1,
-        description="Sample from only the K most likely tokens. Models after Claude "
-        "Opus 4.6 reject it.",
+        description="Sample from only the top K tokens. Models after Claude Opus 4.6 reject it.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
     )
 
@@ -387,13 +374,12 @@ class AnthropicModelConfig(_Block):
     #: Last, as in the template: the nested blocks.
     thinking: AnthropicThinking = Field(
         default_factory=AnthropicThinking,
-        description="Thinking. Leave every key blank for the model's default, which "
-        "varies by model.",
+        description="Thinking: leave every key blank for the model's default.",
         json_schema_extra={"docs": THINKING_DOCS},
     )
     search: AnthropicSearchConfig = Field(
         default_factory=AnthropicSearchConfig,
-        description="Web search. web_search must be true to use any other setting in this block.",
+        description="Web search: web_search must be true to use any other setting in this block.",
         json_schema_extra={"docs": WEB_SEARCH_DOCS},
     )
 
