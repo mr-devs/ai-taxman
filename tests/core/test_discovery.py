@@ -314,3 +314,20 @@ def test_listing_outside_a_project_says_so(tmp_path):
 
     with pytest.raises(NotATaxmanProjectError):
         list_audits(start=stray)
+
+
+@pytest.mark.parametrize(
+    "folder", ["my audits #2", "null", "true", "010", "[logs]", "p: q", "yes/no", "a'b"]
+)
+def test_a_folder_reads_back_exactly_as_it_was_given(tmp_path, folder):
+    """The marker must name the folder `init` created, not what YAML makes of it."""
+    write_marker(tmp_path, Layout(audits=folder))
+
+    assert read_layout(tmp_path).audits == folder
+
+
+@pytest.mark.parametrize("folder", ["data/{audit}", "results}"])
+def test_a_folder_with_braces_is_refused(folder):
+    """Folders are written into `output.dir`, where braces mark placeholders."""
+    with pytest.raises(ConfigError, match="brace"):
+        Layout(data=folder)

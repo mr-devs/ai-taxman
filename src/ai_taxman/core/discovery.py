@@ -110,6 +110,11 @@ def check_folder(value: str, purpose: str) -> str:
             "relative to the project root, so the project still works after it is "
             "moved or cloned."
         )
+    if "{" in text or "}" in text:
+        raise ConfigError(
+            f"The `{purpose}` folder {text!r} contains a brace. Folders are written into "
+            "audit paths like `output.dir`, where braces mark {audit} and {run_id}."
+        )
     if ".." in path.parts:
         raise ConfigError(
             f"The `{purpose}` folder {text!r} leads outside the project. Every folder "
@@ -227,9 +232,10 @@ def yaml_scalar(value: str) -> str:
 def render_marker(layout: Layout) -> str:
     """The text of a marker recording `layout`, commented for the person editing it."""
     width = max(len(purpose) for purpose in FOLDER_PURPOSES) + 1
-    folder_width = max(len(folder) for folder in layout.as_dict().values())
+    values = {purpose: yaml_scalar(folder) for purpose, folder in layout.as_dict().items()}
+    folder_width = max(len(value) for value in values.values())
     folders = [
-        f"  {purpose + ':':<{width}} {getattr(layout, purpose):<{folder_width}}  # {label}"
+        f"  {purpose + ':':<{width}} {values[purpose]:<{folder_width}}  # {label}"
         for purpose, label in FOLDER_PURPOSES.items()
     ]
     return "\n".join(
