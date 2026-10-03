@@ -172,14 +172,31 @@ def load_audit(path: str | Path) -> AuditConfig:
 
 def resolve_output_dir(config: AuditConfig, *, run_id: str) -> Path:
     """Expand `{audit}` and `{run_id}` in `output.dir` and resolve it."""
-    expanded = config.output.dir.format(audit=config.audit, run_id=run_id)
-    return config._resolve(expanded)
+    return config._resolve(_expand(config, "dir", config.output.dir, run_id))
 
 
 def resolve_log_file(config: AuditConfig, *, run_id: str) -> Path:
     """The log file for one run: `<output.log_dir>/<run_id>.log`, resolved."""
-    expanded = config.output.log_dir.format(audit=config.audit, run_id=run_id)
-    return config._resolve(expanded) / f"{run_id}.log"
+    return config._resolve(_expand(config, "log_dir", config.output.log_dir, run_id)) / (
+        f"{run_id}.log"
+    )
+
+
+def check_output_paths(config: AuditConfig) -> None:
+    """Fail now, not mid-run, if `output.dir` or `output.log_dir` cannot be filled in."""
+    resolve_output_dir(config, run_id="check")
+    resolve_log_file(config, run_id="check")
+
+
+def _expand(config: AuditConfig, key: str, template: str, run_id: str) -> str:
+    try:
+        return template.format(audit=config.audit, run_id=run_id)
+    except (KeyError, IndexError, ValueError) as exc:
+        raise ConfigError(
+            f"`output.{key}: {template}` in {config.source_path} cannot be filled in "
+            f"({exc!s}). Only {{audit}} and {{run_id}} are filled in; any other brace "
+            "has to go."
+        ) from exc
 
 
 def _format(exc: ValidationError) -> str:

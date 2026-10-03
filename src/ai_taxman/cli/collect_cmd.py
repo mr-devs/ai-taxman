@@ -81,7 +81,7 @@ def collect(
     from ai_taxman.core.config import load_audit, resolve_log_file
     from ai_taxman.core.logging import describe_level, setup_logging
     from ai_taxman.core.records import new_run_id, validate_run_id
-    from ai_taxman.core.runner import resolve_key, validate_model
+    from ai_taxman.core.runner import preflight
 
     # Before anything else, so a typo in the level is not discovered an hour into
     # a run.
@@ -111,9 +111,9 @@ def collect(
         )
         return
 
-    # Checked before the banner: announcing a run that cannot start reads as if
-    # it started. The runner checks again, for callers of the Python API.
-    resolve_key(provider, config)
+    # Checked before the banner and the log: announcing a run that cannot start
+    # reads as if it started. The runner checks again, for the Python API.
+    model = provider.describe_model(preflight(config, provider).model)
 
     # Picked here rather than by the runner, because the log is named after it
     # and has to be open before the run's first line.
@@ -130,7 +130,6 @@ def collect(
     expected = config.execution.repeats
     if not quiet:
         # The provider names its own model; core has no business reading that block.
-        model = provider.describe_model(validate_model(provider, config))
         typer.echo(
             f"Collecting {config.audit}: {config.provider} "
             f"({model or 'unspecified'}), {expected} repeat(s) per message."
@@ -205,16 +204,12 @@ def _start_in_background(
 
     from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
     from ai_taxman.core.config import resolve_log_file, resolve_output_dir
-    from ai_taxman.core.messages import read_messages
     from ai_taxman.core.records import new_run_id, validate_run_id
-    from ai_taxman.core.runner import load_system_prompt, resolve_key, validate_model
+    from ai_taxman.core.runner import preflight
 
     # Everything checkable without doing the run, checked before the fork: a pid
     # for a run that could never have worked is worse than an error here.
-    model = provider.describe_model(validate_model(provider, config))
-    read_messages(config.messages_path)
-    load_system_prompt(config)
-    resolve_key(provider, config)
+    model = provider.describe_model(preflight(config, provider).model)
 
     # The user's id if they named one, so `-b` behaves like the foreground run.
     # Checked here as well as in the runner: the parent builds the run directory

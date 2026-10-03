@@ -19,7 +19,6 @@ from ai_taxman.core.discovery import (
     require_project_root,
     validate_audit_name,
 )
-from ai_taxman.core.messages import read_messages
 from ai_taxman.core.registry import get_provider
 from ai_taxman.providers.base import Provider
 
@@ -152,21 +151,11 @@ def validate_command(audit: AuditName) -> None:
     # Imported here, not at module scope: completion imports this module on every
     # Tab press and must not pay for the config parser.
     from ai_taxman.core.config import load_audit
-    from ai_taxman.core.runner import load_system_prompt, resolve_key
+    from ai_taxman.core.runner import preflight
 
     config = load_audit(find_audit(audit))
-    provider = get_provider(config.provider)
-
-    try:
-        provider.validate_model_config(dict(config.model))
-    except Exception as exc:  # noqa: BLE001 - providers raise their own validation errors
-        fail(f"the `model:` block is not valid for {provider.name!r}:\n  {exc}")
-        return
-
-    messages = read_messages(config.messages_path)
-    load_system_prompt(config)
-    # The first thing `collect` checks, so a "valid" here must mean it passes.
-    resolve_key(provider, config)
+    # The same checks `collect` makes, so "valid" here means it will start.
+    messages = preflight(config, get_provider(config.provider)).messages
     total = len(messages) * config.execution.repeats
     typer.secho(f"{display_path(config.source_path)} is valid.", fg=typer.colors.GREEN)
     typer.echo(

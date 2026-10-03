@@ -27,7 +27,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ai_taxman.core.config import AuditConfig, load_audit, resolve_output_dir
+from ai_taxman.core.config import (
+    AuditConfig,
+    check_output_paths,
+    load_audit,
+    resolve_output_dir,
+)
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
 from ai_taxman.core.logging import get_logger
@@ -118,16 +123,13 @@ async def run_audit_async(
     background run keeps the responses it already paid for.
     """
     provider = provider or get_provider(config.provider)
-    messages = read_messages(config.messages_path)
-    system_prompt = load_system_prompt(config)
-    model = validate_model(provider, config)
-    api_key = resolve_key(provider, config)
-
-    if config.execution.batch:
-        raise NotImplementedError(
-            f"Batch mode is not available yet for the {provider.name!r} provider. "
-            "Set `execution.batch: false` in the audit."
-        )
+    checked = preflight(config, provider)
+    messages, system_prompt, model, api_key = (
+        checked.messages,
+        checked.system_prompt,
+        checked.model,
+        checked.api_key,
+    )
 
     run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
     limit = max_concurrency or config.execution.max_concurrency
@@ -543,6 +545,39 @@ def _record(
         attempts=attempts,
         raw=raw or {},
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Preflight:
+    """What an audit turned out to be, once checked."""
+
+    messages: list[Message]
+    system_prompt: SystemPrompt | None
+    model: object
+    api_key: str | None
+
+
+def preflight(config: AuditConfig, provider: Provider) -> Preflight:
+    """Everything that can be checked without sending anything, in one place.
+
+    `audits validate`, `collect` (foreground and background) and the runner all
+    call this, so "valid" means the same thing everywhere: if it passes, the run
+    can start. Add a check here, never to one caller - the separate lists those
+    callers used to keep had already drifted apart.
+    """
+    model = validate_model(provider, config)
+    messages = read_messages(config.messages_path)
+    system_prompt = load_system_prompt(config)
+    api_key = resolve_key(provider, config)
+    check_output_paths(config)
+
+    if config.execution.batch:
+        raise ConfigError(
+            f"Batch mode is not available yet for the {provider.name!r} provider. "
+            f"Set `execution.batch: false` in {config.source_path}."
+        )
+
+    return Preflight(messages, system_prompt, model, api_key)
 
 
 def validate_model(provider: Provider, config: AuditConfig) -> object:

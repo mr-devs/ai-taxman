@@ -345,8 +345,19 @@ async def test_progress_callback_sees_every_record(project, fake_provider):
 
 
 async def test_batch_mode_is_rejected_when_the_provider_cannot_do_it(project, fake_provider):
-    with pytest.raises(NotImplementedError, match="batch"):
+    with pytest.raises(ConfigError, match="batch"):
         await run_audit_async(audit(project, "execution:\n  batch: true"))
+
+
+@pytest.mark.parametrize("key", ["dir", "log_dir"])
+async def test_an_unknown_placeholder_in_a_path_is_refused_before_anything_is_sent(
+    project, fake_provider, key
+):
+    with pytest.raises(ConfigError, match="date"):
+        await run_audit_async(audit(project, f"output:\n  {key}: out/{{date}}"))
+
+    assert fake_provider.sent == []
+    assert not (project / "out").exists()
 
 
 async def test_a_provider_that_cannot_start_fails_cleanly(project, fake_provider):

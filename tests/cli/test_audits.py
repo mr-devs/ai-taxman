@@ -1,3 +1,6 @@
+import pytest
+
+
 def make_audit(directory, name, provider="fake"):
     directory.mkdir(parents=True, exist_ok=True)
     (directory / f"{name}.yaml").write_text(
@@ -196,3 +199,35 @@ def test_reports_the_version(invoke):
 
     assert result.exit_code == 0
     assert __version__ in result.output
+
+
+def checkable_audit(tmp_path, extra):
+    (tmp_path / "audits").mkdir()
+    (tmp_path / "audits" / "probe.yaml").write_text(
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
+        + extra,
+        encoding="utf-8",
+    )
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
+
+
+def test_validate_refuses_batch_mode_collect_cannot_run(invoke, tmp_path, fake_provider):
+    """A "valid" here must mean `collect` will start."""
+    checkable_audit(tmp_path, "execution:\n  batch: true\n")
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "batch" in result.output
+    assert "is valid" not in result.output
+
+
+@pytest.mark.parametrize("key", ["dir", "log_dir"])
+def test_validate_refuses_an_unknown_path_placeholder(invoke, tmp_path, fake_provider, key):
+    checkable_audit(tmp_path, f"output:\n  {key}: out/{{date}}\n")
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "{date}" in result.output

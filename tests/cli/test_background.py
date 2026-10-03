@@ -149,6 +149,21 @@ def test_a_broken_audit_is_refused_before_a_background_run_is_promised(
     assert "pid" not in result.output.lower()
 
 
+@pytest.mark.parametrize(
+    "extra", ["execution:\n  batch: true\n", "output:\n  log_dir: out/{date}\n"]
+)
+def test_a_run_that_cannot_start_gets_no_pid_and_no_directory(
+    invoke, tmp_path, fake_provider, extra
+):
+    make_project(tmp_path, body=AUDIT + extra)
+
+    result = invoke("collect", "probe", "--background")
+
+    assert result.exit_code != 0
+    assert "pid" not in result.output.lower()
+    assert not (tmp_path / "data").exists()
+
+
 def test_a_missing_api_key_is_refused_before_the_run_is_promised(invoke, tmp_path, fake_provider):
     make_project(tmp_path, body=AUDIT + "api_key_env: DEFINITELY_NOT_SET_ANYWHERE\n")
     fake_provider.requires_api_key = True

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 
 def make_project(tmp_path, body=None, messages="one\ntwo\nthree\n"):
     (tmp_path / "messages").mkdir(exist_ok=True)
@@ -320,3 +322,21 @@ def test_a_bad_run_id_is_refused_before_anything_is_sent(invoke, tmp_path, fake_
     assert result.exit_code != 0
     assert fake_provider.sent == []
     assert not (tmp_path / "data").exists()
+
+
+@pytest.mark.parametrize(
+    "extra", ["execution:\n  batch: true\n", "output:\n  log_dir: out/{date}\n"]
+)
+def test_a_run_that_cannot_start_fails_cleanly(invoke, tmp_path, fake_provider, extra):
+    make_project(
+        tmp_path,
+        body="audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "model:\n  name: fake-1\n" + extra,
+    )
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "Traceback" not in result.output
+    assert "Collecting" not in result.output
+    assert fake_provider.sent == []
