@@ -167,3 +167,26 @@ def test_it_takes_no_provider_or_audit(invoke, leave_project, tmp_path):
 
     assert result.exit_code != 0
     assert not (tmp_path / MARKER_FILENAME).exists()
+
+
+def test_a_folder_that_cannot_be_made_leaves_no_project(invoke, leave_project, tmp_path):
+    """Otherwise `init` refuses to run again, and the marker has to be deleted by hand."""
+    (tmp_path / "taxman").write_text("a file where a folder should go\n", encoding="utf-8")
+
+    result = invoke("init", "--yes")
+
+    assert result.exit_code != 0
+    assert "taxman" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert not (tmp_path / MARKER_FILENAME).exists()
+
+
+def test_init_can_be_run_again_once_the_problem_is_fixed(invoke, leave_project, tmp_path):
+    (tmp_path / "taxman").write_text("in the way\n", encoding="utf-8")
+    invoke("init", "--yes")
+    (tmp_path / "taxman").unlink()
+
+    result = invoke("init", "--yes")
+
+    assert result.exit_code == 0
+    assert (tmp_path / MARKER_FILENAME).is_file()

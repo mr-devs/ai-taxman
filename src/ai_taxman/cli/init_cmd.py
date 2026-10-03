@@ -70,9 +70,19 @@ def init(
         )
         return
 
-    marker = write_marker(here, layout)
+    # Folders first, marker last: a folder that cannot be made must not leave a
+    # marker behind, or `init` would refuse to run again until it was deleted.
     for folder in layout.as_dict().values():
-        (here / folder).mkdir(parents=True, exist_ok=True)
+        try:
+            (here / folder).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            fail(
+                f"could not create the folder {folder}: {exc.strerror or exc}. "
+                "Nothing was set up; fix that path, or choose another, and run "
+                "`taxman init` again."
+            )
+            return
+    marker = write_marker(here, layout)
 
     # The root is named in full: "." would not tell the user which project.
     typer.secho(f"Started a taxman project at {here}", fg=typer.colors.GREEN)
