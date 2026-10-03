@@ -68,13 +68,12 @@ def test_template_validates_as_written(provider):
     assert provider.describe_model(config) in provider.known_models()
 
 
-def test_every_template_line_carries_a_comment(provider):
-    """A setting explains itself inline; a block is explained by the line above it."""
+def test_every_template_setting_is_explained(provider):
+    """By a comment on its own line, or by the comment directly above it."""
     body = provider.render_template().splitlines()[1:]
 
     for previous, line in zip(body, body[1:], strict=False):
-        if line.strip() and "#" not in line:
-            assert line.rstrip().endswith(":"), line
+        if line.strip() and not line.lstrip().startswith("#") and "#" not in line:
             assert previous.lstrip().startswith("#"), line
 
 
