@@ -8,6 +8,7 @@ than spread across command-line parsing.
 The folders it writes into the audit come from the project's marker.
 """
 
+import pytest
 import yaml
 
 from ai_taxman.core.config import load_audit
@@ -380,3 +381,30 @@ def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
     line = next(line for line in audit_text(invoke, tmp_path).splitlines() if "batch:" in line)
 
     assert line == "  batch: false  # true to use the provider's batch API (not available yet)."
+
+
+# --- what an audit may be called -------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name", ["sub/bar", "a: b", "_under", ".hidden", "with space", "probe.yaml"]
+)
+def test_a_name_that_cannot_be_an_audit_is_refused(invoke, tmp_path, name):
+    result = invoke("audits", "new", "openai", name)
+
+    assert result.exit_code != 0
+    assert "letters, digits" in result.output
+    assert not list(tmp_path.glob("audits/**/*.yaml"))
+
+
+@pytest.mark.parametrize("name", ["yes", "2024", "null", "true", "1e3"])
+def test_a_name_yaml_would_misread_still_loads(invoke, tmp_path, name):
+    """`audit: yes` is a boolean to YAML; the file must say the name as a string."""
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / f"{name}.txt").write_text("one\n", encoding="utf-8")
+
+    invoke("audits", "new", "openai", name)
+    result = invoke("audits", "show", name)
+
+    assert result.exit_code == 0, result.output
+    assert read(tmp_path, name)["audit"] == name

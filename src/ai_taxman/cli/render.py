@@ -16,6 +16,7 @@ above it as a hint.
 
 from __future__ import annotations
 
+from ai_taxman.core.discovery import yaml_scalar
 from ai_taxman.providers.base import Provider
 
 #: What `api_key_env:` says until the user replaces it. Deliberately not a valid
@@ -55,16 +56,16 @@ def render_audit(
     `api_key_env` is omitted entirely for a provider that needs no key.
     """
     output = {
-        "dir": (output_dir, "{audit} and {run_id} are filled in at run time."),
+        "dir": (yaml_scalar(output_dir), "{audit} and {run_id} are filled in at run time."),
         "filename": ("responses.jsonl", "Raw responses, one JSON object per line."),
         "compress": ("false", "true to gzip the output."),
-        "log_dir": (log_dir, "Each run's log is written here as <run_id>.log."),
+        "log_dir": (yaml_scalar(log_dir), "Each run's log is written here as <run_id>.log."),
     }
 
     lines = [
         HEADER.format(audit=audit),
         "# Audit name",
-        f"audit: {audit}",
+        f"audit: {yaml_scalar(audit)}",
         "",
         "# AI provider",
         f"provider: {provider.name}",
@@ -72,7 +73,7 @@ def render_audit(
         "",
         "# Path to the file containing the messages to send. Each line is a separate message;",
         "# blank lines and lines starting with `#` are skipped.",
-        f"messages: {messages}",
+        f"messages: {yaml_scalar(messages)}",
         "",
         "# Path, relative to the project root, to a file containing the system prompt to send",
         "# with every message.",

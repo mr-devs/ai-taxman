@@ -23,6 +23,7 @@ the file that describes it.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, fields
 from pathlib import Path, PurePosixPath
 
@@ -188,6 +189,32 @@ def require_project_root(start: Path | None = None) -> Path:
             f"{MARKER_VERSION}). Upgrade taxman to use this project."
         )
     return root
+
+
+#: An audit name is a filename and a YAML value, and is typed on the command
+#: line: letters, digits, dot, dash, underscore, starting with a letter or digit.
+AUDIT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def validate_audit_name(name: str) -> str:
+    """Return `name` if an audit can be called it, or say why not."""
+    if not AUDIT_NAME_PATTERN.match(name) or name.lower().endswith(YAML_SUFFIXES):
+        raise ConfigError(
+            f"{name!r} cannot be an audit name. It names the audit's file, so it may "
+            "contain only letters, digits, dots, dashes and underscores, must start "
+            "with a letter or a digit, and leaves off the .yaml - e.g. election-probe."
+        )
+    return name
+
+
+def yaml_scalar(value: str) -> str:
+    """`value` as YAML that reads back as this exact string.
+
+    Bare where that is safe, quoted where YAML would read something else:
+    `yes` is a boolean, `2024` a number, and `a #b` a value and a comment.
+    """
+    text = yaml.safe_dump(value, width=float("inf"), allow_unicode=True)
+    return text.removesuffix("\n...\n").rstrip("\n")
 
 
 def render_marker(layout: Layout) -> str:

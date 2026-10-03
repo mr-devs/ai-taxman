@@ -16,6 +16,7 @@ from ai_taxman.core.discovery import (
     list_audits,
     read_layout,
     require_project_root,
+    validate_audit_name,
 )
 from ai_taxman.core.messages import read_messages
 from ai_taxman.core.registry import get_provider
@@ -54,6 +55,7 @@ def new_command(
     # Resolve the provider before touching the disk: an unknown name should not
     # leave a stray file behind.
     resolved = get_provider(provider)
+    validate_audit_name(audit)
     root = require_project_root()
     layout = read_layout(root)
 
