@@ -65,7 +65,10 @@ class AnthropicProvider(Provider):
         # An explicit timeout also stops the SDK refusing a large `max_tokens` as
         # "may take longer than 10 minutes": the audit's timeout_s is the limit.
         response = await client.messages.create(**build_request(request), timeout=timeout_s)
-        return response.model_dump(mode="json")  # type: ignore[no-any-return]
+        # `to_dict` keeps only the fields Anthropic actually sent, under the API's
+        # own names. `model_dump` would add a null for every field the SDK merely
+        # knows about, so `raw` would no longer be the body that came back.
+        return response.to_dict(mode="json")  # type: ignore[no-any-return]
 
     async def startup(self, *, api_key: str | None = None) -> None:
         _CLIENT.set(_new_client(api_key))
