@@ -7,7 +7,7 @@ to `AnthropicProvider.validate_model_config`, which returns one of these.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -152,6 +152,10 @@ class AnthropicSearchConfig(_Block):
     #: calling need it on `_20260209` and later; Anthropic says so with a 400.
     allowed_callers: list[WebSearchCaller] | None = Field(default=None, min_length=1)
 
+    #: `web_search_20260318` only. `excluded` drops result blocks a finished code
+    #: execution call already consumed, rather than echoing them back.
+    response_inclusion: Literal["full", "excluded"] | None = None
+
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
     def _bare_domains(cls, domains: list[str] | None) -> list[str] | None:
@@ -172,6 +176,14 @@ class AnthropicSearchConfig(_Block):
             raise ValueError(
                 f"{', '.join(chosen)} set in `search:`, but `web_search` is not true. "
                 "Set `web_search: true`, or leave the other search settings blank."
+            )
+        if self.response_inclusion is not None and self.tool_version not in (
+            None,
+            "web_search_20260318",
+        ):
+            raise ValueError(
+                f"response_inclusion needs web_search_20260318, not {self.tool_version}. "
+                "Leave tool_version blank, or leave response_inclusion blank."
             )
         if self.allowed_domains is not None and self.blocked_domains is not None:
             raise ValueError(
@@ -309,5 +321,10 @@ SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
         "allowed_callers",
         "[direct] to search without dynamic filtering; models without programmatic "
         "tool calling need it. Blank = the tool version's default.",
+    ),
+    (
+        "response_inclusion",
+        "full | excluded. web_search_20260318 only. excluded drops result blocks "
+        "code execution already consumed. Blank = full.",
     ),
 )

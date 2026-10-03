@@ -439,3 +439,19 @@ def test_allowed_callers_are_ones_anthropic_documents():
 def test_allowed_callers_cannot_be_empty():
     with pytest.raises(ValidationError, match="at least 1"):
         search(allowed_callers=[])
+
+
+@pytest.mark.parametrize("inclusion", ["full", "excluded"])
+def test_response_inclusion_goes_on_the_tool(inclusion):
+    assert tool(response_inclusion=inclusion)["response_inclusion"] == inclusion
+
+
+@pytest.mark.parametrize("version", ["web_search_20250305", "web_search_20260209"])
+def test_response_inclusion_needs_a_tool_version_that_has_it(version):
+    with pytest.raises(ValidationError, match="web_search_20260318"):
+        search(tool_version=version, response_inclusion="excluded")
+
+
+def test_response_inclusion_is_full_or_excluded():
+    with pytest.raises(ValidationError, match="response_inclusion"):
+        search(response_inclusion="partial")
