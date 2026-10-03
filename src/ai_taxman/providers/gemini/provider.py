@@ -33,6 +33,19 @@ INSTALL_HINT = (
     "(or `uv sync --all-extras` when working on ai-taxman itself)."
 )
 
+#: SDK error class names worth retrying. Matched by name so this module still
+#: imports cleanly when the SDK is absent. The Interactions client raises these
+#: from `google.genai._gaos.lib.compat_errors`; every 5xx is an `InternalServerError`.
+RETRYABLE_ERRORS = frozenset(
+    {
+        "APIConnectionError",
+        "APITimeoutError",
+        "ConflictError",
+        "InternalServerError",
+        "RateLimitError",
+    }
+)
+
 
 class GeminiProvider(Provider):
     """Audit Gemini models through the Interactions API."""
@@ -54,6 +67,9 @@ class GeminiProvider(Provider):
 
     def describe_model(self, model: GeminiModelConfig) -> str:
         return model.name
+
+    def is_retryable(self, exc: BaseException) -> bool:
+        return type(exc).__name__ in RETRYABLE_ERRORS and _is_genai_error(exc)
 
     # -- I/O ----------------------------------------------------------------
 
@@ -158,6 +174,14 @@ def _new_client(api_key: str | None) -> Client:
     client = genai.Client(api_key=api_key, enterprise=False)
     client.aio.interactions.sdk_configuration.retry_config = None
     return client
+
+
+def _is_genai_error(exc: BaseException) -> bool:
+    """Confirm `exc` really came from the SDK, not a same-named class elsewhere.
+
+    `google` is a namespace many packages share, so the check is on `google.genai`.
+    """
+    return type(exc).__module__.split(".")[:2] == ["google", "genai"]
 
 
 PROVIDER = GeminiProvider()

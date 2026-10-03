@@ -120,3 +120,43 @@ async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):
 
     with pytest.raises(ProviderDependencyError, match=r"uv add ai-taxman\[gemini\]"):
         await GeminiProvider().startup(api_key="gm-one")
+
+
+# -- retries ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "exc_name, retryable",
+    [
+        ("RateLimitError", True),
+        ("InternalServerError", True),
+        ("ConflictError", True),
+        ("APITimeoutError", True),
+        ("APIConnectionError", True),
+        ("BadRequestError", False),
+        ("AuthenticationError", False),
+        ("PermissionDeniedError", False),
+        ("NotFoundError", False),
+        ("UnprocessableEntityError", False),
+    ],
+)
+def test_retryability_matches_the_sdk_error_class(exc_name, retryable):
+    assert PROVIDER.is_retryable(_make_gemini_error(exc_name)) is retryable
+
+
+def test_a_same_named_error_from_another_google_package_is_not_retried():
+    """`google` is a namespace many packages share; only `google.genai` counts."""
+
+    class RateLimitError(Exception):
+        pass
+
+    RateLimitError.__module__ = "google.api_core.exceptions"
+
+    assert PROVIDER.is_retryable(RateLimitError()) is False
+
+
+def _make_gemini_error(name):
+    """An instance of a real SDK error class, built without an HTTP round trip."""
+    compat_errors = pytest.importorskip("google.genai._gaos.lib.compat_errors")
+    cls = getattr(compat_errors, name)
+    return cls.__new__(cls)

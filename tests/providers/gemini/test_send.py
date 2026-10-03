@@ -142,3 +142,27 @@ async def test_the_response_is_json_safe(wire):
     raw = await send(a_request())
 
     assert json.loads(json.dumps(raw)) == raw
+
+
+@pytest.mark.parametrize(
+    "status, retryable", [(429, True), (500, True), (503, True), (400, False), (403, False)]
+)
+async def test_what_send_raises_is_classified_by_status(wire, status, retryable):
+    """The real exception, not a stand-in: the classes the SDK raises today."""
+    wire.status = status
+    wire.body = {"error": {"code": status, "message": "no", "status": "X"}}
+
+    with pytest.raises(Exception) as caught:
+        await send(a_request())
+
+    assert GeminiProvider().is_retryable(caught.value) is retryable
+
+
+@pytest.mark.parametrize("error", ["ConnectError", "ReadTimeout"])
+async def test_a_dropped_or_slow_connection_is_retryable(wire, error):
+    wire.error = getattr(httpx, error)
+
+    with pytest.raises(Exception) as caught:
+        await send(a_request())
+
+    assert GeminiProvider().is_retryable(caught.value) is True
