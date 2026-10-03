@@ -95,10 +95,11 @@ class Provider(ABC):
     def render_template(self) -> str:
         """Return the YAML text of the `model:` block for `taxman audits new`.
 
-        Every parameter this provider accepts should be present but blank, with
-        a comment saying what it does, so the scaffolded file doubles as the
-        documentation the user edits. There are no saved values to merge in:
-        `audits new` writes defaults, and the user fills in the rest by hand.
+        Every parameter this provider accepts should be present but blank, under
+        the comment `core.template.render_block` writes from its own field, so the
+        scaffolded file doubles as the documentation the user edits. There are no
+        saved values to merge in: `audits new` writes defaults, and the user fills
+        in the rest by hand.
         """
 
     # -- I/O ----------------------------------------------------------------

@@ -142,7 +142,28 @@ them to `~/.taxman/providers/<name>.yaml`. It is gone, and so is `set-key`. **Do
 either back**, in any form: a second channel for setting audit values means core has to
 route each one to its owner, providers have to validate arbitrary keys, and the rendered
 template has to round-trip saved values through YAML. All of that existed and all of it
-was deleted. If a setting is hard to discover, fix its comment in the template.
+was deleted. If a setting is hard to discover, fix its description on its field.
+
+## Every setting documents itself
+
+The audit file is the documentation, so a setting's explanation lives on its own pydantic
+field and `core/template.py` writes it above the key. **Never hand-write a template
+comment** — core's blocks and every provider's `model:` block are rendered the same way.
+
+A field says what it does with `description=`, which the renderer refuses to go without,
+and may add `examples=` and these `json_schema_extra` keys:
+
+- `options` — what each `Literal` value means. It must name exactly the values accepted.
+- `blank` — what leaving a None-default setting blank does: "no limit", "not sent, so
+  the model's own default applies". Only for a None default; blank otherwise means the
+  default, which the file already names.
+- `required` — for a setting validation lets through blank but a run refuses (`api_key_env`).
+- `docs` — a link, which must be a page `docs/provider-apis/<name>.md` lists as its markdown
+  twin. Only listed pages are checked for rot; `tests/test_provider_docs.py` enforces it.
+- `template: False` — leave the field out of the file (`extra:`).
+
+`Type:`, `Options:`, bounds and `Default:` are read from the field's annotation, `Field`
+constraints and default, so the file cannot disagree with what validation accepts.
 
 The CLI has two interactive prompts, and neither asks about an audit: `doctor`'s yes/no
 about the machine (`cli/doctor_cmd.py`), and `init`'s folder questions about the project
@@ -307,7 +328,7 @@ src/ai_taxman/
 ├── __init__.py       # __version__ + public Python API
 ├── __main__.py       # python -m ai_taxman
 ├── cli/              # Typer app: init, audits (new/list/show/validate), collect, doctor
-├── core/             # config, credentials, discovery, messages, records,
+├── core/             # config, credentials, discovery, messages, records, template,
 │                     # writer, runner, registry, state, environment, errors
 └── providers/
     ├── base.py       # the ONLY shared provider contract
@@ -376,7 +397,8 @@ and update `docs/provider-apis/` if the URL moved.
 5. Implement `Provider` from `providers/base.py`; export `PROVIDER` at module level.
 6. Implement `known_models()`, `render_template()`, `describe_model()` and
    `default_api_key_env` — these feed `taxman audits new` and shell completion. `render_template()`
-   takes no arguments and renders every parameter blank but commented.
+   takes no arguments and renders the config model with `core.template.render_block`, every
+   parameter blank. Document each field on the field itself (see "Every setting documents itself").
 7. Confirm the conformance suite (`tests/providers/test_conformance.py`) passes. It is
    parametrized over the registry, so a new folder is checked with nothing to add to it.
 8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.

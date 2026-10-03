@@ -146,10 +146,12 @@ provider gets its own audit file.
 One field is left blank on purpose, because only you know the answer:
 
 ```yaml
-# The one environment variable holding this audit's API key.
-# taxman reads this name and no other. Export the variable in your
-# shell, then put its name here.
-# For openai this is usually OPENAI_API_KEY.
+# The name of the environment variable that holds this audit's API key: the
+# name, not the key itself. Export the variable in your shell. taxman reads this
+# name and no other, and never stores a key.
+#   Type:     text
+#   Required: yes
+#   Example:  OPENAI_API_KEY
 api_key_env: <insert_api_key_env_var_here>
 ```
 
@@ -210,24 +212,39 @@ Once the project is set up and your key is exported, the loop is three steps.
 taxman audits new openai election-probe
 ```
 
-That writes `taxman/audits/election-probe.yaml` with every setting at its default and
-commented, ready for you to edit:
+That writes `taxman/audits/election-probe.yaml` with every setting at its default, ready
+for you to edit. Each setting is explained by the comment above it: what it does, the type
+or options it takes, what it is when left blank, an example where one helps, and a link
+to the provider's own documentation:
+
+```yaml
+  # How random the sampling is: lower is more focused and deterministic, higher
+  # more varied. OpenAI recommends changing this or top_p, not both.
+  #   Type:     number, 0 to 2
+  #   Default:  blank (not sent, so the model's own default applies)
+  #   Docs:     https://developers.openai.com/api/reference/resources/responses/methods/create
+  temperature:
+```
+
+That text is read from the same field that validates the setting, so the file cannot
+claim a setting takes something taxman would refuse. With the comments stripped, the
+file is:
 
 ```yaml
 audit: election-probe
 provider: openai
-api_key_env: OPENAI_API_KEY   # you fill this in; the one variable taxman reads
-
+api_key_env: <insert_api_key_env_var_here>
 messages: taxman/messages/election-probe.txt
-system_prompt:             # a file in taxman/prompts/, sent with every message; blank for none
+system_prompt:
 
 output:
   dir: taxman/data/{audit}/{run_id}
   filename: responses.jsonl
-  compress: false          # true to gzip the output
+  compress: false
+  log_dir: taxman/logs/{audit}
 
 execution:
-  repeats: 1               # times to send EACH message; all repeats go out together
+  repeats: 1
   max_concurrency: 8
   batch: false
   timeout_s: 120
@@ -235,13 +252,16 @@ execution:
   on_error: continue
   shuffle: false
 
-model:                     # settings specific to the `openai` provider
+model:
   name: gpt-5
   temperature:
+  top_p:
+  max_output_tokens:
   reasoning_effort:
-
-  search:                  # web search: off unless web_search is true
+  store:
+  search:
     web_search:
+    # ...and the rest of the web search settings
 ```
 
 **2. Write your messages** — one per line, in a plain `.txt` file. Blank lines
