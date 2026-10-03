@@ -10,6 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ai_taxman.providers.anthropic.models import EFFORTS, Effort
+
 
 class _Block(BaseModel):
     """A block of settings where a key left blank takes its default."""
@@ -50,6 +52,15 @@ class AnthropicModelConfig(_Block):
     #: Required: the Messages API has no default, and rejects a request without it.
     max_tokens: int = Field(ge=1)
 
+    #: Sent as `output_config.effort`. Blank leaves the model's own default.
+    effort: Effort | None = None
+
 
 #: Documented in the generated template, in this order, after `name` and `max_tokens`.
-TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = ()
+TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
+    (
+        "effort",
+        f"{' | '.join(EFFORTS)}. How much work Claude puts in, thinking included. "
+        "Blank = the model's default. Not every model takes every level.",
+    ),
+)

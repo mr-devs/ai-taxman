@@ -128,6 +128,8 @@ def build_request(request: Request) -> dict[str, Any]:
         "max_tokens": config.max_tokens,
         "messages": request_messages,
     }
+    if config.effort is not None:
+        payload["output_config"] = {"effort": config.effort}
     if request.system_prompt:
         payload["system"] = request.system_prompt
     return payload
