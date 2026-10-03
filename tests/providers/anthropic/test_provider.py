@@ -124,3 +124,57 @@ async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):
 
     with pytest.raises(ProviderDependencyError, match=r"uv add ai-taxman\[anthropic\]"):
         await AnthropicProvider().startup(api_key="sk-ant-one")
+
+
+# -- retries ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "exc_name, retryable",
+    [
+        ("RateLimitError", True),
+        ("OverloadedError", True),
+        ("InternalServerError", True),
+        ("ServiceUnavailableError", True),
+        ("DeadlineExceededError", True),
+        ("ConflictError", True),
+        ("APITimeoutError", True),
+        ("APIConnectionError", True),
+        ("BadRequestError", False),
+        ("AuthenticationError", False),
+        ("PermissionDeniedError", False),
+        ("NotFoundError", False),
+        ("RequestTooLargeError", False),
+    ],
+)
+def test_retryability_matches_the_sdk_error_class(exc_name, retryable):
+    assert PROVIDER.is_retryable(_make_anthropic_error(exc_name)) is retryable
+
+
+def test_every_rate_limit_or_server_error_class_is_retried():
+    """529 `overloaded_error` is a sibling of InternalServerError, not a subclass.
+
+    So is every other 5xx class the SDK has grown; a new one must not slip
+    through as "not retryable" and fail a row that a retry would have saved.
+    """
+    anthropic = pytest.importorskip("anthropic")
+    for name, cls in vars(anthropic).items():
+        if not (isinstance(cls, type) and issubclass(cls, anthropic.APIStatusError)):
+            continue
+        status = getattr(cls, "status_code", None)
+        if status == 429 or (isinstance(status, int) and status >= 500):
+            assert PROVIDER.is_retryable(cls.__new__(cls)), name
+
+
+def test_a_same_named_error_from_elsewhere_is_not_retried():
+    class RateLimitError(Exception):
+        pass
+
+    assert PROVIDER.is_retryable(RateLimitError()) is False
+
+
+def _make_anthropic_error(name):
+    """An instance of a real SDK error class, built without an HTTP round trip."""
+    anthropic = pytest.importorskip("anthropic")
+    cls = getattr(anthropic, name)
+    return cls.__new__(cls)

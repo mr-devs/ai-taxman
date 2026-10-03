@@ -36,6 +36,22 @@ INSTALL_HINT = (
     "(or `uv sync --all-extras` when working on ai-taxman itself)."
 )
 
+#: SDK error class names worth retrying. Matched by name so this module still
+#: imports cleanly when the SDK is absent. 529 (`OverloadedError`), 503 and 504
+#: are siblings of `InternalServerError`, not subclasses, so each is listed.
+RETRYABLE_ERRORS = frozenset(
+    {
+        "APIConnectionError",
+        "APITimeoutError",
+        "ConflictError",
+        "DeadlineExceededError",
+        "InternalServerError",
+        "OverloadedError",
+        "RateLimitError",
+        "ServiceUnavailableError",
+    }
+)
+
 
 class AnthropicProvider(Provider):
     """Audit Claude models through the Messages API."""
@@ -57,6 +73,9 @@ class AnthropicProvider(Provider):
 
     def describe_model(self, model: AnthropicModelConfig) -> str:
         return model.name
+
+    def is_retryable(self, exc: BaseException) -> bool:
+        return type(exc).__name__ in RETRYABLE_ERRORS and _is_anthropic_error(exc)
 
     # -- I/O ----------------------------------------------------------------
 
@@ -153,6 +172,11 @@ def _new_client(api_key: str | None) -> AsyncAnthropic:
         raise ProviderDependencyError(INSTALL_HINT) from exc
 
     return AsyncAnthropic(api_key=api_key, max_retries=0)
+
+
+def _is_anthropic_error(exc: BaseException) -> bool:
+    """Confirm `exc` really came from the SDK, not a same-named class elsewhere."""
+    return type(exc).__module__.split(".")[0] == "anthropic"
 
 
 PROVIDER = AnthropicProvider()
