@@ -79,7 +79,7 @@ def collect(
     # every Tab press and must not pay for the config parser or the runner.
     from ai_taxman.core.config import load_audit
     from ai_taxman.core.logging import setup_logging
-    from ai_taxman.core.runner import validate_model
+    from ai_taxman.core.runner import resolve_key, validate_model
 
     # Before anything else, so a typo in the level is not discovered an hour into
     # a run - and so the run that follows is logged from its first line.
@@ -108,6 +108,10 @@ def collect(
             quiet=quiet,
         )
         return
+
+    # Checked before the banner: announcing a run that cannot start reads as if
+    # it started. The runner checks again, for callers of the Python API.
+    resolve_key(provider, config)
 
     expected = config.execution.repeats
     if not quiet:

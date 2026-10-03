@@ -180,6 +180,26 @@ def test_a_missing_api_key_is_reported_cleanly(invoke, tmp_path, fake_provider, 
     assert "Traceback" not in result.output
 
 
+def test_a_missing_api_key_is_reported_before_the_banner(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """Announcing a run that cannot start reads as if it started."""
+    fake_provider.requires_api_key = True
+    monkeypatch.delenv("TAXMAN_FAKE_API_KEY", raising=False)
+    make_project(
+        tmp_path,
+        body=(
+            "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+            "api_key_env: TAXMAN_FAKE_API_KEY\nmodel:\n  name: fake-1\n"
+        ),
+    )
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "Collecting" not in result.output
+
+
 # --- logging -------------------------------------------------------------
 
 
