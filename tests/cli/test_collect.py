@@ -200,6 +200,15 @@ def test_a_missing_api_key_is_reported_before_the_banner(
     assert "Collecting" not in result.output
 
 
+def test_the_summary_names_the_output_from_where_the_user_stands(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--quiet")
+
+    summary = result.output.strip().splitlines()[-1]
+    assert summary.startswith("3 ok  ->  data/probe/")
+
+
 # --- logging -------------------------------------------------------------
 
 

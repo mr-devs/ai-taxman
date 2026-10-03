@@ -49,7 +49,7 @@ def show_command(audit: AuditName) -> None:
     from ai_taxman.core.config import load_audit
 
     config = load_audit(find_audit(audit))
-    typer.echo(f"# {config.source_path}")
+    typer.echo(f"# {display_path(config.source_path)}")
     typer.echo(yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False).rstrip())
 
 
@@ -75,7 +75,7 @@ def validate_command(audit: AuditName) -> None:
     # The first thing `collect` checks, so a "valid" here must mean it passes.
     resolve_key(provider, config)
     total = len(messages) * config.execution.repeats
-    typer.secho(f"{config.source_path} is valid.", fg=typer.colors.GREEN)
+    typer.secho(f"{display_path(config.source_path)} is valid.", fg=typer.colors.GREEN)
     typer.echo(
         f"{len(messages)} message(s) x {config.execution.repeats} repeat(s) = {total} request(s)."
     )

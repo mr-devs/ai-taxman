@@ -135,6 +135,24 @@ def test_validate_never_prints_the_key(invoke, tmp_path, fake_provider, monkeypa
     assert "sk-secret-value" not in result.output
 
 
+def test_validate_names_the_file_from_where_the_user_stands(invoke, tmp_path, fake_provider):
+    make_audit(tmp_path / "audits", "probe")
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.output.startswith("audits/probe.yaml is valid.")
+
+
+def test_show_names_the_file_from_where_the_user_stands(invoke, tmp_path):
+    make_audit(tmp_path / "audits", "probe")
+
+    result = invoke("audits", "show", "probe")
+
+    assert result.output.startswith("# audits/probe.yaml\n")
+
+
 def test_validate_rejects_a_bad_model_block(invoke, tmp_path, fake_provider):
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(

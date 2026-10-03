@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from ai_taxman.cli.completion import complete_audit
-from ai_taxman.cli.util import fail, handles_taxman_errors
+from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
 from ai_taxman.core.discovery import find_audit
 from ai_taxman.core.registry import get_provider
 
@@ -129,7 +129,7 @@ def collect(
     if result.n_error:
         typer.echo(", ", nl=False)
         typer.secho(f"{result.n_error} error", fg=typer.colors.RED, nl=False)
-    typer.echo(f"  ->  {result.output_path}")
+    typer.echo(f"  ->  {display_path(result.output_path)}")
 
     if result.stopped_early:
         typer.secho(
