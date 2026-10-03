@@ -97,11 +97,11 @@ def render_setting(
         lines += _option_lines(key, pad, allowed, doc.get("options"))
     kind = _describe_type(field)
     if kind:
-        lines.append(_label(pad, "Type", kind))
-    lines.append(_default_line(key, field, pad, doc))
+        lines += _wrapped(pad, "Type", kind)
+    lines += _wrapped(pad, *_default(key, field, doc))
     examples = [example] if example is not None else field.examples or []
     for i, shown in enumerate(examples):
-        lines.append(_label(pad, "" if i else "Example", _yaml_value(shown)))
+        lines += _wrapped(pad, "" if i else "Example", _yaml_value(shown))
     lines += _docs_line(pad, doc)
     if value is None and defaults and not field.is_required():
         value = field.get_default(call_default_factory=True)
@@ -118,10 +118,10 @@ def _doc(key: str, field: FieldInfo) -> dict[str, Any]:
     return extra
 
 
-def _default_line(key: str, field: FieldInfo, pad: str, doc: dict[str, Any]) -> str:
+def _default(key: str, field: FieldInfo, doc: dict[str, Any]) -> tuple[str, str]:
     """What the setting is when the user leaves it alone, or that they cannot."""
     if field.is_required() or doc.get("required"):
-        return _label(pad, "Required", "yes")
+        return "Required", "yes"
     blank = doc.get("blank")
     default = field.get_default(call_default_factory=True)
     if default is not None:
@@ -130,13 +130,25 @@ def _default_line(key: str, field: FieldInfo, pad: str, doc: dict[str, Any]) -> 
                 f"`{key}` explains what blank means, but blank is its default, "
                 f"{_yaml_value(default)}."
             )
-        return _label(pad, "Default", _yaml_value(default))
-    return _label(pad, "Default", f"blank ({blank})" if blank else "blank")
+        return "Default", _yaml_value(default)
+    return "Default", f"blank ({blank})" if blank else "blank"
 
 
 def _docs_line(pad: str, doc: dict[str, Any]) -> list[str]:
     """The link, whole: a URL broken across lines cannot be followed."""
     return [_label(pad, "Docs", doc["docs"])] if "docs" in doc else []
+
+
+def _wrapped(pad: str, name: str, text: str) -> list[str]:
+    """A labelled line, wrapped under its own column when it runs long."""
+    return textwrap.wrap(
+        text,
+        WIDTH,
+        initial_indent=_label(pad, name, ""),
+        subsequent_indent=_label(pad, "", ""),
+        break_on_hyphens=False,
+        break_long_words=False,
+    )
 
 
 def _label(pad: str, name: str, text: str) -> str:

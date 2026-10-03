@@ -473,3 +473,18 @@ def test_a_setting_a_run_refuses_blank_says_it_is_required():
 
     assert label(lines, "key_env", "Required") == "yes"
     assert label(lines, "key_env", "Default") is None
+
+
+def test_a_long_default_wraps_under_its_own_column():
+    class One(BaseModel):
+        setting: int | None = Field(
+            default=None, description="A.", json_schema_extra={"blank": "word " * 20}
+        )
+
+    lines = comment_above(render_block(One, indent=4), "setting")
+    default = next(i for i, line in enumerate(lines) if "Default:" in line)
+    column = lines[default].index("blank")
+
+    assert all(len(line) <= 80 for line in lines)
+    assert lines[default + 1][:column].strip() == "#"
+    assert lines[default + 1][column:].startswith("word")
