@@ -418,3 +418,16 @@ def test_an_audit_cannot_share_the_markers_name(invoke, tmp_path, name):
     assert result.exit_code != 0
     assert "taxman.yaml" in result.output
     assert not list(tmp_path.glob("audits/*.yaml"))
+
+
+def test_an_existing_yml_audit_is_not_shadowed(invoke, tmp_path):
+    """`foo.yaml` beside `foo.yml` would quietly replace it when collecting `foo`."""
+    (tmp_path / "audits").mkdir()
+    existing = tmp_path / "audits" / "probe.yml"
+    existing.write_text("audit: probe\n", encoding="utf-8")
+
+    result = invoke("audits", "new", "openai", "probe")
+
+    assert result.exit_code != 0
+    assert "probe.yml already exists" in result.output
+    assert not (tmp_path / "audits" / "probe.yaml").exists()

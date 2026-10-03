@@ -11,6 +11,7 @@ from ai_taxman.cli.completion import complete_audit, complete_provider
 from ai_taxman.cli.render import API_KEY_ENV_PLACEHOLDER, render_audit
 from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
 from ai_taxman.core.discovery import (
+    YAML_SUFFIXES,
     audits_dir,
     find_audit,
     list_audits,
@@ -60,12 +61,16 @@ def new_command(
     layout = read_layout(root)
 
     target = root / layout.audits / f"{audit}.yaml"
-    if target.exists():
-        fail(
-            f"{display_path(target)} already exists. Choose another name, or delete the "
-            "file first if you meant to start over."
-        )
-        return
+    # Either suffix: a new `.yaml` beside an old `.yml` would win the lookup and
+    # quietly replace the audit the user had already written.
+    for suffix in YAML_SUFFIXES:
+        existing = target.with_suffix(suffix)
+        if existing.exists():
+            fail(
+                f"{display_path(existing)} already exists. Choose another name, or delete "
+                "the file first if you meant to start over."
+            )
+            return
 
     messages = f"{layout.messages}/{audit}.txt"
     text = render_audit(
