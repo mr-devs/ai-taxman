@@ -125,6 +125,13 @@ never named.
 Core owns "read the variable this audit names". Providers own "use this key". A provider
 never reads the environment itself, and never sees a variable name.
 
+**Always use `SML_`-prefixed key variables.** Whenever you name a key variable yourself, use
+`SML_<PROVIDER>_API_KEY`, never the bare SDK name. That covers `api_key_env:` in a scratch or
+example audit, a live test, and a one-off script. For example: `SML_OPENAI_API_KEY`,
+`SML_ANTHROPIC_API_KEY`, `SML_GEMINI_API_KEY`, `SML_XAI_API_KEY`, `SML_PERPLEXITY_API_KEY`.
+A provider's `default_api_key_env` is the exception: it documents the provider SDK's own
+convention for taxman's users, so it stays unprefixed.
+
 ## There is no configuration command
 
 `taxman audits new` writes a fully commented audit file and the user edits it. That is the
