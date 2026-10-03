@@ -39,3 +39,12 @@ Effort = Literal["low", "medium", "high", "xhigh", "max"]
 
 #: The same levels as a tuple, for templates and completion.
 EFFORTS: tuple[str, ...] = get_args(Effort)
+
+#: The documented `thinking.type` values. Which a model accepts varies - current
+#: models reject `enabled`, older ones reject `adaptive`, only Sonnet 5.5 takes
+#: `between_tools` - so, as with effort, the API rules on the pairing.
+ThinkingType = Literal["adaptive", "enabled", "disabled", "between_tools"]
+
+#: Whether thinking text comes back. `omitted` returns thinking blocks with an
+#: empty `thinking` field; it is the default on current models.
+ThinkingDisplay = Literal["summarized", "omitted"]

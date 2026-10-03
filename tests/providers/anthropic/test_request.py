@@ -101,3 +101,82 @@ def test_adaptive_is_a_thinking_mode_not_an_effort_level():
 
 def test_the_effort_list_and_the_validated_type_cannot_drift():
     assert get_args(Effort) == EFFORTS
+
+
+# -- thinking ----------------------------------------------------------------
+
+
+def thinking(**settings):
+    return request_for({**BASE, "max_tokens": 16000, "thinking": settings})
+
+
+def test_a_thinking_type_becomes_the_thinking_parameter():
+    assert thinking(type="adaptive")["thinking"] == {"type": "adaptive"}
+
+
+def test_enabled_thinking_carries_its_budget():
+    payload = thinking(type="enabled", budget_tokens=4096)
+
+    assert payload["thinking"] == {"type": "enabled", "budget_tokens": 4096}
+
+
+def test_display_goes_with_the_type():
+    payload = thinking(type="adaptive", display="summarized")
+
+    assert payload["thinking"] == {"type": "adaptive", "display": "summarized"}
+
+
+def test_a_blank_thinking_block_sends_nothing():
+    """Blank leaves the model's default, which differs from model to model."""
+    payload = thinking(type=None, budget_tokens=None, display=None)
+
+    assert "thinking" not in payload
+
+
+@pytest.mark.parametrize("kind", ["adaptive", "disabled", "between_tools"])
+def test_every_documented_thinking_type_without_a_budget_is_accepted(kind):
+    """Which model takes which type is the API's call; taxman only checks the name."""
+    assert thinking(type=kind)["thinking"] == {"type": kind}
+
+
+def test_an_unknown_thinking_type_is_refused():
+    with pytest.raises(ValidationError, match="type"):
+        thinking(type="extended")
+
+
+def test_enabled_thinking_needs_a_budget():
+    with pytest.raises(ValidationError, match="budget_tokens"):
+        thinking(type="enabled")
+
+
+def test_a_budget_needs_enabled_thinking():
+    with pytest.raises(ValidationError, match="budget_tokens"):
+        thinking(type="adaptive", budget_tokens=4096)
+
+
+def test_the_budget_is_at_least_1024():
+    with pytest.raises(ValidationError, match="budget_tokens"):
+        thinking(type="enabled", budget_tokens=1023)
+
+
+def test_the_budget_must_leave_room_for_an_answer():
+    """Thinking counts toward max_tokens, so the budget must be below it."""
+    with pytest.raises(ValidationError, match="max_tokens"):
+        thinking(type="enabled", budget_tokens=16000)
+
+
+@pytest.mark.parametrize("kind", ["disabled", "between_tools"])
+def test_display_needs_thinking_that_has_something_to_show(kind):
+    with pytest.raises(ValidationError, match="display"):
+        thinking(type=kind, display="summarized")
+
+
+def test_display_without_a_type_is_refused():
+    """The API takes no thinking object without a type, so display alone is never sent."""
+    with pytest.raises(ValidationError, match="type"):
+        thinking(display="summarized")
+
+
+def test_the_thinking_block_refuses_a_setting_it_does_not_know():
+    with pytest.raises(ValidationError, match="bogus"):
+        thinking(type="adaptive", bogus=1)

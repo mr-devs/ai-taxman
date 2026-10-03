@@ -10,7 +10,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ai_taxman.providers.anthropic.models import EFFORTS, Effort
+from ai_taxman.providers.anthropic.models import (
+    EFFORTS,
+    Effort,
+    ThinkingDisplay,
+    ThinkingType,
+)
 
 
 class _Block(BaseModel):
@@ -43,6 +48,42 @@ def _blank(value: Any) -> bool:
 DEFAULT_MAX_TOKENS = 16000
 
 
+#: The documented floor for an extended-thinking budget.
+MIN_THINKING_BUDGET = 1024
+
+
+class AnthropicThinking(_Block):
+    """The `thinking:` block, sent as the `thinking` parameter when `type` is set.
+
+    Only rules Anthropic documents for every model are checked here; which model
+    takes which type is the API's call.
+    """
+
+    type: ThinkingType | None = None
+    #: `type: enabled` only, the manual mode older models use.
+    budget_tokens: int | None = Field(default=None, ge=MIN_THINKING_BUDGET)
+    display: ThinkingDisplay | None = None
+
+    @model_validator(mode="after")
+    def _settings_fit_the_type(self) -> AnthropicThinking:
+        chosen = sorted(self.model_fields_set - {"type"})
+        if chosen and self.type is None:
+            raise ValueError(
+                f"{', '.join(chosen)} set in `thinking:`, but `type` is blank. Anthropic "
+                "takes no thinking settings without a type: set one, or leave them blank."
+            )
+        if self.type == "enabled" and self.budget_tokens is None:
+            raise ValueError("`type: enabled` needs budget_tokens, at least 1024.")
+        if self.budget_tokens is not None and self.type != "enabled":
+            raise ValueError(
+                f"budget_tokens applies only to `type: enabled`, not {self.type!r}. "
+                "Leave it blank, or use effort to steer adaptive thinking."
+            )
+        if self.display is not None and self.type in ("disabled", "between_tools"):
+            raise ValueError(f"display has nothing to show with `type: {self.type}`.")
+        return self
+
+
 class AnthropicModelConfig(_Block):
     """Validated Anthropic settings for one audit."""
 
@@ -55,6 +96,20 @@ class AnthropicModelConfig(_Block):
     #: Sent as `output_config.effort`. Blank leaves the model's own default.
     effort: Effort | None = None
 
+    #: Last, as in the template: it is a nested block.
+    thinking: AnthropicThinking = Field(default_factory=AnthropicThinking)
+
+    @model_validator(mode="after")
+    def _thinking_leaves_room_to_answer(self) -> AnthropicModelConfig:
+        """Thinking counts toward max_tokens, so a budget that fills it leaves no answer."""
+        budget = self.thinking.budget_tokens
+        if budget is not None and budget >= self.max_tokens:
+            raise ValueError(
+                f"thinking.budget_tokens ({budget}) must be less than max_tokens "
+                f"({self.max_tokens}): thinking and the answer share it."
+            )
+        return self
+
 
 #: Documented in the generated template, in this order, after `name` and `max_tokens`.
 TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
@@ -62,5 +117,16 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "effort",
         f"{' | '.join(EFFORTS)}. How much work Claude puts in, thinking included. "
         "Blank = the model's default. Not every model takes every level.",
+    ),
+)
+
+#: The `thinking:` block, in this order, below a comment saying blank is the default.
+THINKING_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("type", "adaptive | enabled | disabled | between_tools. Which a model accepts varies."),
+    ("budget_tokens", "type: enabled only. At least 1024, and less than max_tokens."),
+    (
+        "display",
+        "summarized | omitted. Whether thinking text comes back; current models "
+        "default to omitted.",
     ),
 )

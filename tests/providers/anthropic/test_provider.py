@@ -178,3 +178,16 @@ def _make_anthropic_error(name):
     anthropic = pytest.importorskip("anthropic")
     cls = getattr(anthropic, name)
     return cls.__new__(cls)
+
+
+def test_thinking_is_set_in_a_block_inside_the_model_block():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
+
+    assert parsed["thinking"] == {"type": None, "budget_tokens": None, "display": None}
+
+
+def test_the_thinking_block_says_blank_means_the_models_default():
+    lines = PROVIDER.render_template().splitlines()
+    index = lines.index("  thinking:")
+
+    assert "model's default" in lines[index - 1]

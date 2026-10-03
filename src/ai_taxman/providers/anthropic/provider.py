@@ -23,6 +23,7 @@ from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.anthropic.config import (
     DEFAULT_MAX_TOKENS,
     TEMPLATE_FIELDS,
+    THINKING_TEMPLATE_FIELDS,
     AnthropicModelConfig,
 )
 from ai_taxman.providers.anthropic.models import DEFAULT_MODEL, KNOWN_MODELS
@@ -130,6 +131,8 @@ def build_request(request: Request) -> dict[str, Any]:
     }
     if config.effort is not None:
         payload["output_config"] = {"effort": config.effort}
+    if config.thinking.type is not None:
+        payload["thinking"] = config.thinking.model_dump(exclude_none=True)
     if request.system_prompt:
         payload["system"] = request.system_prompt
     return payload
@@ -150,6 +153,13 @@ def render_template() -> str:
     ]
     for key, comment in TEMPLATE_FIELDS:
         lines.append(f"  {key}:  # {comment}")
+    lines += [
+        "",
+        "  # Thinking. Leave every key blank for the model's default, which varies by model.",
+        "  thinking:",
+    ]
+    for key, comment in THINKING_TEMPLATE_FIELDS:
+        lines.append(f"    {key}:  # {comment}")
     return "\n".join(lines) + "\n"
 
 
