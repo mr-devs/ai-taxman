@@ -216,10 +216,10 @@ commented, ready for you to edit:
 ```yaml
 audit: election-probe
 provider: openai
+api_key_env: OPENAI_API_KEY   # you fill this in; the one variable taxman reads
+
 messages: taxman/messages/election-probe.txt
 system_prompt:             # a file in taxman/prompts/, sent with every message; blank for none
-
-api_key_env: OPENAI_API_KEY   # you fill this in; the one variable taxman reads
 
 output:
   dir: taxman/data/{audit}/{run_id}

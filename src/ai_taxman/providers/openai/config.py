@@ -61,7 +61,7 @@ class OpenAIModelConfig(BaseModel):
 TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     ("temperature", "0.0 - 2.0. Leave blank for the model default."),
     ("top_p", "0.0 - 1.0. Leave blank for the model default."),
-    ("max_output_tokens", "Cap on the response length."),
+    ("max_output_tokens", "Maximum tokens per response."),
     ("reasoning_effort", f"Reasoning models only: {' | '.join(REASONING_EFFORTS)}."),
     ("web_search", "true to give the model the web-search tool."),
     ("store", "true to let OpenAI retain the response server-side."),

@@ -61,6 +61,10 @@ def test_every_template_line_carries_a_comment():
     assert all("#" in line for line in body if line.strip())
 
 
+def test_max_output_tokens_says_what_it_counts():
+    assert "  max_output_tokens:  # Maximum tokens per response." in PROVIDER.render_template()
+
+
 def test_template_takes_no_arguments():
     with pytest.raises(TypeError):
         PROVIDER.render_template({"name": "gpt-4o"})

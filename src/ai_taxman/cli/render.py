@@ -23,17 +23,16 @@ from ai_taxman.providers.base import Provider
 API_KEY_ENV_PLACEHOLDER = "<insert_api_key_env_var_here>"
 
 HEADER = """\
-# {audit} - an ai-taxman audit.
+# This is an `ai-taxman` audit file.
 #
-# Run it with:  taxman collect {audit}
-# Messages are read one per line from the file below; blank lines and lines
-# starting with `#` are ignored.
+# Collect data based on this audit file by running:
+#   taxman collect {audit}
 """
 
 EXECUTION = {
     "repeats": ("1", "Times to send EACH message. All repeats go out together."),
     "max_concurrency": ("8", "Requests in flight at once."),
-    "batch": ("false", "true to use the provider's batch API (cheaper, much slower)."),
+    "batch": ("false", "true to use the provider's batch API (not available yet)."),
     "timeout_s": ("120", "Per-request timeout in seconds."),
     "max_retries": ("5", "Retries for transient failures (rate limits, timeouts)."),
     "on_error": ("continue", "continue | stop"),
@@ -64,14 +63,22 @@ def render_audit(
 
     lines = [
         HEADER.format(audit=audit),
+        "# Audit name",
         f"audit: {audit}",
+        "",
+        "# AI provider",
         f"provider: {provider.name}",
+        *(_api_key_block(provider, api_key_env) if api_key_env else []),
+        "",
+        "# Path to the file containing the messages to send. Each line is a separate message;",
+        "# blank lines and lines starting with `#` are skipped.",
         f"messages: {messages}",
         "",
-        "# A file of system prompt text sent with every message, e.g.",
-        f"# {prompts}/neutral.txt. Leave blank to send none.",
+        "# Path, relative to the project root, to a file containing the system prompt to send",
+        "# with every message.",
+        f"#  - e.g. {prompts}/neutral.txt",
+        "# Leave blank to exclude a system prompt.",
         "system_prompt:",
-        *(_api_key_block(provider, api_key_env) if api_key_env else []),
         "",
         "output:",
         *_block(output),
@@ -90,9 +97,8 @@ def _api_key_block(provider: Provider, api_key_env: str) -> list[str]:
     """The `api_key_env:` field, with instructions the user needs at that moment."""
     lines = [
         "",
-        "# The one environment variable holding this audit's API key.",
-        "# taxman reads this name and no other. Export the variable in your",
-        "# shell, then put its name here.",
+        "# The name of an environment variable that holds an API key for the provider. "
+        "This is required.",
     ]
     if provider.default_api_key_env:
         lines.append(f"# For {provider.name} this is usually {provider.default_api_key_env}.")

@@ -256,9 +256,7 @@ def test_the_system_prompt_comment_points_at_the_prompts_folder(invoke, tmp_path
     invoke("audits", "new", "openai", "probe")
     text = (tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8")
 
-    comment = text.split("system_prompt:")[0].splitlines()[-1]
-    assert comment.lstrip().startswith("#")
-    assert "taxman/prompts/" in comment
+    assert any("taxman/prompts/" in line for line in comment_above(text, "system_prompt"))
 
 
 def test_the_model_block_no_longer_carries_a_system_prompt(invoke, tmp_path):
@@ -302,3 +300,83 @@ def test_the_marker_is_left_as_the_user_wrote_it(invoke, tmp_path):
     invoke("audits", "new", "openai", "probe")
 
     assert marker.read_text(encoding="utf-8") == before
+
+
+# --- how the file reads ---------------------------------------------------
+
+
+def audit_text(invoke, tmp_path, name="probe"):
+    invoke("audits", "new", "openai", name)
+    return (tmp_path / "audits" / f"{name}.yaml").read_text(encoding="utf-8")
+
+
+def comment_above(text, key):
+    """The comment lines directly above a top-level `key:`."""
+    lines = text.splitlines()
+    index = next(i for i, line in enumerate(lines) if line.startswith(f"{key}:"))
+    above = []
+    for line in reversed(lines[:index]):
+        if not line.startswith("#"):
+            break
+        above.insert(0, line)
+    return above
+
+
+def test_the_header_says_what_the_file_is_and_how_to_run_it(invoke, tmp_path):
+    text = audit_text(invoke, tmp_path)
+
+    assert text.splitlines()[:4] == [
+        "# This is an `ai-taxman` audit file.",
+        "#",
+        "# Collect data based on this audit file by running:",
+        "#   taxman collect probe",
+    ]
+
+
+def test_settings_are_in_the_order_a_user_fills_them_in(invoke, tmp_path):
+    keys = list(yaml.safe_load(audit_text(invoke, tmp_path)))
+
+    assert keys == [
+        "audit",
+        "provider",
+        "api_key_env",
+        "messages",
+        "system_prompt",
+        "output",
+        "execution",
+        "model",
+    ]
+
+
+def test_every_top_level_setting_explains_itself(invoke, tmp_path):
+    text = audit_text(invoke, tmp_path)
+
+    assert comment_above(text, "audit") == ["# Audit name"]
+    assert comment_above(text, "provider") == ["# AI provider"]
+    assert comment_above(text, "api_key_env") == [
+        "# The name of an environment variable that holds an API key for the provider. "
+        "This is required.",
+        "# For openai this is usually OPENAI_API_KEY.",
+    ]
+    assert comment_above(text, "messages") == [
+        "# Path to the file containing the messages to send. Each line is a separate message;",
+        "# blank lines and lines starting with `#` are skipped.",
+    ]
+    assert comment_above(text, "system_prompt") == [
+        "# Path, relative to the project root, to a file containing the system prompt to send",
+        "# with every message.",
+        "#  - e.g. prompts/neutral.txt",
+        "# Leave blank to exclude a system prompt.",
+    ]
+
+
+def test_no_line_ends_in_whitespace(invoke, tmp_path):
+    text = audit_text(invoke, tmp_path)
+
+    assert [line for line in text.splitlines() if line != line.rstrip()] == []
+
+
+def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
+    line = next(line for line in audit_text(invoke, tmp_path).splitlines() if "batch:" in line)
+
+    assert line == "  batch: false  # true to use the provider's batch API (not available yet)."
