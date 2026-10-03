@@ -261,7 +261,7 @@ system_prompt: taxman/prompts/neutral.txt
 ```
 
 It is set the same way for every provider, and each provider sends it the way its API
-takes one (OpenAI's `instructions`, for example). The manifest records which file was sent,
+takes one (OpenAI's `instructions`, Anthropic's top-level `system`). The manifest records which file was sent,
 its text, and a hash of that text, so the run still says what was sent after the file
 changes. Every response row carries the same hash.
 
@@ -597,6 +597,7 @@ Version 1 files remain valid JSONL and lose nothing: everything `text` and
 | Provider | Extra | Status |
 |---|---|---|
 | OpenAI | `ai-taxman[openai]` | Responses API; batch mode not yet |
+| Anthropic | `ai-taxman[anthropic]` | Messages API; batch mode not yet |
 
 Providers are fully isolated from each other — adding one cannot break another.
 See [CLAUDE.md](CLAUDE.md) for the contract and a checklist for adding one, and
