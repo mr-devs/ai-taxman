@@ -92,7 +92,7 @@ and derives nothing from it. With `store: false`, the response carries no `id`, 
 | **`Retry-After`** (ignored; core uses a fixed backoff) | [Rate limits](https://ai.google.dev/gemini-api/docs/rate-limits.md.txt) |
 | **`GOOGLE_GEMINI_BASE_URL`**: read by the SDK and not pinned, as with the other providers' base URLs | [Gemini API libraries](https://ai.google.dev/gemini-api/docs/libraries.md.txt) |
 | **Schema changes**: the May 2026 `steps` schema replaced `outputs`. Responses recorded before the change have the old shape | [Breaking changes, May 2026](https://ai.google.dev/gemini-api/docs/interactions-breaking-changes-may-2026.md.txt), [Migrating to the Interactions API](https://ai.google.dev/gemini-api/docs/migrate-to-interactions.md.txt) |
-| **Free-tier logging**: free-tier prompts may be used for product improvement, which bears on an audit's claims about where data went | [Pricing](https://ai.google.dev/gemini-api/docs/pricing.md.txt) |
+| **Free-tier logging**: free-tier messages may be used for product improvement, which bears on an audit's claims about where data went | [Pricing](https://ai.google.dev/gemini-api/docs/pricing.md.txt) |
 
 ## Keeping the model list current
 
