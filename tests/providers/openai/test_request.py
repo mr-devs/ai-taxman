@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from ai_taxman.core.messages import Message
 from ai_taxman.providers.base import Request
 from ai_taxman.providers.openai.config import OpenAIModelConfig
-from ai_taxman.providers.openai.models import REASONING_EFFORTS, ReasoningEffort
+from ai_taxman.providers.openai.models import ReasoningEffort
 from ai_taxman.providers.openai.provider import OpenAIProvider, build_request
 
 
@@ -57,7 +57,7 @@ def test_reasoning_effort_becomes_the_reasoning_block(provider):
     assert payload["reasoning"] == {"effort": "high"}
 
 
-@pytest.mark.parametrize("effort", REASONING_EFFORTS)
+@pytest.mark.parametrize("effort", get_args(ReasoningEffort))
 def test_every_documented_effort_level_is_accepted(provider, effort):
     """The Responses API documents none | minimal | low | medium | high | xhigh | max.
 
@@ -67,11 +67,6 @@ def test_every_documented_effort_level_is_accepted(provider, effort):
     payload = request_for({"name": "gpt-5", "reasoning_effort": effort})
 
     assert payload["reasoning"] == {"effort": effort}
-
-
-def test_the_effort_list_and_the_validated_type_cannot_drift():
-    """One source of truth, so a new level only has to be added once."""
-    assert set(REASONING_EFFORTS) == set(get_args(ReasoningEffort))
 
 
 def test_web_search_becomes_a_tool(provider):

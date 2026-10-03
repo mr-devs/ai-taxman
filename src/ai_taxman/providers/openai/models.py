@@ -7,7 +7,7 @@ updated.
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import Literal
 
 #: Offered by `taxman audits new openai` and tab completion. First entry is the default.
 KNOWN_MODELS: tuple[str, ...] = (
@@ -30,7 +30,3 @@ DEFAULT_MODEL = KNOWN_MODELS[0]
 #: validates the name and lets OpenAI rule on the pairing.
 #: See docs/provider-apis/openai.md for the reference this tracks.
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
-
-#: The same levels as a tuple, for prompts, templates, and completion. Derived
-#: so adding a level means editing `ReasoningEffort` and nothing else.
-REASONING_EFFORTS: tuple[str, ...] = get_args(ReasoningEffort)
