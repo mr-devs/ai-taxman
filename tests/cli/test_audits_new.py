@@ -113,15 +113,20 @@ def test_the_generated_model_block_validates_against_the_provider(invoke, tmp_pa
     get_provider("openai").validate_model_config(block)
 
 
+def next_steps(output):
+    return output[output.index("Next:") :].rstrip("\n").splitlines()
+
+
 def test_tells_the_user_what_to_do_next(invoke):
     result = invoke("audits", "new", "openai", "election-probe")
 
-    assert "  1. Write your messages, one per line, in messages/election-probe.txt" in result.output
-    assert "  2. Review settings in audits/election-probe.yaml." in result.output
-    assert (
-        "  3. To collect data as specified in audits/election-probe.yaml, "
-        "run `taxman collect election-probe`." in result.output
-    )
+    assert next_steps(result.output) == [
+        "Next:",
+        "  1. Add messages in messages/election-probe.txt",
+        "  2. (Optional) Add a system prompt in prompts/",
+        "  3. Finalize details in audits/election-probe.yaml",
+        "  4. Collect data by running `taxman collect election-probe`",
+    ]
 
 
 def test_paths_are_relative_to_the_project_wherever_the_user_stands(invoke, tmp_path, monkeypatch):
@@ -132,19 +137,24 @@ def test_paths_are_relative_to_the_project_wherever_the_user_stands(invoke, tmp_
     result = invoke("audits", "new", "openai", "probe")
 
     assert result.output.splitlines()[0] == "Created audits/probe.yaml"
-    assert "  1. Write your messages, one per line, in messages/probe.txt" in result.output
-    assert "  2. Review settings in audits/probe.yaml." in result.output
-    assert "as specified in audits/probe.yaml," in result.output
+    assert next_steps(result.output)[1:4] == [
+        "  1. Add messages in messages/probe.txt",
+        "  2. (Optional) Add a system prompt in prompts/",
+        "  3. Finalize details in audits/probe.yaml",
+    ]
     assert str(tmp_path) not in result.output
 
 
-def test_next_steps_name_the_audit_file_by_its_path_in_the_project(invoke, tmp_path):
+def test_next_steps_name_the_projects_own_folders(invoke, tmp_path):
     custom_project(tmp_path)
 
     result = invoke("audits", "new", "openai", "probe")
 
-    assert "Review settings in study/audits/probe.yaml." in result.output
-    assert "as specified in study/audits/probe.yaml," in result.output
+    assert next_steps(result.output)[1:4] == [
+        "  1. Add messages in study/msgs/probe.txt",
+        "  2. (Optional) Add a system prompt in taxman/prompts/",
+        "  3. Finalize details in study/audits/probe.yaml",
+    ]
 
 
 def test_refuses_to_overwrite_an_existing_audit(invoke, tmp_path):
@@ -255,14 +265,6 @@ def test_the_model_block_no_longer_carries_a_system_prompt(invoke, tmp_path):
     invoke("audits", "new", "openai", "probe")
 
     assert "system_prompt" not in read(tmp_path, "probe")["model"]
-
-
-def test_next_steps_name_the_projects_messages_folder(invoke, tmp_path):
-    custom_project(tmp_path)
-
-    result = invoke("audits", "new", "openai", "probe")
-
-    assert "study/msgs/probe.txt" in result.output
 
 
 def test_a_second_audit_lands_in_the_project_from_a_subdirectory(invoke, tmp_path, monkeypatch):
