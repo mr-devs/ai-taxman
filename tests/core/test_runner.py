@@ -34,7 +34,11 @@ def write_audit(project, body):
 
 def audit(project, *blocks):
     """Build a `fake`-provider audit, appending whole YAML blocks verbatim."""
-    body = "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
+    body = (
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  name: fake-1\n"
+    )
     return write_audit(project, body + "".join(block.rstrip() + "\n" for block in blocks))
 
 
@@ -246,7 +250,12 @@ async def test_output_goes_to_the_configured_directory(project, fake_provider):
 
 
 async def test_compression_is_honoured(project, fake_provider):
-    result = await run_audit_async(audit(project, "output:\n  compress: true"))
+    result = await run_audit_async(
+        audit(
+            project,
+            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n  compress: true",
+        )
+    )
 
     assert result.output_path.name == "responses.jsonl.gz"
     assert len(list(read_jsonl(result.output_path))) == 3
@@ -259,6 +268,9 @@ async def test_the_model_block_is_validated_by_the_provider(project, fake_provid
         audit: probe
         provider: fake
         messages: messages/probe.txt
+        output:
+          dir: data/{audit}/{run_id}
+          log_dir: logs/{audit}
         model:
           boom: true
         """,
@@ -275,6 +287,9 @@ async def test_a_missing_message_file_is_reported_before_anything_is_sent(projec
         audit: probe
         provider: fake
         messages: messages/absent.txt
+        output:
+          dir: data/{audit}/{run_id}
+          log_dir: logs/{audit}
         model:
           name: fake-1
         """,
@@ -291,6 +306,7 @@ def with_system_prompt(project, text="Be terse.\n"):
     (project / "prompts" / "neutral.txt").write_text(text, encoding="utf-8")
     body = (
         "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
         "system_prompt: prompts/neutral.txt\nmodel:\n  name: fake-1\n"
     )
     return write_audit(project, body)
@@ -373,7 +389,9 @@ async def test_an_unknown_placeholder_in_a_path_is_refused_before_anything_is_se
     project, fake_provider, key
 ):
     with pytest.raises(ConfigError, match="date"):
-        await run_audit_async(audit(project, f"output:\n  {key}: out/{{date}}"))
+        paths = {"dir": "data/{audit}/{run_id}", "log_dir": "logs/{audit}", key: "out/{date}"}
+        block = "output:\n" + "".join(f"  {name}: {value}\n" for name, value in paths.items())
+        await run_audit_async(audit(project, block))
 
     assert fake_provider.sent == []
     assert not (project / "out").exists()

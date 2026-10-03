@@ -30,7 +30,11 @@ def project(tmp_path, flat_layout):
 
 
 def audit(project, *blocks):
-    body = "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
+    body = (
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  name: fake-1\n"
+    )
     path = project / "audits" / "probe.yaml"
     path.write_text(
         textwrap.dedent(body + "".join(block.rstrip() + "\n" for block in blocks)).lstrip(),
@@ -164,7 +168,11 @@ async def test_responses_are_readable_while_the_run_is_still_going(project, fake
 async def test_responses_land_as_they_arrive_when_compressed(project, fake_provider):
     """A gzip stream is flushed too, so a killed run is not an unreadable file."""
     fake_provider.delay = 0.15
-    config = audit(project, "execution:\n  max_concurrency: 1", "output:\n  compress: true")
+    config = audit(
+        project,
+        "execution:\n  max_concurrency: 1",
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n  compress: true",
+    )
 
     task = asyncio.create_task(run_audit_async(config))
     await asyncio.sleep(0.25)
@@ -183,11 +191,13 @@ async def test_responses_land_as_they_arrive_when_compressed(project, fake_provi
 async def test_a_second_run_refuses_to_share_a_run_directory(project, fake_provider):
     """`output.dir` without {run_id} would append to one file and overwrite the
     manifest, leaving data described by a manifest that accounts for half of it."""
-    config = audit(project, "output:\n  dir: data/{audit}")
+    config = audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
     await run_audit_async(config)
 
     with pytest.raises(ConfigError) as caught:
-        await run_audit_async(audit(project, "output:\n  dir: data/{audit}"))
+        await run_audit_async(
+            audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
+        )
 
     message = str(caught.value)
     assert "run_id" in message
@@ -196,10 +206,10 @@ async def test_a_second_run_refuses_to_share_a_run_directory(project, fake_provi
 
 async def test_resuming_the_same_run_id_is_allowed(project, fake_provider):
     """Appending to a run you named yourself is the point of --run-id."""
-    config = audit(project, "output:\n  dir: data/{audit}")
+    config = audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
     await run_audit_async(config, run_id="fixed-run")
 
-    again = audit(project, "output:\n  dir: data/{audit}")
+    again = audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
     result = await run_audit_async(again, run_id="fixed-run")
 
     assert result.n_ok == 3

@@ -38,9 +38,7 @@ from ai_taxman.core.discovery import (
 )
 from ai_taxman.core.errors import ConfigError
 
-DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
 DEFAULT_OUTPUT_FILENAME = "responses.jsonl"
-DEFAULT_LOG_DIR = "logs/{audit}"
 
 
 class _Strict(BaseModel):
@@ -50,13 +48,18 @@ class _Strict(BaseModel):
 
 
 class OutputConfig(_Strict):
-    """Where and how raw responses are written."""
+    """Where and how raw responses are written.
 
-    dir: str = DEFAULT_OUTPUT_DIR
+    `dir` and `log_dir` have no default: a default could only be a guess at the
+    project's folders, and a wrong guess writes data outside them. `audits new`
+    writes both from `taxman.yaml`.
+    """
+
+    dir: str
     filename: str = DEFAULT_OUTPUT_FILENAME
     compress: bool = False
     #: Each run's log is `<log_dir>/<run_id>.log`.
-    log_dir: str = DEFAULT_LOG_DIR
+    log_dir: str
 
 
 class ExecutionConfig(_Strict):
@@ -85,7 +88,7 @@ class AuditConfig(_Strict):
     #: fallback: this name, or nothing. Required unless the provider needs no key.
     api_key_env: str | None = None
 
-    output: OutputConfig = Field(default_factory=OutputConfig)
+    output: OutputConfig
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     #: Provider-owned. Core never inspects these keys.
     model: dict[str, Any] = Field(default_factory=dict)

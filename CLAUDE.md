@@ -285,7 +285,8 @@ same second configuration channel that `taxman setup` and
 
 Only `audits` is read at run time, because finding an audit by name needs it. The other
 folders are written into each new audit by `taxman audits new`, so an audit still names
-every path it uses and the manifest records it. Collection never reads a folder from the
+every path it uses and the manifest records it. That is why `output.dir` and
+`output.log_dir` have no default: a default could only guess at the project's folders. Collection never reads a folder from the
 marker. `tests/test_conventions.py` fails the suite if the marker grows another key, or
 if an audit setting smuggled into it has any effect.
 

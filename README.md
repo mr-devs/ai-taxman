@@ -311,7 +311,7 @@ else is refused before the run starts.
 ### Watching a run
 
 A collection logs as it goes — one line per response — to the terminal, and to
-`<output.log_dir>/<run_id>.log` (by default `taxman/logs/<audit>/<run_id>.log`), so every run
+`<output.log_dir>/<run_id>.log` (`taxman/logs/<audit>/<run_id>.log` in a new audit), so every run
 leaves its log behind next to the project:
 
 ```

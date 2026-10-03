@@ -23,7 +23,11 @@ from ai_taxman.core.discovery import Layout, write_marker
 
 FLAT = Layout(data="data", audits="audits", messages="messages", prompts="prompts", logs="logs")
 
-AUDIT = "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
+AUDIT = (
+    "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+    "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+    "model:\n  name: fake-1\n"
+)
 
 
 def make_project(tmp_path, body=AUDIT, messages="one\ntwo\nthree\n"):
@@ -150,16 +154,21 @@ def test_a_broken_audit_is_refused_before_a_background_run_is_promised(
 
 
 @pytest.mark.parametrize(
-    "extra", ["execution:\n  batch: true\n", "output:\n  log_dir: out/{date}\n"]
+    "extra, cause",
+    [
+        ("execution:\n  batch: true\n", "batch"),
+        ("output:\n  dir: data/{audit}/{run_id}\n  log_dir: out/{date}\n", "{date}"),
+    ],
 )
 def test_a_run_that_cannot_start_gets_no_pid_and_no_directory(
-    invoke, tmp_path, fake_provider, extra
+    invoke, tmp_path, fake_provider, extra, cause
 ):
     make_project(tmp_path, body=AUDIT + extra)
 
     result = invoke("collect", "probe", "--background")
 
     assert result.exit_code != 0
+    assert cause in result.output
     assert "pid" not in result.output.lower()
     assert not (tmp_path / "data").exists()
 

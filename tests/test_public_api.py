@@ -16,7 +16,9 @@ def make_project(tmp_path):
     (tmp_path / "audits").mkdir()
     path = tmp_path / "audits" / "probe.yaml"
     path.write_text(
-        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n",
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  name: fake-1\n",
         encoding="utf-8",
     )
     return path

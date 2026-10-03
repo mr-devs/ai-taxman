@@ -45,7 +45,11 @@ def project(tmp_path, flat_layout):
 
 
 def audit(project, *blocks):
-    body = "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
+    body = (
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  name: fake-1\n"
+    )
     path = project / "audits" / "probe.yaml"
     path.write_text(
         textwrap.dedent(body + "".join(block.rstrip() + "\n" for block in blocks)).lstrip(),

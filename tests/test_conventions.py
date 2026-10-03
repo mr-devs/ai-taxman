@@ -159,7 +159,9 @@ def test_core_ignores_every_other_key_in_the_marker(tmp_path):
     audit = tmp_path / "audits" / "probe.yaml"
     audit.parent.mkdir()
     audit.write_text(
-        "audit: probe\nprovider: openai\nmessages: messages/probe.txt\nmodel:\n  name: gpt-5\n",
+        "audit: probe\nprovider: openai\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  name: gpt-5\n",
         encoding="utf-8",
     )
     plain = load_audit(audit).model_dump(mode="json")

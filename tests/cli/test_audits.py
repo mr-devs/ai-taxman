@@ -7,6 +7,7 @@ def make_audit(directory, name, provider="fake"):
         f"audit: {name}\n"
         f"provider: {provider}\n"
         f"messages: messages/{name}.txt\n"
+        f"output:\n  dir: data/{{audit}}/{{run_id}}\n  log_dir: logs/{{audit}}\n"
         "execution:\n  repeats: 3\n"
         "model:\n  name: fake-1\n",
         encoding="utf-8",
@@ -107,6 +108,7 @@ def write_keyed_audit(tmp_path):
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(
         "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
         "api_key_env: TAXMAN_FAKE_API_KEY\nmodel:\n  name: fake-1\n",
         encoding="utf-8",
     )
@@ -160,6 +162,7 @@ def test_validate_reports_a_missing_system_prompt(invoke, tmp_path, fake_provide
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(
         "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
         "system_prompt: prompts/absent.txt\nmodel:\n  name: fake-1\n",
         encoding="utf-8",
     )
@@ -175,7 +178,9 @@ def test_validate_reports_a_missing_system_prompt(invoke, tmp_path, fake_provide
 def test_validate_rejects_a_bad_model_block(invoke, tmp_path, fake_provider):
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(
-        "audit: probe\nprovider: fake\nmessages: m.txt\nmodel:\n  boom: true\n",
+        "audit: probe\nprovider: fake\nmessages: m.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  boom: true\n",
         encoding="utf-8",
     )
 
@@ -204,8 +209,9 @@ def test_reports_the_version(invoke):
 def checkable_audit(tmp_path, extra):
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(
-        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"
-        + extra,
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        "model:\n  name: fake-1\n" + extra,
         encoding="utf-8",
     )
     (tmp_path / "messages").mkdir()
@@ -225,7 +231,10 @@ def test_validate_refuses_batch_mode_collect_cannot_run(invoke, tmp_path, fake_p
 
 @pytest.mark.parametrize("key", ["dir", "log_dir"])
 def test_validate_refuses_an_unknown_path_placeholder(invoke, tmp_path, fake_provider, key):
-    checkable_audit(tmp_path, f"output:\n  {key}: out/{{date}}\n")
+    paths = {"dir": "data/{audit}/{run_id}", "log_dir": "logs/{audit}", key: "out/{date}"}
+    checkable_audit(
+        tmp_path, "output:\n" + "".join(f"  {name}: {value}\n" for name, value in paths.items())
+    )
 
     result = invoke("audits", "validate", "probe")
 

@@ -9,7 +9,11 @@ def make_project(tmp_path, body=None, messages="one\ntwo\nthree\n"):
     (tmp_path / "audits").mkdir(exist_ok=True)
     (tmp_path / "audits" / "probe.yaml").write_text(
         body
-        or ("audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  name: fake-1\n"),
+        or (
+            "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+            "model:\n  name: fake-1\n"
+        ),
         encoding="utf-8",
     )
 
@@ -97,7 +101,11 @@ def test_a_missing_message_file_fails_before_sending_anything(invoke, tmp_path, 
 def test_an_invalid_model_block_is_reported_against_the_file(invoke, tmp_path, fake_provider):
     make_project(
         tmp_path,
-        body=("audit: probe\nprovider: fake\nmessages: messages/probe.txt\nmodel:\n  boom: true\n"),
+        body=(
+            "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+            "model:\n  boom: true\n"
+        ),
     )
 
     result = invoke("collect", "probe")
@@ -171,6 +179,7 @@ def test_a_missing_api_key_is_reported_cleanly(invoke, tmp_path, fake_provider, 
         tmp_path,
         body=(
             "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
             "api_key_env: TAXMAN_FAKE_API_KEY\nmodel:\n  name: fake-1\n"
         ),
     )
@@ -192,6 +201,7 @@ def test_a_missing_api_key_is_reported_before_the_banner(
         tmp_path,
         body=(
             "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
             "api_key_env: TAXMAN_FAKE_API_KEY\nmodel:\n  name: fake-1\n"
         ),
     )
@@ -326,18 +336,24 @@ def test_a_bad_run_id_is_refused_before_anything_is_sent(invoke, tmp_path, fake_
 
 
 @pytest.mark.parametrize(
-    "extra", ["execution:\n  batch: true\n", "output:\n  log_dir: out/{date}\n"]
+    "extra, cause",
+    [
+        ("execution:\n  batch: true\n", "batch"),
+        ("output:\n  dir: data/{audit}/{run_id}\n  log_dir: out/{date}\n", "{date}"),
+    ],
 )
-def test_a_run_that_cannot_start_fails_cleanly(invoke, tmp_path, fake_provider, extra):
+def test_a_run_that_cannot_start_fails_cleanly(invoke, tmp_path, fake_provider, extra, cause):
     make_project(
         tmp_path,
         body="audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
         "model:\n  name: fake-1\n" + extra,
     )
 
     result = invoke("collect", "probe")
 
     assert result.exit_code != 0
+    assert cause in result.output
     assert "Traceback" not in result.output
     assert "Collecting" not in result.output
     assert fake_provider.sent == []

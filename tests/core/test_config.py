@@ -9,6 +9,9 @@ MINIMAL = """
 audit: my-audit
 provider: openai
 messages: messages/probe.txt
+output:
+  dir: data/{audit}/{run_id}
+  log_dir: logs/{audit}
 model:
   name: gpt-5
 """
@@ -43,6 +46,22 @@ def test_an_audit_outside_a_project_is_refused(tmp_path):
         load_audit(path)
 
 
+@pytest.mark.parametrize(
+    "output, missing",
+    [
+        ("", "output"),
+        ("output:\n  log_dir: logs/{audit}\n", "output.dir"),
+        ("output:\n  dir: data/{audit}/{run_id}\n", "output.log_dir"),
+    ],
+)
+def test_an_audit_must_say_where_its_output_goes(tmp_path, output, missing):
+    """A default would write outside the folders the project chose."""
+    body = "audit: my-audit\nprovider: openai\nmessages: messages/probe.txt\n" + output
+
+    with pytest.raises(ConfigError, match=missing):
+        load_audit(write_audit(tmp_path, body))
+
+
 def test_loads_the_required_keys(tmp_path):
     config = load_audit(write_audit(tmp_path))
 
@@ -58,6 +77,9 @@ def test_model_block_is_passed_through_untouched(tmp_path):
         audit: my-audit
         provider: openai
         messages: messages/probe.txt
+        output:
+          dir: data/{audit}/{run_id}
+          log_dir: logs/{audit}
         model:
           name: gpt-5
           temperature: 1.5
@@ -114,6 +136,9 @@ def test_absolute_message_path_is_left_alone(tmp_path):
         audit: my-audit
         provider: openai
         messages: {absolute}
+        output:
+          dir: data/{{audit}}/{{run_id}}
+          log_dir: logs/{{audit}}
         model:
           name: gpt-5
         """,
@@ -153,6 +178,9 @@ def test_the_system_prompt_resolves_against_the_project_root(tmp_path):
             audit: my-audit
             provider: openai
             messages: messages/probe.txt
+            output:
+              dir: data/{audit}/{run_id}
+              log_dir: logs/{audit}
             system_prompt: taxman/prompts/neutral.txt
             """,
         )
@@ -178,6 +206,7 @@ def test_the_log_folder_can_be_moved(tmp_path):
             provider: openai
             messages: messages/probe.txt
             output:
+              dir: data/{audit}/{run_id}
               log_dir: elsewhere/{audit}/logs
             """,
         )
@@ -199,6 +228,7 @@ def test_output_dir_may_be_absolute(tmp_path):
         messages: messages/probe.txt
         output:
           dir: {target}/{{audit}}
+          log_dir: logs/{{audit}}
         model:
           name: gpt-5
         """,
@@ -227,6 +257,9 @@ def test_unknown_top_level_key_is_rejected(tmp_path):
         audit: my-audit
         provider: openai
         messages: messages/probe.txt
+        output:
+          dir: data/{audit}/{run_id}
+          log_dir: logs/{audit}
         tempurature: 1.5
         model:
           name: gpt-5
@@ -244,6 +277,9 @@ def test_unknown_execution_key_is_rejected(tmp_path):
         audit: my-audit
         provider: openai
         messages: messages/probe.txt
+        output:
+          dir: data/{audit}/{run_id}
+          log_dir: logs/{audit}
         execution:
           repeets: 3
         model:
@@ -272,6 +308,9 @@ def test_out_of_range_execution_values_are_rejected(tmp_path, block):
         audit: my-audit
         provider: openai
         messages: messages/probe.txt
+        output:
+          dir: data/{{audit}}/{{run_id}}
+          log_dir: logs/{{audit}}
         {block}
         model:
           name: gpt-5
@@ -331,6 +370,9 @@ def test_model_block_defaults_to_empty(tmp_path):
         audit: my-audit
         provider: openai
         messages: messages/probe.txt
+        output:
+          dir: data/{audit}/{run_id}
+          log_dir: logs/{audit}
         """,
     )
 
