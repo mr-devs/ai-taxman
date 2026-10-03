@@ -161,6 +161,11 @@ def _web_search_tool(search: OpenAISearchConfig) -> dict[str, Any]:
     if search.user_location is not None:
         location = search.user_location.model_dump(exclude_none=True)
         tool["user_location"] = {"type": "approximate", **location}
+
+    if search.search_content_types is not None:
+        tool["search_content_types"] = list(search.search_content_types)
+    if search.image_settings is not None:
+        tool["image_settings"] = search.image_settings.model_dump(exclude_none=True)
     return tool
 
 

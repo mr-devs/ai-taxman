@@ -329,3 +329,42 @@ def test_user_location_refuses_a_field_it_does_not_know(provider):
 def test_a_user_location_without_web_search_is_refused(provider):
     with pytest.raises(ValidationError, match="web_search"):
         request_for(search(user_location={"country": "US"}))
+
+
+def test_search_content_types_go_on_the_tool(provider):
+    assert tool(search_content_types=["image", "text"])["search_content_types"] == [
+        "image",
+        "text",
+    ]
+
+
+def test_search_content_types_are_text_or_image(provider):
+    with pytest.raises(ValidationError):
+        tool(search_content_types=["video"])
+
+
+def test_image_settings_go_on_the_tool(provider):
+    settings = tool(
+        search_content_types=["image"], image_settings={"max_results": 3, "caption": True}
+    )
+
+    assert settings["image_settings"] == {"max_results": 3, "caption": True}
+
+
+def test_image_settings_send_only_what_was_set(provider):
+    settings = tool(
+        search_content_types=["image"], image_settings={"max_results": 3, "caption": None}
+    )
+
+    assert settings["image_settings"] == {"max_results": 3}
+
+
+def test_max_results_is_a_positive_number(provider):
+    with pytest.raises(ValidationError):
+        tool(search_content_types=["image"], image_settings={"max_results": 0})
+
+
+def test_image_settings_without_image_results_are_refused(provider):
+    """Settings for images the search was never asked for would be recorded but unused."""
+    with pytest.raises(ValidationError, match="image"):
+        tool(image_settings={"max_results": 3})

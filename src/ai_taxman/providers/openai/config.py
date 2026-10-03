@@ -65,6 +65,13 @@ class OpenAIUserLocation(_Block):
     timezone: str | None = None
 
 
+class OpenAIImageSettings(_Block):
+    """Image results, when `search_content_types` asks for them."""
+
+    max_results: int | None = Field(default=None, ge=1)
+    caption: bool | None = None
+
+
 class OpenAISearchConfig(_Block):
     """The `search:` block: the web-search tool and its settings.
 
@@ -95,6 +102,11 @@ class OpenAISearchConfig(_Block):
     #: not only those it cited, is what an audit of search needs. `[]` turns it off.
     include: list[WebSearchInclude] = Field(default_factory=lambda: [SOURCES])
 
+    #: Last, as in the template. `image` asks for image results, which arrive in
+    #: `web_search_call.results` - so `include` needs that too to record them.
+    search_content_types: list[Literal["text", "image"]] | None = Field(default=None, min_length=1)
+    image_settings: OpenAIImageSettings | None = None
+
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
     def _bare_domains(cls, domains: list[str] | None) -> list[str] | None:
@@ -115,6 +127,12 @@ class OpenAISearchConfig(_Block):
             raise ValueError(
                 f"{', '.join(chosen)} set in `search:`, but `web_search` is not true. "
                 "Set `web_search: true`, or leave the other search settings blank."
+            )
+        if self.image_settings is not None and "image" not in (self.search_content_types or []):
+            raise ValueError(
+                "image_settings set in `search:`, but search_content_types does not ask "
+                "for image results. Add image to search_content_types, e.g. [image, text], "
+                "or leave image_settings blank."
             )
         return self
 
@@ -192,6 +210,19 @@ SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
             ("region", "Free text, e.g. Minnesota."),
             ("city", "Free text, e.g. Minneapolis."),
             ("timezone", "IANA timezone, e.g. America/Chicago."),
+        ),
+    ),
+    (
+        "search_content_types",
+        "[text], [image], or [image, text]. Blank = OpenAI's default. Image results "
+        "arrive in web_search_call.results; add it to include to record them.",
+    ),
+    (
+        "image_settings",
+        "Image results only; needs image in search_content_types.",
+        (
+            ("max_results", "Number of image results to request."),
+            ("caption", "true to ask for short image descriptions."),
         ),
     ),
 )
