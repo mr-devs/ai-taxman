@@ -47,6 +47,7 @@ def render_audit(
     provider: Provider,
     messages: str,
     output_dir: str,
+    log_dir: str,
     api_key_env: str | None = None,
 ) -> str:
     """Return the full text of a new audit file.
@@ -57,6 +58,7 @@ def render_audit(
         "dir": (output_dir, "{audit} and {run_id} are filled in at run time."),
         "filename": ("responses.jsonl", "Raw responses, one JSON object per line."),
         "compress": ("false", "true to gzip the output."),
+        "log_dir": (log_dir, "Each run's log is written here as <run_id>.log."),
     }
 
     lines = [

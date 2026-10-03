@@ -2,7 +2,7 @@ import textwrap
 
 import pytest
 
-from ai_taxman.core.config import AuditConfig, load_audit, resolve_output_dir
+from ai_taxman.core.config import AuditConfig, load_audit, resolve_log_file, resolve_output_dir
 from ai_taxman.core.errors import ConfigError
 
 MINIMAL = """
@@ -113,6 +113,34 @@ def test_output_dir_expands_audit_and_run_id(tmp_path):
     resolved = resolve_output_dir(config, run_id="20260830T142201Z-a1b2c3")
 
     assert resolved == tmp_path / "data" / "my-audit" / "20260830T142201Z-a1b2c3"
+
+
+def test_each_run_logs_to_a_file_named_after_it(tmp_path):
+    config = load_audit(write_audit(tmp_path))
+
+    resolved = resolve_log_file(config, run_id="r1")
+
+    assert resolved == tmp_path / "logs" / "my-audit" / "r1.log"
+
+
+def test_the_log_folder_can_be_moved(tmp_path):
+    config = load_audit(
+        write_audit(
+            tmp_path,
+            """
+            audit: my-audit
+            provider: openai
+            messages: messages/probe.txt
+            output:
+              log_dir: elsewhere/{audit}/logs
+            """,
+        )
+    )
+
+    assert (
+        resolve_log_file(config, run_id="r1")
+        == tmp_path / "elsewhere" / "my-audit" / "logs" / "r1.log"
+    )
 
 
 def test_output_dir_may_be_absolute(tmp_path):

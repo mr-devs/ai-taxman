@@ -212,6 +212,35 @@ def test_the_summary_names_the_output_from_where_the_user_stands(invoke, tmp_pat
 # --- logging -------------------------------------------------------------
 
 
+def run_dir(tmp_path):
+    return next((tmp_path / "data" / "probe").iterdir())
+
+
+def test_every_run_keeps_its_log_in_the_logs_folder(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    invoke("collect", "probe")
+
+    log = tmp_path / "logs" / "probe" / f"{run_dir(tmp_path).name}.log"
+    assert "run starting" in log.read_text(encoding="utf-8")
+
+
+def test_a_foreground_run_still_logs_to_the_terminal(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe")
+
+    assert "run starting" in result.output
+
+
+def test_a_named_run_logs_under_its_name(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    invoke("collect", "probe", "--run-id", "pilot")
+
+    assert (tmp_path / "logs" / "probe" / "pilot.log").is_file()
+
+
 def test_a_log_file_captures_the_run(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 

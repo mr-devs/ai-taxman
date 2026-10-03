@@ -205,6 +205,15 @@ def test_output_goes_to_the_projects_data_folder(invoke, tmp_path):
     assert audit["output"]["dir"] == "out/{audit}/{run_id}"
 
 
+def test_logs_go_to_the_projects_logs_folder(invoke, tmp_path):
+    custom_project(tmp_path)
+    invoke("audits", "new", "openai", "probe")
+
+    audit = yaml.safe_load((tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8"))
+
+    assert audit["output"]["log_dir"] == "taxman/logs/{audit}"
+
+
 def test_next_steps_name_the_projects_messages_folder(invoke, tmp_path):
     custom_project(tmp_path)
 

@@ -231,7 +231,7 @@ def wait_for(predicate, timeout=30.0):
 
 
 def child_log(directory):
-    log = directory / "collect.log"
+    log = directory.parent.parent.parent / "logs" / "probe" / f"{directory.name}.log"
     return log.read_text(encoding="utf-8") if log.is_file() else "(no log written)"
 
 
@@ -282,11 +282,11 @@ def test_a_real_background_run_outlives_the_command_that_started_it(echo_project
     assert len(responses) == 3
 
 
-def test_a_real_background_run_logs_to_a_file_beside_its_data(echo_project, plugin_path):
+def test_a_real_background_run_logs_to_the_logs_folder(echo_project, plugin_path):
     result = run_taxman(echo_project, plugin_path, "--background")
 
     directory = next((echo_project / "data" / "probe").iterdir())
-    log = directory / "collect.log"
+    log = echo_project / "logs" / "probe" / f"{directory.name}.log"
 
     assert wait_for(lambda: log.is_file() and "run complete" in log.read_text(encoding="utf-8")), (
         result.stderr

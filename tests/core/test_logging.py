@@ -83,6 +83,17 @@ def test_a_log_file_takes_the_log_instead_of_the_terminal(tmp_path, capsys):
     assert "hello" not in captured.err
 
 
+def test_a_log_file_can_also_echo_to_the_terminal(tmp_path, capsys):
+    """A foreground run keeps a log on disk and still narrates at the prompt."""
+    target = tmp_path / "run.log"
+    setup_logging(log_file=target, also_terminal=True)
+
+    logging.getLogger(f"{LOGGER_NAME}.runner").info("hello")
+
+    assert "hello" in target.read_text(encoding="utf-8")
+    assert "hello" in capsys.readouterr().err
+
+
 def test_the_log_file_is_created_with_its_parent_directory(tmp_path):
     target = tmp_path / "nested" / "deeper" / "run.log"
 

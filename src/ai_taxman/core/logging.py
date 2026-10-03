@@ -16,9 +16,10 @@ by default, the way a library should be.
 error. Nothing in this package writes it, and a test asserts as much - a log is
 a file users pipe into issues and share with colleagues.
 
-Log records go to stderr, leaving stdout to the command's own summary, so
-`taxman collect probe > summary.txt` separates the two and
-`taxman collect probe > run.log 2>&1` keeps both.
+Log records go to a file, to stderr, or to both - never to stdout, which is the
+command's own summary. `taxman collect` keeps every run's log in the audit's
+`output.log_dir` and echoes it to the terminal, so `taxman collect probe >
+summary.txt` still separates the two.
 """
 
 from __future__ import annotations
@@ -56,8 +57,16 @@ def describe_level(name: str) -> int:
         raise ValueError(f"Unknown log level {name!r}. Choose one of: {allowed}.") from None
 
 
-def setup_logging(level: str = DEFAULT_LEVEL, log_file: str | Path | None = None) -> None:
+def setup_logging(
+    level: str = DEFAULT_LEVEL,
+    log_file: str | Path | None = None,
+    *,
+    also_terminal: bool = False,
+) -> None:
     """Send taxman's log to the terminal, or to `log_file` instead.
+
+    `also_terminal` keeps the terminal as well as the file, for a run with a
+    person watching it.
 
     Safe to call twice: the handlers this attached last time are replaced rather
     than added to, so a line is never printed twice.
@@ -75,19 +84,20 @@ def setup_logging(level: str = DEFAULT_LEVEL, log_file: str | Path | None = None
         logger.removeHandler(existing)
         existing.close()
 
-    handler: logging.Handler
+    handlers: list[logging.Handler] = []
     if log_file is not None:
         path = Path(log_file)
         path.parent.mkdir(parents=True, exist_ok=True)
         # Append, so a resumed or restarted run adds to the log rather than
         # erasing the evidence of the run before it.
-        handler = logging.FileHandler(path, mode="a", encoding="utf-8")
-    else:
-        handler = logging.StreamHandler(sys.stderr)
+        handlers.append(logging.FileHandler(path, mode="a", encoding="utf-8"))
+    if log_file is None or also_terminal:
+        handlers.append(logging.StreamHandler(sys.stderr))
 
-    handler.setLevel(resolved)
-    handler.setFormatter(_Formatter(LINE_FORMAT, datefmt=TIME_FORMAT))
-    logger.addHandler(handler)
+    for handler in handlers:
+        handler.setLevel(resolved)
+        handler.setFormatter(_Formatter(LINE_FORMAT, datefmt=TIME_FORMAT))
+        logger.addHandler(handler)
 
 
 def get_logger(name: str) -> logging.Logger:

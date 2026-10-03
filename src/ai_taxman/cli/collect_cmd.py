@@ -70,21 +70,23 @@ def collect(
     """Send every message in an audit to its provider and record the responses.
 
     Progress is logged as the run happens - one line per response - to the
-    terminal by default, so `taxman collect probe > run.log 2>&1` keeps the lot.
+    terminal and to the audit's log folder, as <run_id>.log. --log-file sends it
+    to that file alone instead.
 
     With --background the run is detached and the prompt comes straight back, so
     a script can start several providers at once and stop them by pid.
     """
     # Imported here, not at module scope: shell completion imports this module on
     # every Tab press and must not pay for the config parser or the runner.
-    from ai_taxman.core.config import load_audit
-    from ai_taxman.core.logging import setup_logging
+    from ai_taxman.core.config import load_audit, resolve_log_file
+    from ai_taxman.core.logging import describe_level, setup_logging
+    from ai_taxman.core.records import new_run_id, validate_run_id
     from ai_taxman.core.runner import resolve_key, validate_model
 
     # Before anything else, so a typo in the level is not discovered an hour into
-    # a run - and so the run that follows is logged from its first line.
+    # a run.
     try:
-        setup_logging(level=log_level, log_file=log_file)
+        describe_level(log_level)
     except ValueError as exc:
         fail(str(exc))
 
@@ -112,6 +114,18 @@ def collect(
     # Checked before the banner: announcing a run that cannot start reads as if
     # it started. The runner checks again, for callers of the Python API.
     resolve_key(provider, config)
+
+    # Picked here rather than by the runner, because the log is named after it
+    # and has to be open before the run's first line.
+    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
+    if log_file is None:
+        setup_logging(
+            level=log_level,
+            log_file=resolve_log_file(config, run_id=run_id),
+            also_terminal=True,
+        )
+    else:
+        setup_logging(level=log_level, log_file=log_file)
 
     expected = config.execution.repeats
     if not quiet:
@@ -189,13 +203,8 @@ def _start_in_background(
     """Validate, spawn a detached child, and say how to follow or stop it."""
     from pathlib import Path as _Path
 
-    from ai_taxman.cli.background import (
-        LOG_FILENAME,
-        PID_FILENAME,
-        build_child_command,
-        spawn,
-    )
-    from ai_taxman.core.config import resolve_output_dir
+    from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
+    from ai_taxman.core.config import resolve_log_file, resolve_output_dir
     from ai_taxman.core.messages import read_messages
     from ai_taxman.core.records import new_run_id, validate_run_id
     from ai_taxman.core.runner import resolve_key, validate_model
@@ -213,7 +222,7 @@ def _start_in_background(
     directory = resolve_output_dir(config, run_id=run_id)
     directory.mkdir(parents=True, exist_ok=True)
 
-    log_file = directory / LOG_FILENAME
+    log_file = resolve_log_file(config, run_id=run_id)
     pid_file = directory / PID_FILENAME
     argv = build_child_command(
         audit,

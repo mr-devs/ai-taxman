@@ -43,6 +43,7 @@ _LOOSE_AUDITS_DIR = "audits"
 
 DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
 DEFAULT_OUTPUT_FILENAME = "responses.jsonl"
+DEFAULT_LOG_DIR = "logs/{audit}"
 
 
 class _Strict(BaseModel):
@@ -57,6 +58,8 @@ class OutputConfig(_Strict):
     dir: str = DEFAULT_OUTPUT_DIR
     filename: str = DEFAULT_OUTPUT_FILENAME
     compress: bool = False
+    #: Each run's log is `<log_dir>/<run_id>.log`.
+    log_dir: str = DEFAULT_LOG_DIR
 
 
 class ExecutionConfig(_Strict):
@@ -163,6 +166,12 @@ def resolve_output_dir(config: AuditConfig, *, run_id: str) -> Path:
     """Expand `{audit}` and `{run_id}` in `output.dir` and resolve it."""
     expanded = config.output.dir.format(audit=config.audit, run_id=run_id)
     return config._resolve(expanded)
+
+
+def resolve_log_file(config: AuditConfig, *, run_id: str) -> Path:
+    """The log file for one run: `<output.log_dir>/<run_id>.log`, resolved."""
+    expanded = config.output.log_dir.format(audit=config.audit, run_id=run_id)
+    return config._resolve(expanded) / f"{run_id}.log"
 
 
 def _format(exc: ValidationError) -> str:

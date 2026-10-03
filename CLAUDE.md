@@ -196,8 +196,9 @@ rather than raising — including a gzip stream with no end-of-stream marker.
 
 `core/logging.py` owns the format and `setup_logging()`; **core modules only ever ask for a
 logger and emit**. Handlers are attached by `cli/collect_cmd.py`, never by the library, and a
-`NullHandler` on the package logger keeps the Python API silent. Log records go to stderr so
-stdout stays the command's own; `--log-file` redirects them to a path instead.
+`NullHandler` on the package logger keeps the Python API silent. Every `collect` writes
+its log to `<output.log_dir>/<run_id>.log` and, in the foreground, to stderr as well —
+never stdout, which stays the command's own. `--log-file` sends it to that path alone.
 
 **The API key is never logged**, at any level, and neither is message text — ids and counts
 only. `tests/core/test_logging.py` asserts both.

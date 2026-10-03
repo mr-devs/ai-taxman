@@ -35,9 +35,6 @@ from pathlib import Path
 #: `kill $(cat data/probe/<run>/collect.pid)` works with no parsing.
 PID_FILENAME = "collect.pid"
 
-#: The child's log, beside the data it describes.
-LOG_FILENAME = "collect.log"
-
 #: Windows' spelling of "do not die with the terminal". POSIX uses its own
 #: session instead; this constant is unused there.
 _WINDOWS_DETACH = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(

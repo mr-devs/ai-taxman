@@ -291,20 +291,22 @@ else is refused before the run starts.
 
 ### Watching a run
 
-A collection logs as it goes — one line per response — to the terminal:
+A collection logs as it goes — one line per response — to the terminal, and to
+`<output.log_dir>/<run_id>.log` (by default `taxman/logs/<audit>/<run_id>.log`), so every run
+leaves its log behind next to the project:
 
 ```
-2026-08-30T14:22:01.004Z INFO    ai_taxman.core.runner  run starting  run_id=20260830T142201Z-a1b2c3 audit=election-probe provider=openai model=gpt-5 messages=40 repeats=3 expected=120 concurrency=8 output=data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+2026-08-30T14:22:01.004Z INFO    ai_taxman.core.runner  run starting  run_id=20260830T142201Z-a1b2c3 audit=election-probe provider=openai model=gpt-5 messages=40 repeats=3 expected=120 concurrency=8 output=taxman/data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
 2026-08-30T14:22:01.816Z INFO    ai_taxman.core.runner  ok  message=m0000 repeat=0 attempts=1 latency_ms=812
 2026-08-30T14:22:04.219Z WARNING ai_taxman.core.runner  retrying  message=m0003 repeat=1 attempt=1/5 in=0.5s RateLimitError: 429
 ```
 
-The log goes to stderr and the summary to stdout, so you can keep either or
-both:
+On the terminal the log goes to stderr and the summary to stdout, so you can
+keep either:
 
 ```bash
-taxman collect election-probe > run.log 2>&1     # everything
-taxman collect election-probe --log-file run.log # the log to a file, summary on screen
+taxman collect election-probe > summary.txt        # summary to a file, log on screen
+taxman collect election-probe --log-file run.log   # the log to this file only
 taxman collect election-probe --log-level warning
 ```
 
@@ -314,8 +316,8 @@ already in the JSONL, and a log is a file you might paste into an issue.
 ### Running in the background
 
 `--background` (`-b`) starts the run detached and gives you the prompt back. It
-survives the terminal that started it, logs to `collect.log` in the run
-directory, and writes its pid to `collect.pid` there:
+survives the terminal that started it, logs to the logs folder like any other
+run, and writes its pid to `collect.pid` in the run directory:
 
 ```bash
 $ taxman collect election-probe -b
@@ -323,9 +325,9 @@ Collecting election-probe in the background: openai (gpt-5), 3 repeat(s) per mes
 
   run id   20260830T142201Z-a1b2c3
   pid      51234
-  log      data/election-probe/20260830T142201Z-a1b2c3/collect.log
-  output   data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
-  stop     kill 51234   (or: kill $(cat data/election-probe/20260830T142201Z-a1b2c3/collect.pid))
+  log      taxman/logs/election-probe/20260830T142201Z-a1b2c3.log
+  output   taxman/data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+  stop     kill 51234   (or: kill $(cat taxman/data/election-probe/20260830T142201Z-a1b2c3/collect.pid))
 ```
 
 That block goes to stderr; **stdout is just the pid**, so a script can hold on

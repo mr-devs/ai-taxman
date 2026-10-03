@@ -71,6 +71,7 @@ def new_command(
         provider=resolved,
         messages=messages,
         output_dir=f"{layout.data}/{{audit}}/{{run_id}}",
+        log_dir=f"{layout.logs}/{{audit}}",
         api_key_env=_api_key_env(resolved),
     )
     target.parent.mkdir(parents=True, exist_ok=True)
