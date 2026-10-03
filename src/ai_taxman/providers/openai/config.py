@@ -67,6 +67,12 @@ SET_BY_TAXMAN = frozenset(
     }
 )
 
+#: Request keys taxman never sends, because `send` could not record the result.
+NEVER_SENT = {
+    "stream": "a stream is not a response, so there would be nothing whole to record",
+    "background": "a background response comes back before it has an answer to record",
+}
+
 #: The web-search guide's cap on each domain list.
 MAX_DOMAINS = 100
 
@@ -321,6 +327,9 @@ class OpenAIModelConfig(_Block):
         `extra: {include: [...]}` with web search on would quietly drop the
         default sources, for one.
         """
+        for key in extra:
+            if key in NEVER_SENT:
+                raise ValueError(f"`extra:` cannot set {key}: {NEVER_SENT[key]}.")
         taken = sorted(set(extra) & SET_BY_TAXMAN)
         if taken:
             raise ValueError(

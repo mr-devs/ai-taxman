@@ -387,6 +387,12 @@ def test_extra_cannot_override_a_setting_taxman_names(provider, key):
         request_for({"name": "gpt-5", "extra": {key: "anything"}})
 
 
+@pytest.mark.parametrize("key", ["stream", "background"])
+def test_extra_cannot_ask_for_a_response_send_could_not_record(provider, key):
+    with pytest.raises(ValidationError, match=f"cannot set {key}"):
+        request_for({"name": "gpt-5", "extra": {key: True}})
+
+
 def test_every_key_taxman_sends_is_protected_from_extra(provider):
     """A new named setting must join SET_BY_TAXMAN, or `extra:` could override it."""
     from ai_taxman.providers.openai.config import SET_BY_TAXMAN
