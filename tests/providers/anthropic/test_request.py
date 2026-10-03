@@ -392,3 +392,35 @@ def test_allowed_and_blocked_domains_cannot_both_be_set():
 def test_a_domain_with_a_scheme_is_refused_rather_than_rewritten(domain):
     with pytest.raises(ValidationError, match="without the http"):
         search(allowed_domains=[domain])
+
+
+def test_user_location_is_sent_as_an_approximate_location():
+    location = tool(user_location={"country": "US", "city": "Minneapolis"})["user_location"]
+
+    assert location == {"type": "approximate", "country": "US", "city": "Minneapolis"}
+
+
+def test_every_user_location_field_goes_through():
+    fields = {
+        "city": "Paris",
+        "region": "Ile-de-France",
+        "country": "FR",
+        "timezone": "Europe/Paris",
+    }
+
+    assert tool(user_location=fields)["user_location"] == {"type": "approximate", **fields}
+
+
+def test_a_blank_user_location_sends_none():
+    assert "user_location" not in tool(user_location={"city": None, "country": None})
+
+
+@pytest.mark.parametrize("country", ["USA", "U", "us", "1A"])
+def test_country_is_a_two_letter_iso_code(country):
+    with pytest.raises(ValidationError, match="user_location.country"):
+        search(user_location={"country": country})
+
+
+def test_user_location_refuses_a_field_it_does_not_know():
+    with pytest.raises(ValidationError, match="user_location.street"):
+        search(user_location={"street": "Main St"})

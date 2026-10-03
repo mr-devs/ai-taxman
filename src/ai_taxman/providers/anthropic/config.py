@@ -113,6 +113,17 @@ class AnthropicThinking(_Block):
         return self
 
 
+class AnthropicUserLocation(_Block):
+    """An approximate location to localise search results. Sent with `type: approximate`."""
+
+    city: str | None = None
+    region: str | None = None
+    #: A two-letter ISO 3166-1 code: `US`, not `us` or `USA`.
+    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    #: An IANA timezone, e.g. `America/Chicago`.
+    timezone: str | None = None
+
+
 class AnthropicSearchConfig(_Block):
     """The `search:` block: Claude's web search tool and its settings.
 
@@ -133,6 +144,8 @@ class AnthropicSearchConfig(_Block):
     #: `example.com/blog`. Subdomains are included.
     allowed_domains: list[str] | None = None
     blocked_domains: list[str] | None = None
+
+    user_location: AnthropicUserLocation | None = None
 
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
@@ -261,7 +274,9 @@ THINKING_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 #: The `search:` block, in this order, below a comment saying it needs web_search.
-SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
+#: A nested block lists its own fields as a third element.
+TemplateField = tuple[str, str] | tuple[str, str, tuple[tuple[str, str], ...]]
+SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
     ("web_search", "true to give Claude the web search tool."),
     (
         "tool_version",
@@ -275,4 +290,14 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "Not with blocked_domains.",
     ),
     ("blocked_domains", "Never search these domains. Not with allowed_domains."),
+    (
+        "user_location",
+        "Approximate location to localise results. Leave all blank for none.",
+        (
+            ("city", "Free text, e.g. Minneapolis."),
+            ("region", "Free text, e.g. Minnesota."),
+            ("country", "Two-letter ISO code, e.g. US."),
+            ("timezone", "IANA timezone, e.g. America/Chicago."),
+        ),
+    ),
 )
