@@ -30,16 +30,6 @@ HEADER = """\
 #   taxman collect {audit}
 """
 
-EXECUTION = {
-    "repeats": ("1", "Times to send EACH message. All repeats go out together."),
-    "max_concurrency": ("8", "Requests in flight at once."),
-    "batch": ("false", "true to use the provider's batch API (not available yet)."),
-    "timeout_s": ("120", "Per-request timeout in seconds."),
-    "max_retries": ("5", "Retries for transient failures (rate limits, timeouts)."),
-    "on_error": ("continue", "continue | stop"),
-    "shuffle": ("false", "true to randomise dispatch order."),
-}
-
 
 def render_audit(
     *,
@@ -55,13 +45,11 @@ def render_audit(
 
     `api_key_env` is omitted entirely for a provider that needs no key.
     """
-    output = {
-        "dir": (yaml_scalar(output_dir), "{audit} and {run_id} are filled in at run time."),
-        "filename": ("responses.jsonl", "Raw responses, one JSON object per line."),
-        "compress": ("false", "true to gzip the output."),
-        "log_dir": (yaml_scalar(log_dir), "Each run's log is written here as <run_id>.log."),
-    }
+    # Here, not at the top: they import pydantic, which completion must not pay for.
+    from ai_taxman.core.config import AuditConfig
+    from ai_taxman.core.template import render_setting
 
+    fields = AuditConfig.model_fields
     lines = [
         HEADER.format(audit=audit),
         "# Audit name",
@@ -81,11 +69,11 @@ def render_audit(
         "# Leave blank to exclude a system prompt.",
         "system_prompt:",
         "",
-        "output:",
-        *_block(output),
+        *render_setting(
+            "output", fields["output"], value={"dir": output_dir, "log_dir": log_dir}, defaults=True
+        ),
         "",
-        "execution:",
-        *_block(EXECUTION),
+        *render_setting("execution", fields["execution"], defaults=True),
         "",
         f"# Settings below are specific to the {provider.name!r} provider.",
         provider.render_template().rstrip(),
@@ -105,7 +93,3 @@ def _api_key_block(provider: Provider, api_key_env: str) -> list[str]:
         lines.append(f"# For {provider.name} this is usually {provider.default_api_key_env}.")
     lines.append(f"api_key_env: {api_key_env}")
     return lines
-
-
-def _block(fields: dict[str, tuple[str, str]]) -> list[str]:
-    return [f"  {key}: {default}  # {comment}" for key, (default, comment) in fields.items()]

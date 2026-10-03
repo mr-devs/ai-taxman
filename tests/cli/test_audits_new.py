@@ -196,7 +196,7 @@ def test_the_generated_file_carries_explanatory_comments(invoke, tmp_path):
     invoke("audits", "new", "openai", "probe")
     text = (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8")
 
-    assert "# Times to send EACH message" in text
+    assert "# How many times each message is sent." in text
     assert "taxman collect probe" in text
 
 
@@ -377,10 +377,70 @@ def test_no_line_ends_in_whitespace(invoke, tmp_path):
     assert [line for line in text.splitlines() if line != line.rstrip()] == []
 
 
-def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
-    line = next(line for line in audit_text(invoke, tmp_path).splitlines() if "batch:" in line)
+def nested_comment_above(text, key):
+    """The comment lines directly above `key:`, at any depth, without their `#`."""
+    lines = text.splitlines()
+    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
+    above = []
+    for line in reversed(lines[:index]):
+        if not line.lstrip().startswith("#"):
+            break
+        above.insert(0, line.strip().removeprefix("#").strip())
+    return above
 
-    assert line == "  batch: false  # true to use the provider's batch API (not available yet)."
+
+def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
+    above = nested_comment_above(audit_text(invoke, tmp_path), "batch")
+
+    assert "Not available yet" in " ".join(above)
+
+
+CORE_SETTINGS = (
+    *("dir", "filename", "compress", "log_dir"),
+    *("repeats", "max_concurrency", "batch", "timeout_s", "max_retries", "on_error", "shuffle"),
+)
+
+
+@pytest.mark.parametrize("key", CORE_SETTINGS)
+def test_every_output_and_execution_setting_explains_itself(invoke, tmp_path, key):
+    """What it does, then what it is when left alone, above the key itself."""
+    above = nested_comment_above(audit_text(invoke, tmp_path), key)
+
+    assert not above[0].endswith(":"), above
+    assert any(line.startswith(("Default:", "Required:")) for line in above), above
+
+
+@pytest.mark.parametrize("key", ["output", "execution"])
+def test_each_core_block_says_what_it_is_for(invoke, tmp_path, key):
+    assert comment_above(audit_text(invoke, tmp_path), key)
+
+
+def test_on_error_says_what_each_choice_does(invoke, tmp_path):
+    above = nested_comment_above(audit_text(invoke, tmp_path), "on_error")
+
+    assert any(line.startswith("Options:  continue  ") for line in above), above
+    assert any(line.startswith("stop      ") for line in above), above
+
+
+def test_execution_is_written_at_its_defaults(invoke, tmp_path):
+    invoke("audits", "new", "openai", "probe")
+
+    assert read(tmp_path, "probe")["execution"] == {
+        "repeats": 1,
+        "max_concurrency": 8,
+        "batch": False,
+        "timeout_s": 120,
+        "max_retries": 5,
+        "on_error": "continue",
+        "shuffle": False,
+    }
+
+
+def test_responses_are_written_uncompressed_by_default(invoke, tmp_path):
+    invoke("audits", "new", "openai", "probe")
+    output = read(tmp_path, "probe")["output"]
+
+    assert (output["filename"], output["compress"]) == ("responses.jsonl", False)
 
 
 # --- what an audit may be called -------------------------------------------

@@ -61,16 +61,17 @@ def render_block(
     """
     values = values or {}
     settings = [
-        _render_setting(key, field, indent=indent, value=values.get(key), defaults=defaults)
+        render_setting(key, field, indent=indent, value=values.get(key), defaults=defaults)
         for key, field in model.model_fields.items()
         if _doc(key, field).get("template", True)
     ]
     return [line for i, setting in enumerate(settings) for line in ([""] if i else []) + setting]
 
 
-def _render_setting(
-    key: str, field: FieldInfo, *, indent: int, value: Any, defaults: bool
+def render_setting(
+    key: str, field: FieldInfo, *, indent: int = 0, value: Any = None, defaults: bool = False
 ) -> list[str]:
+    """One setting under the comment that explains it, as `render_block` writes each."""
     if not field.description:
         raise ValueError(f"`{key}` has no description to explain it in the audit file.")
     doc = _doc(key, field)

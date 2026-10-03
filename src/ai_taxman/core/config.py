@@ -55,23 +55,73 @@ class OutputConfig(_Strict):
     writes both from `taxman.yaml`.
     """
 
-    dir: str
-    filename: str = DEFAULT_OUTPUT_FILENAME
-    compress: bool = False
-    #: Each run's log is `<log_dir>/<run_id>.log`.
-    log_dir: str
+    dir: str = Field(
+        description="The folder each run writes its responses and manifest to, relative "
+        "to the project root. {audit} and {run_id} are filled in at run time. Keep "
+        "{run_id}: a folder holds one run, so without it the next run is refused."
+    )
+    filename: str = Field(
+        default=DEFAULT_OUTPUT_FILENAME,
+        description="The file in that folder that holds the raw responses, one JSON "
+        "object per line.",
+    )
+    compress: bool = Field(
+        default=False, description="Gzip the responses file as it is written, adding .gz."
+    )
+    log_dir: str = Field(
+        description="The folder each run's log is written to, as <run_id>.log, relative "
+        "to the project root. {audit} and {run_id} are filled in at run time."
+    )
 
 
 class ExecutionConfig(_Strict):
     """How the messages are sent."""
 
-    repeats: int = Field(default=1, ge=1)
-    max_concurrency: int = Field(default=8, ge=1)
-    batch: bool = False
-    timeout_s: float = Field(default=120.0, gt=0)
-    max_retries: int = Field(default=5, ge=0)
-    on_error: Literal["continue", "stop"] = "continue"
-    shuffle: bool = False
+    repeats: int = Field(
+        default=1,
+        ge=1,
+        description="How many times each message is sent. All repeats share one pool and "
+        "go out interleaved, not as separate passes over the file.",
+    )
+    max_concurrency: int = Field(
+        default=8,
+        ge=1,
+        description="How many requests are in flight at once. Lower it if the provider "
+        "rate-limits you; raise it to finish sooner.",
+    )
+    batch: bool = Field(
+        default=False,
+        description="Send the messages through the provider's batch API instead of one "
+        "request at a time. Not available yet: true is refused before anything is sent.",
+    )
+    timeout_s: float = Field(
+        default=120.0,
+        gt=0,
+        description="Seconds to wait for one attempt at a response before giving up on "
+        "it. Raise it for long answers or slow models.",
+    )
+    max_retries: int = Field(
+        default=5,
+        ge=0,
+        description="How many times to retry a request that failed for a passing reason, "
+        "such as a rate limit, a timeout, or a server error, waiting longer each time. "
+        "Any other failure is recorded at once.",
+    )
+    on_error: Literal["continue", "stop"] = Field(
+        default="continue",
+        description="What to do when a request still fails after its retries.",
+        json_schema_extra={
+            "options": {
+                "continue": "record the failure and keep sending",
+                "stop": "send nothing more; requests already sent finish, and the run "
+                "ends as stopped_early",
+            }
+        },
+    )
+    shuffle: bool = Field(
+        default=False,
+        description="Send the requests in a random order rather than in file order.",
+    )
 
 
 class AuditConfig(_Strict):
@@ -88,8 +138,12 @@ class AuditConfig(_Strict):
     #: fallback: this name, or nothing. Required unless the provider needs no key.
     api_key_env: str | None = None
 
-    output: OutputConfig
-    execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
+    output: OutputConfig = Field(
+        description="Where each run's responses, manifest, and log are written."
+    )
+    execution: ExecutionConfig = Field(
+        default_factory=ExecutionConfig, description="How the messages are sent."
+    )
     #: Provider-owned. Core never inspects these keys.
     model: dict[str, Any] = Field(default_factory=dict)
 

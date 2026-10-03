@@ -11,7 +11,7 @@ import pytest
 import yaml
 from pydantic import BaseModel, Field
 
-from ai_taxman.core.template import render_block
+from ai_taxman.core.template import render_block, render_setting
 
 
 class Location(BaseModel):
@@ -435,3 +435,16 @@ def test_the_last_setting_is_not_followed_by_a_blank_line():
         extra: dict[str, Any] = Field(default_factory=dict, json_schema_extra={"template": False})
 
     assert render_block(One)[-1] == "shown:"
+
+
+# --- one setting on its own --------------------------------------------------
+
+
+def test_one_setting_can_be_rendered_on_its_own():
+    class Outer(BaseModel):
+        execution: Execution = Field(default_factory=Execution, description="How it is sent.")
+
+    lines = render_setting("execution", Outer.model_fields["execution"], defaults=True)
+
+    assert lines[:2] == ["# How it is sent.", "execution:"]
+    assert "  repeats: 1" in lines
