@@ -561,13 +561,24 @@ def _new_manifest(
         model=provider.describe_model(model),
         taxman_version=__version__,
         schema_version=RESPONSE_SCHEMA_VERSION,
-        messages_path=str(config.messages_path),
+        messages_path=_project_relative(config.messages_path, config.project_root),
         messages_hash=_file_hash(config.messages_path),
         n_messages=len(messages),
         repeats=config.execution.repeats,
         config=config.model_dump(mode="json"),
         started_at=timestamp(),
     )
+
+
+def _project_relative(path: Path, root: Path) -> str:
+    """`path` as the project names it, so a committed manifest leaks no home directory.
+
+    A message file outside the project can only be named absolutely.
+    """
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def _file_hash(path: Path) -> str:

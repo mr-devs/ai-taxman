@@ -211,6 +211,14 @@ async def test_provider_is_shut_down_even_when_the_run_blows_up(project, fake_pr
     assert fake_provider.stopped == 1
 
 
+async def test_the_manifest_names_the_message_file_relative_to_the_project(project, fake_provider):
+    """A manifest is committed with the data; it must not carry the author's home."""
+    result = await run_audit_async(audit(project))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["messages_path"] == "messages/probe.txt"
+
+
 async def test_writes_a_manifest_beside_the_jsonl(project, fake_provider):
     result = await run_audit_async(audit(project, "execution:\n  repeats: 2"))
 
