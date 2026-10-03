@@ -6,9 +6,10 @@ to `GeminiProvider.validate_model_config`, which returns one of these.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ai_taxman.providers.gemini.models import THINKING_LEVELS, ThinkingLevel
 
@@ -27,7 +28,12 @@ class _Block(BaseModel):
         template validates as-is.
         """
         if isinstance(block, dict):
-            return {key: value for key, value in block.items() if not _blank(value)}
+            return {
+                key: value
+                for key, value in block.items()
+                # `extra:` is sent as written, so only a wholly blank one is dropped.
+                if not (value is None if key == "extra" else _blank(value))
+            }
         return block
 
 
@@ -36,6 +42,30 @@ def _blank(value: Any) -> bool:
     if isinstance(value, dict):
         return all(_blank(inner) for inner in value.values())
     return value is None
+
+
+#: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
+#: anything else - a key inside `generation_config` included, so a `seed` can sit
+#: beside the audit's temperature - but never one of these.
+SET_BY_TAXMAN = frozenset(
+    {
+        "model",
+        "input",
+        "store",
+        "system_instruction",
+        "generation_config.temperature",
+        "generation_config.top_p",
+        "generation_config.max_output_tokens",
+        "generation_config.thinking_level",
+        "generation_config.thinking_summaries",
+    }
+)
+
+#: Request keys taxman never sends, because `send` could not record the result.
+NEVER_SENT = {
+    "stream": "a stream is not a response, so there would be nothing whole to record",
+    "background": "a background interaction comes back before it has an answer to record",
+}
 
 
 class GeminiModelConfig(_Block):
@@ -58,6 +88,43 @@ class GeminiModelConfig(_Block):
     #: sent: the Interactions API keeps everything for 55 days unless told not to,
     #: and an audit should not leave a trail in the account it is auditing from.
     store: bool = False
+
+    #: Escape hatch for API parameters this config does not name yet. Merged into
+    #: the request as written - but never over one it does name.
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("extra")
+    @classmethod
+    def _extra_names_only_what_taxman_does_not(cls, extra: dict[str, Any]) -> dict[str, Any]:
+        """Overriding a named setting would bypass its checks, and its defaults."""
+        paths = list(leaf_paths(extra))
+        for path in paths:
+            if path in NEVER_SENT:
+                raise ValueError(f"`extra:` cannot set {path}: {NEVER_SENT[path]}.")
+        taken = sorted({key for key in SET_BY_TAXMAN for path in paths if _overlaps(path, key)})
+        if taken:
+            raise ValueError(
+                f"`extra:` cannot set {', '.join(taken)}: taxman sets "
+                f"{'it' if len(taken) == 1 else 'them'} from this audit. Use the named "
+                "setting in `model:` instead (the system prompt is the audit's "
+                "`system_prompt:`)."
+            )
+        return extra
+
+
+def leaf_paths(block: dict[str, Any], prefix: str = "") -> Iterator[str]:
+    """Every dotted path in `block` that ends in a value rather than a further object."""
+    for key, value in block.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict) and value:
+            yield from leaf_paths(value, f"{path}.")
+        else:
+            yield path
+
+
+def _overlaps(path: str, key: str) -> bool:
+    """Whether writing `path` would change `key`: the same, inside it, or replacing it."""
+    return path == key or path.startswith(f"{key}.") or key.startswith(f"{path}.")
 
 
 #: The `model:` keys sent, under the same names, inside `generation_config`.

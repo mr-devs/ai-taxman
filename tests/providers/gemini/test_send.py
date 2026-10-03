@@ -166,3 +166,14 @@ async def test_a_dropped_or_slow_connection_is_retryable(wire, error):
         await send(a_request())
 
     assert GeminiProvider().is_retryable(caught.value) is True
+
+
+async def test_a_setting_the_sdk_does_not_know_still_reaches_google(wire):
+    """Passed as keywords, the SDK's models would drop it without a word."""
+    request = a_request(
+        {"name": "gemini-3.8-flash", "extra": {"generation_config": {"brand_new": 1}}}
+    )
+
+    await send(request)
+
+    assert json.loads(wire.requests[0].content)["generation_config"] == {"brand_new": 1}
