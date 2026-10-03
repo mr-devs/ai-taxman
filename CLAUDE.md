@@ -8,19 +8,26 @@ package. The CLI is the priority; the Python API is a thin, honest wrapper over 
 The one canonical workflow, and the thing every design decision must keep simple:
 
 ```
-1. The user writes a plain .txt file of messages, one per line, however they like.
-2. taxman init openai <audit-name>            ->  scaffolds audits/<name>.yaml
-3. The user fills in the blanks.
-4. taxman collect <audit-name>                ->  data/<audit>/<run_id>/responses.jsonl
+1. taxman init                                ->  taxman.yaml + the project's folders
+2. taxman audits new openai <audit-name>      ->  taxman/audits/<name>.yaml
+3. The user writes a plain .txt file of messages, one per line, and fills in the blanks.
+4. taxman collect <audit-name>                ->  taxman/data/<audit>/<run_id>/responses.jsonl
 ```
 
-An **audit** is one YAML file. Its `audit:` key is the name `taxman collect` matches on.
+`taxman init` sets up a **project**, once, before any audit. It asks where each folder
+goes — data, audits, messages, prompts, logs — offering a default under `taxman/`, and
+`--yes` accepts every default. It refuses to run inside an existing project. It never asks
+about a provider or an audit setting.
 
-`taxman init` takes a provider and an audit name, and **nothing else**. Every setting is
-written at its default with a comment explaining it, and the user edits the file. Do not
-add flags or `key=value` arguments back: routing settings to their owner on the command
-line meant core had to know which keys were the provider's, which is the seam this project
-exists to keep clean. Audits are always written to `./audits/` in the working directory.
+An **audit** is one YAML file, one per provider. Its `audit:` key is the name
+`taxman collect` matches on.
+
+`taxman audits new` takes a provider and an audit name, and **nothing else**. Every
+setting is written at its default with a comment explaining it, and the project's folders
+are filled into its paths; the user edits the file. Do not add flags or `key=value`
+arguments back: routing settings to their owner on the command line meant core had to
+know which keys were the provider's, which is the seam this project exists to keep clean.
+Outside a project it is an error that says to run `taxman init` first.
 
 ## uv only — never pip
 
@@ -105,7 +112,7 @@ there is no file to protect, no copy to go stale, and no precedence rule to expl
 `core/credentials.resolve_api_key()` is one `os.environ` lookup and must stay that way —
 do not add a `.env` reader, a keyring, or a config file back.
 
-`taxman init` writes `api_key_env: <insert_api_key_env_var_here>` and never guesses a
+`taxman audits new` writes `api_key_env: <insert_api_key_env_var_here>` and never guesses a
 variable name. A provider's `default_api_key_env` is rendered into a *comment* as a hint;
 core must never resolve a key from it. Guessing is how an audit ends up billing a key it
 never named.
@@ -115,8 +122,8 @@ never reads the environment itself, and never sees a variable name.
 
 ## There is no configuration command
 
-`taxman init` writes a fully commented audit file and the user edits it. That is the only
-way any setting is ever chosen — the `api_key_env:` variable name included.
+`taxman audits new` writes a fully commented audit file and the user edits it. That is the
+only way any audit setting is ever chosen — the `api_key_env:` variable name included.
 
 There was a `taxman setup` that interviewed the user for provider defaults and persisted
 them to `~/.taxman/providers/<name>.yaml`. It is gone, and so is `set-key`. **Do not add
@@ -125,8 +132,9 @@ route each one to its owner, providers have to validate arbitrary keys, and the 
 template has to round-trip saved values through YAML. All of that existed and all of it
 was deleted. If a setting is hard to discover, fix its comment in the template.
 
-The only interactive prompt left in the CLI is `doctor`'s yes/no, which lives in
-`cli/doctor_cmd.py` and asks about the machine, never about an audit.
+The CLI has two interactive prompts, and neither asks about an audit: `doctor`'s yes/no
+about the machine (`cli/doctor_cmd.py`), and `init`'s folder questions about the project
+(`cli/init_cmd.py`). Neither asks without a terminal.
 
 ## Config contract
 
@@ -275,8 +283,8 @@ every path it uses and the manifest records it. Collection never reads a folder 
 marker. `tests/test_conventions.py` fails the suite if the marker grows another key, or
 if an audit setting smuggled into it has any effect.
 
-`taxman init` creates the marker when there isn't one — that is what makes a directory a
-project. There is no separate "init a project" command to learn.
+`taxman init` writes the marker — that is what makes a directory a project — and is the
+only command that does. Nothing else creates a project as a side effect.
 
 ## Layout
 
@@ -284,7 +292,7 @@ project. There is no separate "init a project" command to learn.
 src/ai_taxman/
 ├── __init__.py       # __version__ + public Python API
 ├── __main__.py       # python -m ai_taxman
-├── cli/              # Typer app: init, collect, audits, doctor, completion
+├── cli/              # Typer app: init, audits (new/list/show/validate), collect, doctor
 ├── core/             # config, credentials, discovery, messages, records,
 │                     # writer, runner, registry, state, environment, errors
 └── providers/
@@ -350,7 +358,7 @@ and update `docs/provider-apis/` if the URL moved.
 4. Write failing tests first: `build_request`, `extract` against a recorded fixture, template parses.
 5. Implement `Provider` from `providers/base.py`; export `PROVIDER` at module level.
 6. Implement `known_models()`, `render_template()`, `describe_model()` and
-   `default_api_key_env` — these feed `taxman init` and shell completion. `render_template()`
+   `default_api_key_env` — these feed `taxman audits new` and shell completion. `render_template()`
    takes no arguments and renders every parameter blank but commented.
 7. Confirm the conformance suite (`tests/providers/test_conformance.py`) picks it up and passes.
 8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.

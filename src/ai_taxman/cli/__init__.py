@@ -1,13 +1,14 @@
 """The `taxman` command line interface.
 
-Three commands carry the whole workflow:
+Four commands carry the whole workflow:
 
-    taxman init <provider> <audit>                   scaffold an audit
+    taxman init                                      set up the project, once
+    taxman audits new <provider> <audit>             scaffold an audit
     taxman collect <audit>                           run it
     taxman audits list | show | validate             inspect audits
 
-There is no configuration command. Every setting - the `api_key_env:` variable
-name included - is chosen by editing the audit file `init` wrote.
+There is no configuration command. Every audit setting - the `api_key_env:`
+variable name included - is chosen by editing the file `audits new` wrote.
 
 Errors raised deliberately by the library (`TaxmanError`) are printed as a
 message and an exit code, never a traceback — the user is a researcher at a

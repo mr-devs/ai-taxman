@@ -1,98 +1,114 @@
-"""`taxman init` - scaffold an audit YAML for a provider.
+"""`taxman init` - set up a taxman project.
 
-Two names in, one file out. Nothing else is accepted: every setting lands at its
-default with a comment explaining it, and the user edits the file. Parsing
-`key=value` settings on the command line meant core had to route each one to its
-owner and each provider had to validate arbitrary keys, all to save opening the
-file that was written for exactly that purpose.
+The first command in every project, run once. It asks where each folder taxman
+uses should go, offering a default for each, writes the answers into the
+`taxman.yaml` marker, and creates the folders. Audits come afterwards, one per
+provider, with `taxman audits new`.
 
-This is also the command that *makes* a project: run outside one, it writes the
-`taxman.yaml` marker into the working directory. There is no separate "init a
-project" step to learn, and every other command can then insist on a project
-rather than guessing at the working directory.
+The folders are a fact about the project, not about a run: `audits new` writes
+them into each audit it creates, so an audit still names every path it uses.
+
+Nothing is asked without a terminal. A script passes `--yes` for the defaults,
+rather than having taxman guess what an empty stdin meant.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from ai_taxman.cli.completion import complete_provider
-from ai_taxman.cli.render import API_KEY_ENV_PLACEHOLDER, render_audit
 from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
-from ai_taxman.core.discovery import MARKER_FILENAME, audits_dir, find_project_root, write_marker
-from ai_taxman.core.registry import get_provider
-from ai_taxman.providers.base import Provider
+from ai_taxman.core.discovery import (
+    FOLDER_PURPOSES,
+    MARKER_FILENAME,
+    Layout,
+    check_folder,
+    find_project_root,
+    write_marker,
+)
+from ai_taxman.core.errors import ConfigError
+
+
+def can_ask() -> bool:
+    """Whether a person is at the prompt to answer."""
+    return sys.stdin.isatty()
 
 
 @handles_taxman_errors
 def init(
-    provider: Annotated[
-        str,
-        typer.Argument(help="Provider to audit, e.g. openai.", autocompletion=complete_provider),
-    ],
-    audit: Annotated[
-        str,
-        typer.Argument(help="Name for the audit, e.g. election-probe."),
-    ],
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Accept the default for every folder without asking."),
+    ] = False,
 ) -> None:
-    """Create an audit YAML file for a provider.
+    """Set up a taxman project in this directory.
 
-    Every setting is written at its default. Open the file and change what you
-    need - it lists everything the provider accepts, with comments.
+    Asks where collected data, audits, messages, system prompts, and logs should
+    go, relative to this directory. Press Enter to keep a default.
     """
-    resolved = get_provider(provider)
-
-    # Resolve the provider before touching the disk: an unknown name should not
-    # leave a half-made project behind.
-    root = find_project_root()
-    started_a_project = root is None
-    if root is None:
-        root = Path.cwd()
-        write_marker(root)
-
-    target = audits_dir(root) / f"{audit}.yaml"
-    if target.exists():
+    here = Path.cwd()
+    existing = find_project_root(here)
+    if existing is not None:
+        where = "This directory is" if existing == here.resolve() else "This directory is inside"
         fail(
-            f"{target} already exists. Choose another name, or delete the file first "
-            "if you meant to start over."
+            f"{where} the taxman project at {existing}. A project is set up once; "
+            f"its folders are in {existing / MARKER_FILENAME}."
         )
         return
 
-    text = render_audit(
-        audit=audit,
-        provider=resolved,
-        messages=f"messages/{audit}.txt",
-        output_dir="data/{audit}/{run_id}",
-        api_key_env=_api_key_env(resolved),
-    )
+    if yes:
+        layout = Layout()
+    elif can_ask():
+        layout = _ask(here)
+    else:
+        fail(
+            "taxman init asks where each folder should go, and there is no terminal to "
+            "ask at. Run `taxman init --yes` to accept the defaults."
+        )
+        return
 
-    marker = root / MARKER_FILENAME
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(text, encoding="utf-8")
+    marker = write_marker(here, layout)
+    for folder in layout.as_dict().values():
+        (here / folder).mkdir(parents=True, exist_ok=True)
 
-    if started_a_project:
-        # The root is named in full: "." would not tell the user which project.
-        typer.secho(f"Started a taxman project at {root}", fg=typer.colors.GREEN)
-        typer.echo(f"  {display_path(marker)} marks the root; audits and paths resolve against it.")
-    typer.secho(f"Created {display_path(target)}", fg=typer.colors.GREEN)
+    # The root is named in full: "." would not tell the user which project.
+    typer.secho(f"Started a taxman project at {here}", fg=typer.colors.GREEN)
+    typer.echo(f"  {display_path(marker)} marks the root and records its folders:")
+    width = max(len(label) for label in FOLDER_PURPOSES.values())
+    for purpose, label in FOLDER_PURPOSES.items():
+        typer.echo(f"    {label:<{width}}  {getattr(layout, purpose)}/")
     typer.echo("")
-    typer.echo("Next:")
-    messages = display_path(root / "messages" / f"{audit}.txt")
-    typer.echo(f"  1. Write your messages, one per line, in {messages}")
-    typer.echo(f"  2. Review the settings in {target.name}, including `api_key_env`")
-    typer.echo(f"  3. taxman collect {audit}")
+    typer.echo("Next, create an audit for each provider you want to audit:")
+    typer.echo("  taxman audits new <provider> <audit>")
 
 
-def _api_key_env(provider: Provider) -> str | None:
-    """What the audit's `api_key_env:` field should say.
+def _ask(root: Path) -> Layout:
+    """Ask for each folder until the answers make a usable layout."""
+    typer.echo(f"Setting up a taxman project in {root}")
+    typer.echo("Each folder is relative to this directory. Press Enter to keep the default.")
+    typer.echo("")
 
-    A placeholder, always: only the user knows which variable on their machine
-    holds the key, and taxman guessing at one is how an audit ends up billing a
-    key it never named. A provider that needs no key gets no field at all.
-    """
-    if not provider.requires_api_key:
-        return None
-    return API_KEY_ENV_PLACEHOLDER
+    answers = Layout().as_dict()
+    width = max(len(label) for label in FOLDER_PURPOSES.values())
+    while True:
+        for purpose, label in FOLDER_PURPOSES.items():
+            answers[purpose] = _ask_one(f"  {label:<{width}}", purpose, answers[purpose])
+        try:
+            return Layout(**answers)
+        except ConfigError as exc:
+            # A clash between two folders only shows once both are answered.
+            typer.secho(f"  {exc}", fg=typer.colors.RED)
+            typer.echo("  Starting again, with your answers as the defaults.")
+            typer.echo("")
+
+
+def _ask_one(prompt: str, purpose: str, default: str) -> str:
+    while True:
+        value = typer.prompt(prompt, default=default)
+        try:
+            return check_folder(value, purpose)
+        except ConfigError as exc:
+            typer.secho(f"  {exc}", fg=typer.colors.RED)

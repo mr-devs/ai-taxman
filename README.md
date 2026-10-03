@@ -19,9 +19,9 @@ Also usable as a regular Python package.
 uv tool install "ai-taxman[openai]"
 ```
 
-Then `taxman init openai <audit-name>` writes a fully commented audit file, and you fill in
-the blanks. There is no configuration command and nothing to set up per machine — the audit
-file is the only place anything is chosen. Full walkthrough below. Provider SDKs are
+Then `taxman init` sets up a project, `taxman audits new openai <audit-name>` writes a fully
+commented audit file, and you fill in the blanks. There is no configuration command and
+nothing to set up per machine — the audit file is the only place a run's settings are chosen. Full walkthrough below. Provider SDKs are
 optional extras, so you only install the ones you audit.
 
 <details>
@@ -63,53 +63,84 @@ names its own. That means one machine can hold several keys for the same provide
 personal one and a lab one, say) and each audit says which it uses. In CI, use the
 runner's secret mechanism; nothing else changes.
 
-### 3. Create your first audit
+### 3. Set up a project
 
-`init` takes the provider and a name for the audit, and nothing else:
+taxman is project-scoped from top to bottom. A project is a directory with a `taxman.yaml`
+at its root, and `taxman init` is how you make one. It asks where each folder taxman uses
+should go, relative to the project root; press Enter to keep a default:
 
 ```console
 $ cd ~/research/election-study
-$ taxman init openai election-probe
-Started a taxman project at /Users/you/research/election-study
-  taxman.yaml marks the root; audits and paths resolve against it.
-Created audits/election-probe.yaml
+$ taxman init
+Setting up a taxman project in /Users/you/research/election-study
+Each folder is relative to this directory. Press Enter to keep the default.
 
-Next:
-  1. Write your messages, one per line, in messages/election-probe.txt
-  2. Review the settings in election-probe.yaml, including `api_key_env`
-  3. taxman collect election-probe
+  Collected data  [taxman/data]:
+  Audit files     [taxman/audits]:
+  Message files   [taxman/messages]:
+  System prompts  [taxman/prompts]:
+  Run logs        [taxman/logs]:
+Started a taxman project at /Users/you/research/election-study
+  taxman.yaml marks the root and records its folders:
+    Collected data  taxman/data/
+    Audit files     taxman/audits/
+    Message files   taxman/messages/
+    System prompts  taxman/prompts/
+    Run logs        taxman/logs/
+
+Next, create an audit for each provider you want to audit:
+  taxman audits new <provider> <audit>
 ```
 
-That is the whole command — there are no other arguments or flags. Every setting is written
-at its default with a comment saying what it does, so you change things by editing the file
-rather than by memorising options.
+`taxman init --yes` accepts every default without asking, for scripts. A project is set up
+once: `init` refuses to run inside an existing one. To move a folder later, edit
+`taxman.yaml` — new audits pick up the change; existing audits keep the paths they were
+written with.
 
-`init` is also what starts a **project**. taxman is project-scoped from top to bottom: audits
-live in `<project>/audits/`, and the `taxman.yaml` it just wrote marks the root that every
-relative path resolves against. There is no separate command to learn — the first audit makes
-the project — and from then on every taxman command works from anywhere inside it, the way
-git does:
+From then on every taxman command works from anywhere inside the project, the way git does:
 
 ```
 ~/research/election-study/
-├── taxman.yaml               <- the project root
-├── audits/election-probe.yaml
-├── messages/election-probe.txt
-└── data/
+├── taxman.yaml               <- the project root, and its folders
+└── taxman/
+    ├── audits/
+    ├── messages/
+    ├── prompts/
+    ├── data/
+    └── logs/
 ```
 
-Run `taxman audits list` somewhere that isn't a project and it says so, rather than guessing:
+Run a command somewhere that isn't a project and it says so, rather than guessing:
 
 ```console
 $ cd /tmp && taxman audits list
 error: this directory is not a taxman project: no taxman.yaml in /tmp or any
-parent directory. Start one with `taxman init <provider> <audit>`, or change to
-a directory inside an existing project.
+parent directory. Start one with `taxman init`, or change to a directory inside
+an existing project.
 ```
 
 There are no user-global audits — nothing hidden in your home directory that a collaborator
 who clones your project would not get. If an audit is worth reusing, commit it to each
 project that uses it.
+
+### 4. Create an audit for each provider
+
+`audits new` takes the provider and a name for the audit, and nothing else:
+
+```console
+$ taxman audits new openai election-probe
+Created taxman/audits/election-probe.yaml
+
+Next:
+  1. Write your messages, one per line, in taxman/messages/election-probe.txt
+  2. Review the settings in election-probe.yaml, including `api_key_env`
+  3. taxman collect election-probe
+```
+
+That is the whole command — there are no other arguments or flags. Every setting is written
+at its default with a comment saying what it does, and the project's folders are filled into
+its paths, so you change things by editing the file rather than by memorising options. Each
+provider gets its own audit file.
 
 One field is left blank on purpose, because only you know the answer:
 
@@ -125,17 +156,16 @@ Replace the placeholder with the name of the variable you exported in step 2. Le
 it is and `taxman collect` stops before sending anything, saying that
 `<insert_api_key_env_var_here>` is not set.
 
-### 4. Write your messages and check it
+### 5. Write your messages and check it
 
 ```console
-$ mkdir -p messages
-$ cat > messages/election-probe.txt <<'EOF'
+$ cat > taxman/messages/election-probe.txt <<'EOF'
 When is the next US federal election?
 Who is eligible to vote by mail?
 EOF
 
 $ taxman audits validate election-probe
-audits/election-probe.yaml is valid.
+taxman/audits/election-probe.yaml is valid.
 2 message(s) x 1 repeat(s) = 2 request(s).
 ```
 
@@ -143,13 +173,13 @@ audits/election-probe.yaml is valid.
 variable in `api_key_env:` is exported, and counts the requests — **without sending
 anything or spending anything.** Run it before every real collection.
 
-### 5. Run it
+### 6. Run it
 
 ```console
 $ taxman collect election-probe
 Collecting election-probe: openai (gpt-5), 1 repeat(s) per message.
 
-2 ok  ->  data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
+2 ok  ->  taxman/data/election-probe/20260830T142201Z-a1b2c3/responses.jsonl
 ```
 
 This one makes real API calls and bills your account.
@@ -171,35 +201,26 @@ offers to fix either. Nothing is written to a shell config unless you say yes, a
 
 ## The workflow
 
-Once your key is exported, the loop is three steps.
+Once the project is set up and your key is exported, the loop is three steps.
 
-**1. Write your messages** — one per line, in a plain `.txt` file. Blank lines
-and lines starting with `#` are ignored.
-
-```
-# messages/election.txt
-When is the next US federal election?
-Who is eligible to vote by mail?
-```
-
-**2. Describe the audit.**
+**1. Describe the audit.**
 
 ```bash
-taxman init openai election-probe
+taxman audits new openai election-probe
 ```
 
-That writes `audits/election-probe.yaml` with every setting at its default and
+That writes `taxman/audits/election-probe.yaml` with every setting at its default and
 commented, ready for you to edit:
 
 ```yaml
 audit: election-probe
 provider: openai
-messages: messages/election-probe.txt
+messages: taxman/messages/election-probe.txt
 
 api_key_env: OPENAI_API_KEY   # you fill this in; the one variable taxman reads
 
 output:
-  dir: data/{audit}/{run_id}
+  dir: taxman/data/{audit}/{run_id}
   filename: responses.jsonl
   compress: false          # true to gzip the output
 
@@ -219,6 +240,15 @@ model:                     # settings specific to the `openai` provider
   web_search:
 ```
 
+**2. Write your messages** — one per line, in a plain `.txt` file. Blank lines
+and lines starting with `#` are ignored.
+
+```
+# taxman/messages/election-probe.txt
+When is the next US federal election?
+Who is eligible to vote by mail?
+```
+
 **3. Run it.**
 
 ```bash
@@ -226,7 +256,7 @@ taxman collect election-probe
 ```
 
 Every message is sent `repeats` times, concurrently, and each raw response is
-written to `data/election-probe/<run_id>/responses.jsonl` as it arrives —
+written to `taxman/data/election-probe/<run_id>/responses.jsonl` as it arrives —
 alongside a `manifest.json` recording exactly what was run.
 
 Both files are written as the run happens, not at the end. The manifest lands
@@ -325,7 +355,8 @@ for a run that was never going to work.
 | Command | What it does |
 |---|---|
 | `taxman doctor` | Check PATH and tab completion, and offer to fix them |
-| `taxman init <provider> <audit>` | Scaffold an audit YAML in the project's `audits/`, starting a project if needed |
+| `taxman init` | Set up a project here, asking where each folder goes |
+| `taxman audits new <provider> <audit>` | Scaffold an audit YAML in the project's audits folder |
 | `taxman collect <audit>` | Run an audit |
 | `taxman audits list` | List the audits in this project |
 | `taxman audits show <audit>` | Print an audit's fully resolved settings |
@@ -476,7 +507,7 @@ Export it however you normally would: your shell profile, `direnv`, or a CI secr
 name is yours to choose, so one machine can hold several keys for the same provider and
 each audit says which it uses.
 
-`taxman init` leaves the field as `<insert_api_key_env_var_here>` — it will not guess a
+`taxman audits new` leaves the field as `<insert_api_key_env_var_here>` — it will not guess a
 variable for you, because guessing is how an audit ends up billing a key it never named.
 
 If the field is still the placeholder, is missing, or names a variable holding nothing,

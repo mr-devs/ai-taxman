@@ -1,220 +1,145 @@
-"""`taxman init <provider> <audit>` - two names in, one file out.
+"""`taxman init` - set up a project, before any audit.
 
-The command deliberately takes nothing else. Every setting is written at its
-default, with a comment saying what it does, and the user edits the file. That
-keeps the provider-specific surface entirely inside the generated YAML rather
-than spread across command-line parsing.
+It asks where each folder taxman uses should go, offering a default for each,
+and records the answers in `taxman.yaml`. Audits for each provider are created
+afterwards with `taxman audits new`.
 """
 
-import yaml
+import pytest
 
-from ai_taxman.core.config import load_audit
+from ai_taxman.core.discovery import MARKER_FILENAME, Layout, read_layout
+
+DEFAULT_FOLDERS = [
+    "taxman/data",
+    "taxman/audits",
+    "taxman/messages",
+    "taxman/prompts",
+    "taxman/logs",
+]
 
 
-def read(tmp_path, name):
-    return yaml.safe_load((tmp_path / "audits" / f"{name}.yaml").read_text(encoding="utf-8"))
+@pytest.fixture
+def terminal(monkeypatch):
+    """Pretend a person is at the prompt, so `init` asks its questions."""
+    monkeypatch.setattr("ai_taxman.cli.init_cmd.can_ask", lambda: True)
 
 
-def test_creates_the_named_audit_in_the_audits_directory(invoke, tmp_path):
-    result = invoke("init", "openai", "election-probe")
+def answer(invoke, runner, *lines):
+    from ai_taxman.cli import app
+
+    return runner.invoke(app, ["init"], input="".join(f"{line}\n" for line in lines))
+
+
+# --- accepting the defaults -----------------------------------------------
+
+
+def test_yes_sets_up_a_project_with_the_default_folders(invoke, leave_project, tmp_path):
+    result = invoke("init", "--yes")
 
     assert result.exit_code == 0
-    assert (tmp_path / "audits" / "election-probe.yaml").is_file()
+    assert read_layout(tmp_path) == Layout()
 
 
-def test_the_audit_is_named_by_the_second_argument(invoke, tmp_path):
-    invoke("init", "openai", "election-probe")
+def test_the_folders_are_created(invoke, leave_project, tmp_path):
+    invoke("init", "--yes")
 
-    assert read(tmp_path, "election-probe")["audit"] == "election-probe"
+    for folder in DEFAULT_FOLDERS:
+        assert (tmp_path / folder).is_dir(), folder
 
 
-def test_the_audit_names_its_provider(invoke, tmp_path):
-    invoke("init", "openai", "probe")
+def test_the_marker_holds_relative_folders(invoke, leave_project, tmp_path):
+    invoke("init", "--yes")
+    text = (tmp_path / MARKER_FILENAME).read_text(encoding="utf-8")
 
-    assert read(tmp_path, "probe")["provider"] == "openai"
+    assert "taxman/data" in text
+    assert str(tmp_path) not in text
 
 
-def test_the_name_is_required(invoke):
-    result = invoke("init", "openai")
+def test_it_says_where_the_project_is_and_what_comes_next(invoke, leave_project, tmp_path):
+    result = invoke("init", "--yes")
 
-    assert result.exit_code != 0
+    assert str(tmp_path) in result.output
+    assert "taxman audits new" in result.output
 
 
-def test_the_model_defaults_to_the_providers_own(invoke, tmp_path):
-    invoke("init", "openai", "probe")
+# --- asking ---------------------------------------------------------------
 
-    assert read(tmp_path, "probe")["model"]["name"] == "gpt-5"
 
+def test_it_asks_about_every_folder(invoke, runner, leave_project, terminal):
+    result = answer(invoke, runner, "", "", "", "", "")
 
-def test_the_api_key_variable_is_left_for_the_user_to_fill_in(invoke, tmp_path):
-    """taxman never guesses which variable holds the key; the user names it."""
-    invoke("init", "openai", "probe")
+    for label in ("Collected data", "Audit files", "Message files", "System prompts", "Run logs"):
+        assert label in result.output
 
-    assert read(tmp_path, "probe")["api_key_env"] == "<insert_api_key_env_var_here>"
 
-
-def test_the_comment_hints_at_the_providers_conventional_variable(invoke, tmp_path):
-    text = (
-        (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8")
-        if invoke("init", "openai", "probe")
-        else ""
-    )
-
-    assert "OPENAI_API_KEY" in text
-    hint = next(line for line in text.splitlines() if "OPENAI_API_KEY" in line)
-    assert hint.lstrip().startswith("#"), "the hint belongs in a comment, not the value"
-
-
-def test_the_scaffolded_file_still_parses_as_yaml(invoke, tmp_path):
-    invoke("init", "openai", "probe")
-
-    assert isinstance(read(tmp_path, "probe"), dict)
-
-
-def test_it_says_the_key_variable_must_be_exported(invoke):
-    result = invoke("init", "openai", "probe")
-
-    assert "api_key_env" in result.output
-
-
-def test_settings_are_written_at_their_defaults(invoke, tmp_path):
-    """Nothing is pre-filled from the command line; the file carries the defaults."""
-    audit = read(tmp_path, "probe") if invoke("init", "openai", "probe") else None
-
-    assert audit["execution"]["repeats"] == 1
-    assert audit["model"]["temperature"] is None
-
-
-def test_it_writes_only_to_the_working_directory(invoke, tmp_path):
-    invoke("init", "openai", "probe")
-
-    assert (tmp_path / "audits" / "probe.yaml").is_file()
-    assert not (tmp_path / "taxman-home" / "audits").exists()
-
-
-def test_points_at_a_messages_file_named_after_the_audit(invoke, tmp_path):
-    invoke("init", "openai", "election-probe")
-
-    assert read(tmp_path, "election-probe")["messages"] == "messages/election-probe.txt"
-
-
-def test_the_generated_file_loads_as_a_valid_audit(invoke, tmp_path):
-    invoke("init", "openai", "probe")
-    (tmp_path / "messages").mkdir()
-    (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
-
-    config = load_audit(tmp_path / "audits" / "probe.yaml")
-
-    assert config.provider == "openai"
-
-
-def test_the_generated_model_block_validates_against_the_provider(invoke, tmp_path):
-    from ai_taxman.core.registry import get_provider
-
-    invoke("init", "openai", "probe")
-    block = read(tmp_path, "probe")["model"]
-
-    get_provider("openai").validate_model_config(block)
-
-
-def test_tells_the_user_what_to_do_next(invoke):
-    result = invoke("init", "openai", "election-probe")
-
-    assert "messages/election-probe.txt" in result.output
-    assert "taxman collect election-probe" in result.output
-
-
-def test_refuses_to_overwrite_an_existing_audit(invoke, tmp_path):
-    invoke("init", "openai", "probe")
-    (tmp_path / "audits" / "probe.yaml").write_text("edited by hand\n", encoding="utf-8")
-
-    result = invoke("init", "openai", "probe")
-
-    assert result.exit_code != 0
-    assert (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8") == "edited by hand\n"
-
-
-def test_the_refusal_says_what_to_do(invoke, tmp_path):
-    invoke("init", "openai", "probe")
-
-    result = invoke("init", "openai", "probe")
-
-    assert "already exists" in result.output
-    # The flags that used to be suggested are gone; do not advertise them.
-    assert "--force" not in result.output
-    assert "--name" not in result.output
-
-
-def test_unknown_provider_is_reported_with_the_available_ones(invoke):
-    result = invoke("init", "nope", "probe")
-
-    assert result.exit_code != 0
-    assert "openai" in result.output
-
-
-def test_it_takes_no_further_arguments(invoke):
-    result = invoke("init", "openai", "probe", "temperature=1.5")
-
-    assert result.exit_code != 0
-
-
-def test_the_generated_file_carries_explanatory_comments(invoke, tmp_path):
-    invoke("init", "openai", "probe")
-    text = (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8")
-
-    assert "# Times to send EACH message" in text
-    assert "taxman collect probe" in text
-
-
-# --- init is also what makes a project ------------------------------------
-
-
-def test_init_starts_a_project_where_there_is_none(invoke, leave_project, tmp_path):
-    """There is no separate "init a project" step; the first audit makes one."""
-    from ai_taxman.core.discovery import MARKER_FILENAME
-
-    result = invoke("init", "openai", "probe")
+def test_enter_keeps_each_default(invoke, runner, leave_project, tmp_path, terminal):
+    result = answer(invoke, runner, "", "", "", "", "")
 
     assert result.exit_code == 0
-    assert (tmp_path / MARKER_FILENAME).is_file()
-    assert (tmp_path / "taxman" / "audits" / "probe.yaml").is_file()
+    assert read_layout(tmp_path) == Layout()
 
 
-def test_it_says_it_started_a_project(invoke, leave_project):
+def test_an_answer_replaces_the_default(invoke, runner, leave_project, tmp_path, terminal):
+    answer(invoke, runner, "results", "", "", "", "")
+
+    assert read_layout(tmp_path).data == "results"
+    assert (tmp_path / "results").is_dir()
+
+
+def test_a_folder_outside_the_project_is_asked_again(
+    invoke, runner, leave_project, tmp_path, terminal
+):
+    result = answer(invoke, runner, "../elsewhere", "results", "", "", "", "")
+
+    assert "outside the project" in result.output
+    assert read_layout(tmp_path).data == "results"
+
+
+def test_folders_that_collide_are_asked_again(invoke, runner, leave_project, tmp_path, terminal):
+    """A clash only shows once every answer is in, so the round starts over."""
+    result = answer(invoke, runner, "shared", "", "", "", "shared", "", "", "", "", "own-logs")
+
+    assert "Give each its own folder" in result.output
+    layout = read_layout(tmp_path)
+    assert layout.data == "shared"
+    assert layout.logs == "own-logs"
+
+
+def test_without_a_terminal_it_asks_for_yes(invoke, leave_project, tmp_path):
+    result = invoke("init")
+
+    assert result.exit_code != 0
+    assert "--yes" in result.output
+    assert not (tmp_path / MARKER_FILENAME).exists()
+
+
+# --- one project, once ----------------------------------------------------
+
+
+def test_refuses_to_set_up_a_project_twice(invoke, tmp_path):
+    before = (tmp_path / MARKER_FILENAME).read_text(encoding="utf-8")
+
+    result = invoke("init", "--yes")
+
+    assert result.exit_code != 0
+    assert str(tmp_path) in result.output
+    assert (tmp_path / MARKER_FILENAME).read_text(encoding="utf-8") == before
+
+
+def test_refuses_to_nest_a_project_inside_another(invoke, tmp_path, monkeypatch):
+    inner = tmp_path / "sub" / "project"
+    inner.mkdir(parents=True)
+    monkeypatch.chdir(inner)
+
+    result = invoke("init", "--yes")
+
+    assert result.exit_code != 0
+    assert "inside" in result.output
+    assert not (inner / MARKER_FILENAME).exists()
+
+
+def test_it_takes_no_provider_or_audit(invoke, leave_project, tmp_path):
     result = invoke("init", "openai", "probe")
-
-    assert "project" in result.output.lower()
-
-
-def test_an_unknown_provider_leaves_no_half_made_project(invoke, leave_project, tmp_path):
-    from ai_taxman.core.discovery import MARKER_FILENAME
-
-    result = invoke("init", "nope", "probe")
 
     assert result.exit_code != 0
     assert not (tmp_path / MARKER_FILENAME).exists()
-    assert not (tmp_path / "audits").exists()
-
-
-def test_a_second_audit_joins_the_existing_project(invoke, tmp_path, monkeypatch):
-    """Run from a subdirectory, the audit still lands in the project's audits/."""
-    invoke("init", "openai", "first")
-    deep = tmp_path / "messages"
-    deep.mkdir(exist_ok=True)
-    monkeypatch.chdir(deep)
-
-    result = invoke("init", "openai", "second")
-
-    assert result.exit_code == 0
-    assert (tmp_path / "audits" / "second.yaml").is_file()
-    assert not (deep / "audits").exists()
-
-
-def test_the_marker_is_not_rewritten_over_a_users_edits(invoke, tmp_path):
-    from ai_taxman.core.discovery import MARKER_FILENAME
-
-    (tmp_path / MARKER_FILENAME).write_text("# mine\ntaxman_project: 1\n", encoding="utf-8")
-
-    invoke("init", "openai", "probe")
-
-    assert "# mine" in (tmp_path / MARKER_FILENAME).read_text(encoding="utf-8")
