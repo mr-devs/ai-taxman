@@ -222,3 +222,33 @@ def test_return_token_budget_is_default_or_unlimited(provider):
 
 def test_unset_tool_settings_are_left_to_openai(provider):
     assert tool() == {"type": "web_search"}
+
+
+def test_allowed_domains_become_a_filter(provider):
+    filters = tool(allowed_domains=["cdc.gov", "who.int"])["filters"]
+
+    assert filters == {"allowed_domains": ["cdc.gov", "who.int"]}
+
+
+def test_blocked_domains_become_a_filter(provider):
+    filters = tool(blocked_domains=["reddit.com"])["filters"]
+
+    assert filters == {"blocked_domains": ["reddit.com"]}
+
+
+def test_both_domain_lists_share_one_filter(provider):
+    filters = tool(allowed_domains=["cdc.gov"], blocked_domains=["reddit.com"])["filters"]
+
+    assert filters == {"allowed_domains": ["cdc.gov"], "blocked_domains": ["reddit.com"]}
+
+
+def test_at_most_100_domains_per_list(provider):
+    with pytest.raises(ValidationError, match="100"):
+        tool(blocked_domains=[f"site{n}.com" for n in range(101)])
+
+
+@pytest.mark.parametrize("domain", ["https://cdc.gov", "http://who.int/"])
+def test_a_domain_with_a_scheme_is_refused_rather_than_rewritten(provider, domain):
+    """The docs: omit the HTTP or HTTPS prefix. taxman does not edit what was written."""
+    with pytest.raises(ValidationError, match="prefix"):
+        tool(allowed_domains=[domain])

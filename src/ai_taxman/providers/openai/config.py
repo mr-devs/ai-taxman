@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ai_taxman.providers.openai.models import REASONING_EFFORTS, ReasoningEffort
 
@@ -45,6 +45,10 @@ def _blank(value: Any) -> bool:
     return value is None
 
 
+#: The web-search guide's cap on each domain list.
+MAX_DOMAINS = 100
+
+
 class OpenAISearchConfig(_Block):
     """The `search:` block: the web-search tool and its settings.
 
@@ -59,6 +63,22 @@ class OpenAISearchConfig(_Block):
     external_web_access: bool | None = None
     #: GPT-5+ reasoning web search only.
     return_token_budget: Literal["default", "unlimited"] | None = None
+
+    #: Sent together as the tool's `filters`.
+    allowed_domains: list[str] | None = Field(default=None, max_length=MAX_DOMAINS)
+    blocked_domains: list[str] | None = Field(default=None, max_length=MAX_DOMAINS)
+
+    @field_validator("allowed_domains", "blocked_domains")
+    @classmethod
+    def _bare_domains(cls, domains: list[str] | None) -> list[str] | None:
+        """OpenAI wants `openai.com`, not `https://openai.com/`. Refused, not rewritten."""
+        for domain in domains or []:
+            if domain.lower().startswith(("http://", "https://")):
+                raise ValueError(
+                    f"{domain!r}: write the domain without the http:// or https:// prefix, "
+                    "e.g. cdc.gov. Subdomains are included."
+                )
+        return domains
 
     @model_validator(mode="after")
     def _settings_need_web_search(self) -> OpenAISearchConfig:
@@ -121,4 +141,9 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "default | unlimited. GPT-5+ reasoning models only. Use unlimited only for "
         "high-effort research or evaluation runs.",
     ),
+    (
+        "allowed_domains",
+        "Only search these domains, e.g. [cdc.gov, who.int]. Up to 100; subdomains included.",
+    ),
+    ("blocked_domains", "Never search these domains. Up to 100."),
 )

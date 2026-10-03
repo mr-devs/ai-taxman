@@ -145,6 +145,14 @@ def _web_search_tool(search: OpenAISearchConfig) -> dict[str, Any]:
         value = getattr(search, key)
         if value is not None:
             tool[key] = value
+
+    filters = {
+        key: getattr(search, key)
+        for key in ("allowed_domains", "blocked_domains")
+        if getattr(search, key) is not None
+    }
+    if filters:
+        tool["filters"] = filters
     return tool
 
 
