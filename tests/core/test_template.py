@@ -5,7 +5,7 @@ that down above the key. So what the file says a setting takes is read from the
 same field that validates it, and the two cannot drift apart.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 import yaml
@@ -158,7 +158,7 @@ def test_the_type_says_what_the_setting_takes(annotation, constraints, expected)
 def test_the_type_line_follows_the_explanation():
     lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "temperature")
 
-    assert lines == ["# How random sampling is.", "#   Type:     number"]
+    assert lines[:2] == ["# How random sampling is.", "#   Type:     number"]
 
 
 def test_a_nested_block_has_no_type_line():
@@ -263,3 +263,101 @@ def test_an_unknown_documentation_key_is_refused():
 
     with pytest.raises(ValueError, match="optoins"):
         render_block(One)
+
+
+# --- what happens when it is left alone ------------------------------------
+
+
+def defaulted(default=None, **field):
+    class One(BaseModel):
+        setting: Any = Field(default=default, description="A setting.", **field)
+
+    return label(render_block(One), "setting", "Default")
+
+
+def test_a_required_setting_says_so_instead_of_naming_a_default():
+    lines = render_block(Settings, values={"name": "gpt-5"})
+
+    assert label(lines, "name", "Required") == "yes"
+    assert label(lines, "name", "Default") is None
+
+
+def test_a_blank_setting_says_what_blank_means():
+    assert defaulted(json_schema_extra={"blank": "no limit"}) == "blank (no limit)"
+
+
+def test_a_blank_setting_with_nothing_more_to_say_is_called_blank():
+    assert defaulted() == "blank"
+
+
+@pytest.mark.parametrize(
+    "default, written", [(False, "false"), (1, "1"), (120.0, "120"), ("continue", "continue")]
+)
+def test_a_default_is_named_as_it_would_be_written(default, written):
+    assert defaulted(default) == written
+
+
+def test_a_default_from_a_factory_is_named_too():
+    class One(BaseModel):
+        setting: list[str] = Field(default_factory=lambda: ["sources"], description="A.")
+
+    assert label(render_block(One), "setting", "Default") == "[sources]"
+
+
+def test_blank_is_explained_only_where_blank_is_the_default():
+    """Blank means the default; a second explanation could only contradict it."""
+
+    class One(BaseModel):
+        setting: bool = Field(default=False, description="A.", json_schema_extra={"blank": "x"})
+
+    with pytest.raises(ValueError, match="`setting` explains what blank means"):
+        render_block(One)
+
+
+def test_the_default_comes_after_the_type():
+    lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "temperature")
+
+    assert lines == [
+        "# How random sampling is.",
+        "#   Type:     number",
+        "#   Default:  blank",
+    ]
+
+
+# --- writing the defaults in -------------------------------------------------
+
+
+class Execution(BaseModel):
+    repeats: int = Field(default=1, description="Times to send each message.")
+    timeout_s: float = Field(default=120.0, description="Seconds to wait.")
+    note: str | None = Field(default=None, description="A note.")
+    inner: Location = Field(default_factory=Location, description="A block.")
+
+
+def test_settings_are_left_blank_unless_asked_to_write_their_defaults():
+    lines = render_block(Execution)
+
+    assert "repeats:" in lines
+    assert "timeout_s:" in lines
+
+
+def test_defaults_can_be_written_in_as_the_values():
+    lines = render_block(Execution, defaults=True)
+
+    assert "repeats: 1" in lines
+    assert "timeout_s: 120" in lines
+
+
+def test_a_blank_default_stays_blank_when_defaults_are_written():
+    assert "note:" in render_block(Execution, defaults=True)
+
+
+def test_a_given_value_wins_over_the_default():
+    assert "repeats: 3" in render_block(Execution, defaults=True, values={"repeats": 3})
+
+
+def test_writing_defaults_reaches_into_nested_blocks():
+    class Outer(BaseModel):
+        execution: Execution = Field(default_factory=Execution, description="A block.")
+
+    assert "  repeats: 1" in render_block(Outer, defaults=True)

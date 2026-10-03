@@ -10,6 +10,8 @@ have, and may say more in `json_schema_extra`:
 
 - `options`: what each value of a `Literal` means, keyed by value. It must name
   exactly the values the field accepts.
+- `blank`: what leaving the setting blank does, for a field whose default is
+  None - "no limit", say, or "not sent, so the model's own default applies".
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ NOUNS: dict[type, tuple[str, str]] = {
 }
 
 #: What a field may say about itself in `json_schema_extra`. See the module docstring.
-DOC_KEYS = frozenset({"options"})
+DOC_KEYS = frozenset({"options", "blank"})
 
 
 def render_block(
@@ -45,21 +47,25 @@ def render_block(
     *,
     indent: int = 0,
     values: Mapping[str, Any] | None = None,
+    defaults: bool = False,
 ) -> list[str]:
     """Every setting in `model`, each under the comment that explains it.
 
-    A setting is written with its value from `values` and left blank otherwise.
-    A nested block takes its own values as a nested mapping.
+    A setting is written with its value from `values`, or with its default when
+    `defaults` is true, and left blank otherwise. A nested block takes its own
+    values as a nested mapping.
     """
     values = values or {}
     settings = [
-        _render_setting(key, field, indent=indent, value=values.get(key))
+        _render_setting(key, field, indent=indent, value=values.get(key), defaults=defaults)
         for key, field in model.model_fields.items()
     ]
     return [line for i, setting in enumerate(settings) for line in ([""] if i else []) + setting]
 
 
-def _render_setting(key: str, field: FieldInfo, *, indent: int, value: Any) -> list[str]:
+def _render_setting(
+    key: str, field: FieldInfo, *, indent: int, value: Any, defaults: bool
+) -> list[str]:
     if not field.description:
         raise ValueError(f"`{key}` has no description to explain it in the audit file.")
     doc = _doc(key, field)
@@ -67,13 +73,17 @@ def _render_setting(key: str, field: FieldInfo, *, indent: int, value: Any) -> l
     lines = _wrap(field.description, pad)
     block = _block_model(field.annotation)
     if block is not None:
-        return [*lines, f"{pad}{key}:", *render_block(block, indent=indent + 2, values=value)]
+        inner = render_block(block, indent=indent + 2, values=value, defaults=defaults)
+        return [*lines, f"{pad}{key}:", *inner]
     allowed = _options(field)
     if allowed:
         lines += _option_lines(key, pad, allowed, doc.get("options"))
     kind = _describe_type(field)
     if kind:
         lines.append(_label(pad, "Type", kind))
+    lines.append(_default_line(key, field, pad, doc.get("blank")))
+    if value is None and defaults and not field.is_required():
+        value = field.get_default(call_default_factory=True)
     written = _yaml_value(value)
     return [*lines, f"{pad}{key}: {written}" if written else f"{pad}{key}:"]
 
@@ -85,6 +95,21 @@ def _doc(key: str, field: FieldInfo) -> dict[str, Any]:
     if unknown:
         raise ValueError(f"`{key}` documents itself with unknown keys: {', '.join(unknown)}.")
     return extra
+
+
+def _default_line(key: str, field: FieldInfo, pad: str, blank: Any) -> str:
+    """What the setting is when the user leaves it alone, or that they cannot."""
+    if field.is_required():
+        return _label(pad, "Required", "yes")
+    default = field.get_default(call_default_factory=True)
+    if default is not None:
+        if blank is not None:
+            raise ValueError(
+                f"`{key}` explains what blank means, but blank is its default, "
+                f"{_yaml_value(default)}."
+            )
+        return _label(pad, "Default", _yaml_value(default))
+    return _label(pad, "Default", f"blank ({blank})" if blank else "blank")
 
 
 def _label(pad: str, name: str, text: str) -> str:
@@ -210,5 +235,7 @@ def _yaml_value(value: Any) -> str:
         return ""
     if isinstance(value, str):
         return yaml_scalar(value)
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)  # `120`, as the user would write it, not `120.0`
     text = yaml.safe_dump(value, default_flow_style=True, width=float("inf"))
     return text.removesuffix("\n...\n").rstrip("\n")
