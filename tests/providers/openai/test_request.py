@@ -393,6 +393,23 @@ def test_extra_cannot_ask_for_a_response_send_could_not_record(provider, key):
         request_for({"name": "gpt-5", "extra": {key: True}})
 
 
+def test_a_request_never_shares_the_audits_search_lists(provider):
+    """Every request in a run is built from one config; none may write back into it."""
+    search = {"web_search": True, "allowed_domains": ["cdc.gov"], "blocked_domains": ["x.com"]}
+    config = OpenAIProvider().validate_model_config({"name": "gpt-5", "search": search})
+    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    first = build_request(Request(message=message, repeat=0, model=config))
+    first["tools"][0]["filters"]["allowed_domains"].append("example.com")
+    first["tools"][0]["filters"]["blocked_domains"].clear()
+
+    second = build_request(Request(message=message, repeat=1, model=config))
+
+    assert second["tools"][0]["filters"] == {
+        "allowed_domains": ["cdc.gov"],
+        "blocked_domains": ["x.com"],
+    }
+
+
 def test_every_key_taxman_sends_is_protected_from_extra(provider):
     """A new named setting must join SET_BY_TAXMAN, or `extra:` could override it."""
     from ai_taxman.providers.openai.config import SET_BY_TAXMAN
