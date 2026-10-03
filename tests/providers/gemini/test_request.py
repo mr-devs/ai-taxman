@@ -197,6 +197,7 @@ def test_every_key_taxman_sends_is_protected_from_extra():
         "thinking_level": "low",
         "thinking_summaries": "auto",
         "store": True,
+        "search": {"web_search": True, "search_types": ["web_search"]},
     }
     payload = request_for(block, system_prompt="Be terse.")
 
@@ -211,3 +212,52 @@ def leaf_paths(payload, prefix=""):
             yield from leaf_paths(value, f"{path}.")
         else:
             yield path
+
+
+# -- Google Search -----------------------------------------------------------
+
+
+def search(**settings):
+    return request_for({**BASE, "search": {"web_search": True, **settings}})
+
+
+def test_web_search_gives_the_model_the_google_search_tool():
+    assert search()["tools"] == [{"type": "google_search"}]
+
+
+@pytest.mark.parametrize(
+    "types", [["web_search"], ["image_search"], ["web_search", "image_search"]]
+)
+def test_search_types_go_on_the_tool(types):
+    assert search(search_types=types)["tools"] == [{"type": "google_search", "search_types": types}]
+
+
+def test_an_unknown_search_type_is_refused():
+    with pytest.raises(ValidationError, match=r"search_types\.0"):
+        search(search_types=["news_search"])
+
+
+def test_web_search_false_adds_no_tools():
+    assert "tools" not in request_for({**BASE, "search": {"web_search": False}})
+
+
+def test_a_blank_search_block_adds_no_tools():
+    assert "tools" not in request_for(
+        {**BASE, "search": {"web_search": None, "search_types": None}}
+    )
+
+
+def test_web_search_lives_in_the_search_block():
+    with pytest.raises(ValidationError, match="web_search"):
+        request_for({**BASE, "web_search": True})
+
+
+def test_a_search_setting_without_web_search_is_refused():
+    """A setting for a tool that is not sent would be recorded but never used."""
+    with pytest.raises(ValidationError, match="is not true"):
+        request_for({**BASE, "search": {"search_types": ["web_search"]}})
+
+
+def test_extra_cannot_add_tools_of_its_own():
+    with pytest.raises(ValidationError, match="cannot set tools"):
+        request_for({**BASE, "extra": {"tools": []}})

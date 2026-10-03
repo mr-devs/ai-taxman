@@ -160,3 +160,19 @@ def _make_gemini_error(name):
     compat_errors = pytest.importorskip("google.genai._gaos.lib.compat_errors")
     cls = getattr(compat_errors, name)
     return cls.__new__(cls)
+
+
+def test_web_search_is_set_in_a_search_block_inside_the_model_block():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
+
+    assert "web_search" not in parsed
+    assert parsed["search"]["web_search"] is None
+
+
+def test_the_search_block_says_its_settings_need_web_search():
+    lines = PROVIDER.render_template().splitlines()
+    index = lines.index("  search:")
+
+    assert lines[index - 1] == (
+        "  # Google Search. web_search must be true to use any other setting in this block."
+    )

@@ -58,6 +58,7 @@ SET_BY_TAXMAN = frozenset(
         "generation_config.max_output_tokens",
         "generation_config.thinking_level",
         "generation_config.thinking_summaries",
+        "tools",
     }
 )
 
@@ -66,6 +67,33 @@ NEVER_SENT = {
     "stream": "a stream is not a response, so there would be nothing whole to record",
     "background": "a background interaction comes back before it has an answer to record",
 }
+
+
+class GeminiSearchConfig(_Block):
+    """The `search:` block: grounding with Google Search, and its settings.
+
+    The Interactions API's `google_search` tool takes nothing but `search_types`:
+    no domain filters and no location. Names are Google's own.
+    """
+
+    #: Give the model the `google_search` tool.
+    web_search: bool = False
+
+    #: Which kinds of result to search for. Blank leaves Google's default.
+    search_types: list[Literal["web_search", "image_search"]] | None = Field(
+        default=None, min_length=1
+    )
+
+    @model_validator(mode="after")
+    def _settings_need_web_search(self) -> GeminiSearchConfig:
+        """A setting for a tool that is not sent would be recorded but never used."""
+        chosen = sorted(self.model_fields_set - {"web_search"})
+        if chosen and not self.web_search:
+            raise ValueError(
+                f"{', '.join(chosen)} set in `search:`, but `web_search` is not true. "
+                "Set `web_search: true`, or leave the other search settings blank."
+            )
+        return self
 
 
 class GeminiModelConfig(_Block):
@@ -92,6 +120,9 @@ class GeminiModelConfig(_Block):
     #: Escape hatch for API parameters this config does not name yet. Merged into
     #: the request as written - but never over one it does name.
     extra: dict[str, Any] = Field(default_factory=dict)
+
+    #: Last, as in the template: it is the one nested block.
+    search: GeminiSearchConfig = Field(default_factory=GeminiSearchConfig)
 
     @field_validator("extra")
     @classmethod
@@ -150,5 +181,14 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     (
         "store",
         "true to let Google keep the interaction (55 days paid tier, 1 day free). Blank = false.",
+    ),
+)
+
+#: The `search:` block, in this order, below a comment saying it needs web_search.
+SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("web_search", "true to ground answers with Google Search."),
+    (
+        "search_types",
+        "[web_search], [image_search], or both. Blank = Google's default.",
     ),
 )

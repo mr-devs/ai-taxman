@@ -25,8 +25,10 @@ from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.gemini.config import (
     GENERATION_CONFIG_KEYS,
+    SEARCH_TEMPLATE_FIELDS,
     TEMPLATE_FIELDS,
     GeminiModelConfig,
+    GeminiSearchConfig,
 )
 from ai_taxman.providers.gemini.models import DEFAULT_MODEL, KNOWN_MODELS
 
@@ -141,11 +143,21 @@ def build_request(request: Request) -> dict[str, Any]:
     }
     if generation_config:
         payload["generation_config"] = generation_config
+    if config.search.web_search:
+        payload["tools"] = [_google_search_tool(config.search)]
     if request.system_prompt:
         payload["system_instruction"] = request.system_prompt
 
     _merge(payload, config.extra)
     return payload
+
+
+def _google_search_tool(search: GeminiSearchConfig) -> dict[str, Any]:
+    """The `google_search` tool, carrying only the settings the audit chose."""
+    tool: dict[str, Any] = {"type": "google_search"}
+    if search.search_types is not None:
+        tool["search_types"] = list(search.search_types)
+    return tool
 
 
 def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
@@ -174,6 +186,13 @@ def render_template() -> str:
     ]
     for key, comment in TEMPLATE_FIELDS:
         lines.append(f"  {key}:  # {comment}")
+    lines += [
+        "",
+        "  # Google Search. web_search must be true to use any other setting in this block.",
+        "  search:",
+    ]
+    for key, comment in SEARCH_TEMPLATE_FIELDS:
+        lines.append(f"    {key}:  # {comment}")
     return "\n".join(lines) + "\n"
 
 
