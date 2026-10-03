@@ -180,3 +180,25 @@ def test_display_without_a_type_is_refused():
 def test_the_thinking_block_refuses_a_setting_it_does_not_know():
     with pytest.raises(ValidationError, match="bogus"):
         thinking(type="adaptive", bogus=1)
+
+
+# -- sampling ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("key, value", [("temperature", 0.2), ("top_p", 0.99), ("top_k", 40)])
+def test_a_sampling_parameter_is_sent_when_set(key, value):
+    assert request_for({**BASE, key: value})[key] == value
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        {"temperature": 1.5},
+        {"temperature": -0.1},
+        {"top_p": 1.1},
+        {"top_k": 0},
+    ],
+)
+def test_out_of_range_sampling_values_are_refused(block):
+    with pytest.raises(ValidationError):
+        request_for({**BASE, **block})

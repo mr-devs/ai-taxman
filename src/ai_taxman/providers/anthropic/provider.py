@@ -129,6 +129,10 @@ def build_request(request: Request) -> dict[str, Any]:
         "max_tokens": config.max_tokens,
         "messages": request_messages,
     }
+    for key in ("temperature", "top_p", "top_k"):
+        value = getattr(config, key)
+        if value is not None:
+            payload[key] = value
     if config.effort is not None:
         payload["output_config"] = {"effort": config.effort}
     if config.thinking.type is not None:

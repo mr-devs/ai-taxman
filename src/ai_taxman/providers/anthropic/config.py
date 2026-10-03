@@ -96,6 +96,12 @@ class AnthropicModelConfig(_Block):
     #: Sent as `output_config.effort`. Blank leaves the model's own default.
     effort: Effort | None = None
 
+    #: Sent only when set. Models after Claude Opus 4.6 refuse anything but
+    #: temperature 1.0 and top_p >= 0.99, and refuse top_k outright; the API says so.
+    temperature: float | None = Field(default=None, ge=0, le=1)
+    top_p: float | None = Field(default=None, ge=0, le=1)
+    top_k: int | None = Field(default=None, ge=1)
+
     #: Last, as in the template: it is a nested block.
     thinking: AnthropicThinking = Field(default_factory=AnthropicThinking)
 
@@ -118,6 +124,12 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         f"{' | '.join(EFFORTS)}. How much work Claude puts in, thinking included. "
         "Blank = the model's default. Not every model takes every level.",
     ),
+    (
+        "temperature",
+        "0.0 - 1.0. Leave blank: models after Claude Opus 4.6 accept only 1.0.",
+    ),
+    ("top_p", "0.0 - 1.0. Leave blank: models after Claude Opus 4.6 accept only 0.99 or more."),
+    ("top_k", "Sample from the top K tokens. Models after Claude Opus 4.6 reject it."),
 )
 
 #: The `thinking:` block, in this order, below a comment saying blank is the default.
