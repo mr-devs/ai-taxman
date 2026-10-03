@@ -124,6 +124,20 @@ def test_tells_the_user_what_to_do_next(invoke):
     )
 
 
+def test_paths_are_relative_to_the_project_wherever_the_user_stands(invoke, tmp_path, monkeypatch):
+    """Run from inside the audits folder, every path still reads from the root."""
+    (tmp_path / "audits").mkdir()
+    monkeypatch.chdir(tmp_path / "audits")
+
+    result = invoke("audits", "new", "openai", "probe")
+
+    assert result.output.splitlines()[0] == "Created audits/probe.yaml"
+    assert "  1. Write your messages, one per line, in messages/probe.txt" in result.output
+    assert "  2. Review settings in audits/probe.yaml." in result.output
+    assert "as specified in audits/probe.yaml," in result.output
+    assert str(tmp_path) not in result.output
+
+
 def test_next_steps_name_the_audit_file_by_its_path_in_the_project(invoke, tmp_path):
     custom_project(tmp_path)
 
