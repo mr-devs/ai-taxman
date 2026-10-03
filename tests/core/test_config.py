@@ -115,6 +115,31 @@ def test_output_dir_expands_audit_and_run_id(tmp_path):
     assert resolved == tmp_path / "data" / "my-audit" / "20260830T142201Z-a1b2c3"
 
 
+def test_no_system_prompt_by_default(tmp_path):
+    config = load_audit(write_audit(tmp_path))
+
+    assert config.system_prompt_path is None
+
+
+def test_the_system_prompt_resolves_against_the_project_root(tmp_path):
+    from ai_taxman.core.discovery import write_marker
+
+    write_marker(tmp_path)
+    config = load_audit(
+        write_audit(
+            tmp_path / "taxman" / "audits",
+            """
+            audit: my-audit
+            provider: openai
+            messages: messages/probe.txt
+            system_prompt: taxman/prompts/neutral.txt
+            """,
+        )
+    )
+
+    assert config.system_prompt_path == tmp_path / "taxman" / "prompts" / "neutral.txt"
+
+
 def test_each_run_logs_to_a_file_named_after_it(tmp_path):
     config = load_audit(write_audit(tmp_path))
 

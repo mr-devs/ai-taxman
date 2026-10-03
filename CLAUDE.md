@@ -45,6 +45,11 @@ suite if `pip` reappears.
 The unit of input is a **message**. Never "query", never "prompt" — not in code, config keys, CLI
 help, docstrings, docs, or test names. Use `Message`, `message_id`, `read_messages()`, `messages:`.
 
+The one exception is **system prompt**: the text set once per audit, as a file in the
+project's prompts folder, and named by the audit's top-level `system_prompt:` key. Core reads
+it and hands the text to the provider in `Request.system_prompt`; each provider sends it the
+way its API takes one. A provider's `model:` block never carries its own.
+
 Provider APIs call their chat-turn arrays `messages` too. Keep that sense **inside the provider
 adapter** and name the variable `request_messages` so the two never blur.
 

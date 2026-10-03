@@ -22,7 +22,7 @@ key to the `model:` block.
 | `responses.create` call | `provider.py` `send()` | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md), [Responses resource](https://developers.openai.com/api/reference/resources/responses.md) |
 | `input` (the message text) | `provider.py` `build_request()` | [Text generation](https://developers.openai.com/api/docs/guides/text.md) |
 | `model:` `name` | `config.py` | [Models catalog](https://developers.openai.com/api/docs/models.md), [All models](https://developers.openai.com/api/docs/models/all.md) |
-| `system_prompt` → `instructions` | `provider.py` | [Text generation](https://developers.openai.com/api/docs/guides/text.md) |
+| `system_prompt` (core's, `Request.system_prompt`) → `instructions` | `provider.py` | [Text generation](https://developers.openai.com/api/docs/guides/text.md) |
 | `temperature`, `top_p` | `config.py` | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) |
 | `max_output_tokens` | `config.py` | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) |
 | `reasoning_effort` → `reasoning.effort` | `provider.py` | [Reasoning models](https://developers.openai.com/api/docs/guides/reasoning.md), [Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices.md) |

@@ -284,6 +284,58 @@ async def test_a_missing_message_file_is_reported_before_anything_is_sent(projec
     assert fake_provider.sent == []
 
 
+def with_system_prompt(project, text="Be terse.\n"):
+    (project / "prompts").mkdir(exist_ok=True)
+    (project / "prompts" / "neutral.txt").write_text(text, encoding="utf-8")
+    body = (
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "system_prompt: prompts/neutral.txt\nmodel:\n  name: fake-1\n"
+    )
+    return write_audit(project, body)
+
+
+async def test_the_system_prompt_goes_with_every_request(project, fake_provider):
+    await run_audit_async(with_system_prompt(project))
+
+    assert [r.system_prompt for r in fake_provider.sent] == ["Be terse."] * 3
+
+
+async def test_without_a_system_prompt_none_is_sent(project, fake_provider):
+    await run_audit_async(audit(project))
+
+    assert all(r.system_prompt is None for r in fake_provider.sent)
+
+
+async def test_the_manifest_records_which_system_prompt_was_sent(project, fake_provider):
+    from ai_taxman.core.messages import hash_message
+
+    result = await run_audit_async(with_system_prompt(project))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["system_prompt_path"] == "prompts/neutral.txt"
+    assert manifest["system_prompt_hash"] == hash_message("Be terse.")
+
+
+async def test_every_record_carries_the_system_prompt_hash(project, fake_provider):
+    from ai_taxman.core.messages import hash_message
+
+    result = await run_audit_async(with_system_prompt(project))
+
+    rows = list(read_jsonl(result.output_path))
+    assert {row.system_prompt_hash for row in rows} == {hash_message("Be terse.")}
+
+
+async def test_a_missing_system_prompt_is_reported_before_anything_is_sent(project, fake_provider):
+    config = with_system_prompt(project)
+    (project / "prompts" / "neutral.txt").unlink()
+
+    with pytest.raises(ConfigError, match="system_prompt"):
+        await run_audit_async(config)
+
+    assert fake_provider.sent == []
+    assert not (project / "data").exists()
+
+
 async def test_progress_callback_sees_every_record(project, fake_provider):
     seen = []
 

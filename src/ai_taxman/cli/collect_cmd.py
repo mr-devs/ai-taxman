@@ -207,12 +207,13 @@ def _start_in_background(
     from ai_taxman.core.config import resolve_log_file, resolve_output_dir
     from ai_taxman.core.messages import read_messages
     from ai_taxman.core.records import new_run_id, validate_run_id
-    from ai_taxman.core.runner import resolve_key, validate_model
+    from ai_taxman.core.runner import load_system_prompt, resolve_key, validate_model
 
     # Everything checkable without doing the run, checked before the fork: a pid
     # for a run that could never have worked is worse than an error here.
     model = provider.describe_model(validate_model(provider, config))
     read_messages(config.messages_path)
+    load_system_prompt(config)
     resolve_key(provider, config)
 
     # The user's id if they named one, so `-b` behaves like the foreground run.

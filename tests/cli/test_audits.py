@@ -153,6 +153,22 @@ def test_show_names_the_file_from_where_the_user_stands(invoke, tmp_path):
     assert result.output.startswith("# audits/probe.yaml\n")
 
 
+def test_validate_reports_a_missing_system_prompt(invoke, tmp_path, fake_provider):
+    (tmp_path / "audits").mkdir()
+    (tmp_path / "audits" / "probe.yaml").write_text(
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "system_prompt: prompts/absent.txt\nmodel:\n  name: fake-1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "absent.txt" in result.output
+
+
 def test_validate_rejects_a_bad_model_block(invoke, tmp_path, fake_provider):
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(

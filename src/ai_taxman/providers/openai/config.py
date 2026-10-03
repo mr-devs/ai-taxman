@@ -48,9 +48,6 @@ class OpenAIModelConfig(BaseModel):
     #: Give the model the web-search tool.
     web_search: bool = False
 
-    #: Sent as `instructions`.
-    system_prompt: str | None = None
-
     #: Whether OpenAI retains the response server-side. Off by default: an audit
     #: should not leave a trail in the account it is auditing from.
     store: bool = False
@@ -67,6 +64,5 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     ("max_output_tokens", "Cap on the response length."),
     ("reasoning_effort", f"Reasoning models only: {' | '.join(REASONING_EFFORTS)}."),
     ("web_search", "true to give the model the web-search tool."),
-    ("system_prompt", "Sent as `instructions`."),
     ("store", "true to let OpenAI retain the response server-side."),
 )

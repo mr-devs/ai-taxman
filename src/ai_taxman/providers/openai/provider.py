@@ -126,8 +126,8 @@ def build_request(request: Request) -> dict[str, Any]:
         payload["reasoning"] = {"effort": config.reasoning_effort}
     if config.web_search:
         payload["tools"] = [{"type": "web_search"}]
-    if config.system_prompt:
-        payload["instructions"] = config.system_prompt
+    if request.system_prompt:
+        payload["instructions"] = request.system_prompt
 
     payload.update(config.extra)
     return payload

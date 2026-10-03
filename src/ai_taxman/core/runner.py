@@ -31,7 +31,8 @@ from ai_taxman.core.config import AuditConfig, load_audit, resolve_output_dir
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
 from ai_taxman.core.logging import get_logger
-from ai_taxman.core.messages import Message, read_messages
+from ai_taxman.core.messages import Message, hash_message, read_messages
+from ai_taxman.core.prompts import SystemPrompt, read_system_prompt
 from ai_taxman.core.records import (
     RESPONSE_SCHEMA_VERSION,
     ResponseRecord,
@@ -118,6 +119,7 @@ async def run_audit_async(
     """
     provider = provider or get_provider(config.provider)
     messages = read_messages(config.messages_path)
+    system_prompt = load_system_prompt(config)
     model = validate_model(provider, config)
     api_key = resolve_key(provider, config)
 
@@ -136,7 +138,7 @@ async def run_audit_async(
     directory = resolve_output_dir(config, run_id=run_id)
     _guard_run_directory(directory, run_id=run_id)
 
-    manifest = _new_manifest(config, provider, model, messages, run_id)
+    manifest = _new_manifest(config, provider, model, messages, run_id, system_prompt)
     manifest_path = directory / MANIFEST_FILENAME
 
     state = _RunState(on_error=config.execution.on_error)
@@ -172,6 +174,7 @@ async def run_audit_async(
                 provider=provider,
                 config=config,
                 model=model,
+                system_prompt=system_prompt.text if system_prompt else None,
                 run_id=run_id,
                 limit=limit,
                 backoff_base=backoff_base,
@@ -302,6 +305,16 @@ def _existing_run_id(path: Path) -> str | None:
     return run_id if isinstance(run_id, str) else None
 
 
+def load_system_prompt(config: AuditConfig) -> SystemPrompt | None:
+    """Read the audit's system prompt file, if it names one.
+
+    Public because `audits validate` and `collect --background` make the same
+    check before anything is sent.
+    """
+    path = config.system_prompt_path
+    return read_system_prompt(path) if path is not None else None
+
+
 def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
     """Look up the one variable this audit names, if the provider needs a key.
 
@@ -377,6 +390,7 @@ async def _dispatch(
     provider: Provider,
     config: AuditConfig,
     model: object,
+    system_prompt: str | None,
     run_id: str,
     limit: int,
     backoff_base: float,
@@ -398,7 +412,7 @@ async def _dispatch(
             if state.stop.is_set():
                 return None
             return await _attempt(
-                Request(message=message, repeat=repeat, model=model),
+                Request(message=message, repeat=repeat, model=model, system_prompt=system_prompt),
                 provider=provider,
                 config=config,
                 run_id=run_id,
@@ -518,6 +532,7 @@ def _record(
         message_hash=request.message.hash,
         message=request.message.text,
         repeat=request.repeat,
+        system_prompt_hash=hash_message(request.system_prompt) if request.system_prompt else None,
         provider=config.provider,
         model=model_name,
         requested_at=timestamp(started),
@@ -551,6 +566,7 @@ def _new_manifest(
     model: object,
     messages: list[Message],
     run_id: str,
+    system_prompt: SystemPrompt | None,
 ) -> RunManifest:
     from ai_taxman import __version__
 
@@ -563,6 +579,10 @@ def _new_manifest(
         schema_version=RESPONSE_SCHEMA_VERSION,
         messages_path=_project_relative(config.messages_path, config.project_root),
         messages_hash=_file_hash(config.messages_path),
+        system_prompt_path=(
+            _project_relative(system_prompt.path, config.project_root) if system_prompt else None
+        ),
+        system_prompt_hash=system_prompt.hash if system_prompt else None,
         n_messages=len(messages),
         repeats=config.execution.repeats,
         config=config.model_dump(mode="json"),

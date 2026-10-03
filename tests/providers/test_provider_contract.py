@@ -44,6 +44,15 @@ def test_render_template_takes_no_arguments():
     assert list(parameters) == ["self"]
 
 
+def test_a_request_carries_no_system_prompt_unless_the_audit_names_one():
+    from ai_taxman.core.messages import Message
+    from ai_taxman.providers.base import Request
+
+    message = Message(id="m0000", text="hi", hash="sha256:x", line_number=1)
+
+    assert Request(message=message, repeat=0, model={}).system_prompt is None
+
+
 def test_describe_model_names_the_model_for_the_record(fake_provider):
     """Core needs a model name for every record without knowing the block's shape."""
     config = fake_provider.validate_model_config({"name": "fake-2"})

@@ -81,6 +81,9 @@ class AuditConfig(_Strict):
     provider: str
     messages: str
 
+    #: A file of system prompt text, sent with every message. None sends none.
+    system_prompt: str | None = None
+
     #: The single environment variable holding this audit's API key. There is no
     #: fallback: this name, or nothing. Required unless the provider needs no key.
     api_key_env: str | None = None
@@ -108,6 +111,11 @@ class AuditConfig(_Strict):
     def messages_path(self) -> Path:
         """The `.txt` file of messages, as an absolute-ish resolved path."""
         return self._resolve(self.messages)
+
+    @property
+    def system_prompt_path(self) -> Path | None:
+        """The system prompt file, resolved, or None when the audit names none."""
+        return self._resolve(self.system_prompt) if self.system_prompt else None
 
     def _resolve(self, value: str) -> Path:
         path = Path(value).expanduser()

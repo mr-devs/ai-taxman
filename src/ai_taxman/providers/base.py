@@ -32,6 +32,9 @@ class Request:
     repeat: int
     #: The audit's validated `model:` block, as returned by `validate_model_config`.
     model: Any
+    #: The audit's system prompt text, or None. Each provider sends it the way its
+    #: own API takes one.
+    system_prompt: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

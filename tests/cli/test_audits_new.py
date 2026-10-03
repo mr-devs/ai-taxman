@@ -214,6 +214,28 @@ def test_logs_go_to_the_projects_logs_folder(invoke, tmp_path):
     assert audit["output"]["log_dir"] == "taxman/logs/{audit}"
 
 
+def test_no_system_prompt_is_set_until_the_user_names_one(invoke, tmp_path):
+    invoke("audits", "new", "openai", "probe")
+
+    assert read(tmp_path, "probe")["system_prompt"] is None
+
+
+def test_the_system_prompt_comment_points_at_the_prompts_folder(invoke, tmp_path):
+    custom_project(tmp_path)
+    invoke("audits", "new", "openai", "probe")
+    text = (tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8")
+
+    comment = text.split("system_prompt:")[0].splitlines()[-1]
+    assert comment.lstrip().startswith("#")
+    assert "taxman/prompts/" in comment
+
+
+def test_the_model_block_no_longer_carries_a_system_prompt(invoke, tmp_path):
+    invoke("audits", "new", "openai", "probe")
+
+    assert "system_prompt" not in read(tmp_path, "probe")["model"]
+
+
 def test_next_steps_name_the_projects_messages_folder(invoke, tmp_path):
     custom_project(tmp_path)
 

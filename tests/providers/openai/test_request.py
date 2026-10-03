@@ -20,10 +20,12 @@ def provider():
     return OpenAIProvider()
 
 
-def request_for(block, text="hello"):
+def request_for(block, text="hello", system_prompt=None):
     config = OpenAIProvider().validate_model_config(block)
     message = Message(id="m0000", text=text, hash="sha256:x", line_number=1)
-    return build_request(Request(message=message, repeat=0, model=config))
+    return build_request(
+        Request(message=message, repeat=0, model=config, system_prompt=system_prompt)
+    )
 
 
 def test_sends_the_message_as_the_input(provider):
@@ -82,10 +84,20 @@ def test_web_search_false_adds_no_tools(provider):
     assert "tools" not in request_for({"name": "gpt-5", "web_search": False})
 
 
-def test_system_prompt_becomes_instructions(provider):
-    payload = request_for({"name": "gpt-5", "system_prompt": "Be terse."})
+def test_the_system_prompt_becomes_instructions(provider):
+    payload = request_for({"name": "gpt-5"}, system_prompt="Be terse.")
 
     assert payload["instructions"] == "Be terse."
+
+
+def test_no_system_prompt_sends_no_instructions(provider):
+    assert "instructions" not in request_for({"name": "gpt-5"})
+
+
+def test_the_model_block_takes_no_system_prompt(provider):
+    """It is set once, as a file, in the audit's top-level `system_prompt:`."""
+    with pytest.raises(ValidationError):
+        request_for({"name": "gpt-5", "system_prompt": "Be terse."})
 
 
 def test_store_defaults_to_false_so_audits_leave_no_server_side_trace(provider):

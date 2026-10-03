@@ -216,6 +216,7 @@ commented, ready for you to edit:
 audit: election-probe
 provider: openai
 messages: taxman/messages/election-probe.txt
+system_prompt:             # a file in taxman/prompts/, sent with every message; blank for none
 
 api_key_env: OPENAI_API_KEY   # you fill this in; the one variable taxman reads
 
@@ -249,6 +250,17 @@ When is the next US federal election?
 Who is eligible to vote by mail?
 ```
 
+To send a system prompt with every message, write it in a file in the prompts folder
+and name that file in the audit:
+
+```yaml
+system_prompt: taxman/prompts/neutral.txt
+```
+
+It is set the same way for every provider, and each provider sends it the way its API
+takes one (OpenAI's `instructions`, for example). The manifest records which file was sent
+and a hash of its text, and every response row carries the same hash.
+
 **3. Run it.**
 
 ```bash
@@ -269,6 +281,8 @@ every response that came back before that moment is already on disk:
   "status": "running",
   "taxman_version": "0.0.2",
   "messages_hash": "sha256:…",
+  "system_prompt_path": "taxman/prompts/neutral.txt",
+  "system_prompt_hash": "sha256:…",
   "n_messages": 40, "repeats": 3,
   "started_at": "…", "finished_at": null,
   "n_ok": 26, "n_error": 0,
@@ -543,6 +557,7 @@ One JSON object per response. The schema is the same for every provider:
   "message_hash": "sha256:…",
   "message": "When is the next US federal election?",
   "repeat": 2,
+  "system_prompt_hash": "sha256:…",
   "provider": "openai",
   "model": "gpt-5",
   "requested_at": "…", "received_at": "…", "latency_ms": 812,

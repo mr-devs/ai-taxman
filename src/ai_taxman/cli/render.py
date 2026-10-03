@@ -48,6 +48,7 @@ def render_audit(
     messages: str,
     output_dir: str,
     log_dir: str,
+    prompts: str,
     api_key_env: str | None = None,
 ) -> str:
     """Return the full text of a new audit file.
@@ -66,6 +67,10 @@ def render_audit(
         f"audit: {audit}",
         f"provider: {provider.name}",
         f"messages: {messages}",
+        "",
+        "# A file of system prompt text sent with every message, e.g.",
+        f"# {prompts}/neutral.txt. Leave blank to send none.",
+        "system_prompt:",
         *(_api_key_block(provider, api_key_env) if api_key_env else []),
         "",
         "output:",
