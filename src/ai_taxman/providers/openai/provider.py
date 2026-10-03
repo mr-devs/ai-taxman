@@ -22,7 +22,11 @@ from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.base import Provider, Request
-from ai_taxman.providers.openai.config import TEMPLATE_FIELDS, OpenAIModelConfig
+from ai_taxman.providers.openai.config import (
+    SEARCH_TEMPLATE_FIELDS,
+    TEMPLATE_FIELDS,
+    OpenAIModelConfig,
+)
 from ai_taxman.providers.openai.models import DEFAULT_MODEL, KNOWN_MODELS
 
 if TYPE_CHECKING:
@@ -124,7 +128,7 @@ def build_request(request: Request) -> dict[str, Any]:
         payload["max_output_tokens"] = config.max_output_tokens
     if config.reasoning_effort is not None:
         payload["reasoning"] = {"effort": config.reasoning_effort}
-    if config.web_search:
+    if config.search.web_search:
         payload["tools"] = [{"type": "web_search"}]
     if request.system_prompt:
         payload["instructions"] = request.system_prompt
@@ -145,6 +149,13 @@ def render_template() -> str:
     ]
     for key, comment in TEMPLATE_FIELDS:
         lines.append(f"  {key}:  # {comment}")
+    lines += [
+        "",
+        "  # Web search. If web_search is not true, the other search settings are ignored.",
+        "  search:",
+    ]
+    for key, comment in SEARCH_TEMPLATE_FIELDS:
+        lines.append(f"    {key}:  # {comment}")
     return "\n".join(lines) + "\n"
 
 

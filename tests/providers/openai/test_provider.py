@@ -56,13 +56,33 @@ def test_template_leaves_every_other_parameter_blank_as_documentation():
 
 
 def test_every_template_line_carries_a_comment():
+    """A setting explains itself inline; a block is explained by the line above it."""
     body = PROVIDER.render_template().splitlines()[1:]
 
-    assert all("#" in line for line in body if line.strip())
+    for previous, line in zip(body, body[1:], strict=False):
+        if line.strip() and "#" not in line:
+            assert line.rstrip().endswith(":"), line
+            assert previous.lstrip().startswith("#"), line
 
 
 def test_max_output_tokens_says_what_it_counts():
     assert "  max_output_tokens:  # Maximum tokens per response." in PROVIDER.render_template()
+
+
+def test_web_search_is_set_in_a_search_block_inside_the_model_block():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
+
+    assert "web_search" not in parsed
+    assert parsed["search"] == {"web_search": None}
+
+
+def test_the_search_block_says_its_settings_need_web_search():
+    lines = PROVIDER.render_template().splitlines()
+    index = lines.index("  search:")
+
+    assert lines[index - 1] == (
+        "  # Web search. If web_search is not true, the other search settings are ignored."
+    )
 
 
 def test_template_takes_no_arguments():

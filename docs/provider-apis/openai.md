@@ -26,7 +26,7 @@ key to the `model:` block.
 | `temperature`, `top_p` | `config.py` | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) |
 | `max_output_tokens` | `config.py` | [Responses — Create](https://developers.openai.com/api/reference/resources/responses/methods/create.md) |
 | `reasoning_effort` → `reasoning.effort` | `provider.py` | [Reasoning models](https://developers.openai.com/api/docs/guides/reasoning.md), [Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices.md) |
-| `web_search` → `tools: [{type: web_search}]` | `provider.py` | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md), [Tools overview](https://developers.openai.com/api/docs/guides/tools.md) |
+| `search.web_search` → `tools: [{type: web_search}]` | `provider.py` | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md), [Tools overview](https://developers.openai.com/api/docs/guides/tools.md) |
 | `store` (always sent, defaults false) | `config.py` | [Data controls](https://developers.openai.com/api/docs/guides/your-data.md), [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state.md) |
 | Retry set: `RateLimitError`, `InternalServerError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Error codes](https://developers.openai.com/api/docs/guides/error-codes.md), [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
 | Client construction, `max_retries=0` | `provider.py` `_new_client()` | [Python SDK](https://developers.openai.com/api/docs/libraries.md) |

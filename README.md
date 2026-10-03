@@ -239,7 +239,9 @@ model:                     # settings specific to the `openai` provider
   name: gpt-5
   temperature:
   reasoning_effort:
-  web_search:
+
+  search:                  # web search: off unless web_search is true
+    web_search:
 ```
 
 **2. Write your messages** — one per line, in a plain `.txt` file. Blank lines

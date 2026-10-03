@@ -75,13 +75,29 @@ def test_the_effort_list_and_the_validated_type_cannot_drift():
 
 
 def test_web_search_becomes_a_tool(provider):
-    payload = request_for({"name": "gpt-5", "web_search": True})
+    payload = request_for({"name": "gpt-5", "search": {"web_search": True}})
 
     assert payload["tools"] == [{"type": "web_search"}]
 
 
 def test_web_search_false_adds_no_tools(provider):
-    assert "tools" not in request_for({"name": "gpt-5", "web_search": False})
+    assert "tools" not in request_for({"name": "gpt-5", "search": {"web_search": False}})
+
+
+def test_a_blank_search_block_adds_no_tools(provider):
+    """`audits new` writes the block with every key blank."""
+    assert "tools" not in request_for({"name": "gpt-5", "search": {"web_search": None}})
+    assert "tools" not in request_for({"name": "gpt-5", "search": None})
+
+
+def test_web_search_lives_in_the_search_block(provider):
+    with pytest.raises(ValidationError):
+        request_for({"name": "gpt-5", "web_search": True})
+
+
+def test_the_search_block_refuses_a_setting_it_does_not_know(provider):
+    with pytest.raises(ValidationError):
+        request_for({"name": "gpt-5", "search": {"web_serch": True}})
 
 
 def test_the_system_prompt_becomes_instructions(provider):
