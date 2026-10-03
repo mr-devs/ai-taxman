@@ -65,6 +65,52 @@ def test_claude_md_points_at_the_directory():
     assert "docs/provider-apis/" in text
 
 
+#: The markdown twin of a docs page is its URL plus one of these. See the README.
+MARKDOWN_SUFFIXES = (".md", ".md.txt")
+
+#: A `Docs:` line in a generated template.
+DOCS_LINE = re.compile(r"#\s+Docs:\s+(\S+)")
+
+
+def template_links(provider):
+    """Every page a provider's template links its settings to."""
+    return DOCS_LINE.findall(provider.render_template())
+
+
+def unlisted(links, listing):
+    """The links whose markdown twin `listing` does not name."""
+    listed = set(LINK.findall(listing))
+    return [url for url in links if not any(url + suffix in listed for suffix in MARKDOWN_SUFFIXES)]
+
+
+def test_a_link_missing_from_the_listing_is_caught():
+    listing = "[Create](https://example.com/create.md)"
+
+    assert unlisted(["https://example.com/create", "https://example.com/made-up"], listing) == [
+        "https://example.com/made-up"
+    ]
+
+
+def registered_providers():
+    from ai_taxman.core.registry import available_providers, get_provider
+
+    return [get_provider(name) for name in available_providers()]
+
+
+@pytest.mark.parametrize("provider", registered_providers(), ids=lambda p: p.name)
+def test_every_template_link_is_a_page_the_provider_file_lists(provider):
+    """A link in an audit file is only as good as the check its listed twin gets.
+
+    The live test below fetches every listed page, so a link that is not listed
+    is one nothing checks. List the page in docs/provider-apis/ first.
+    """
+    links = template_links(provider)
+    listing = (DOCS / f"{provider.name}.md").read_text(encoding="utf-8")
+
+    assert links, "the template links none of its settings to the provider's docs"
+    assert unlisted(links, listing) == []
+
+
 def documented_urls():
     """Every link target across the directory, deduplicated."""
     urls = set()
