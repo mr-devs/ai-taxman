@@ -157,6 +157,10 @@ def _web_search_tool(search: OpenAISearchConfig) -> dict[str, Any]:
     }
     if filters:
         tool["filters"] = filters
+
+    if search.user_location is not None:
+        location = search.user_location.model_dump(exclude_none=True)
+        tool["user_location"] = {"type": "approximate", **location}
     return tool
 
 
@@ -177,8 +181,10 @@ def render_template() -> str:
         "  # Web search. web_search must be true to use any other setting in this block.",
         "  search:",
     ]
-    for key, comment in SEARCH_TEMPLATE_FIELDS:
+    for key, comment, *nested in SEARCH_TEMPLATE_FIELDS:
         lines.append(f"    {key}:  # {comment}")
+        for inner_key, inner_comment in nested[0] if nested else ():
+            lines.append(f"      {inner_key}:  # {inner_comment}")
     return "\n".join(lines) + "\n"
 
 

@@ -54,6 +54,17 @@ WebSearchInclude = Literal["web_search_call.action.sources", "web_search_call.re
 SOURCES: WebSearchInclude = "web_search_call.action.sources"
 
 
+class OpenAIUserLocation(_Block):
+    """An approximate location to localise search results. Sent with `type: approximate`."""
+
+    #: A two-letter ISO 3166-1 code, as OpenAI takes it: `US`, not `us` or `USA`.
+    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    region: str | None = None
+    city: str | None = None
+    #: An IANA timezone, e.g. `America/Chicago`.
+    timezone: str | None = None
+
+
 class OpenAISearchConfig(_Block):
     """The `search:` block: the web-search tool and its settings.
 
@@ -72,6 +83,9 @@ class OpenAISearchConfig(_Block):
     #: Sent together as the tool's `filters`.
     allowed_domains: list[str] | None = Field(default=None, max_length=MAX_DOMAINS)
     blocked_domains: list[str] | None = Field(default=None, max_length=MAX_DOMAINS)
+
+    #: Not supported for deep-research models; OpenAI rejects it there.
+    user_location: OpenAIUserLocation | None = None
 
     #: Request-level, not on the tool. `required` makes the model search before
     #: answering; with `auto` it may not search at all.
@@ -141,7 +155,9 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 #: The `search:` block, in this order, below a comment saying it needs web_search.
-SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
+#: A nested block lists its own fields as a third element.
+TemplateField = tuple[str, str] | tuple[str, str, tuple[tuple[str, str], ...]]
+SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
     ("web_search", "true to give the model the web-search tool."),
     (
         "search_context_size",
@@ -167,5 +183,15 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "include",
         "Search data to return. Blank = [web_search_call.action.sources], every URL "
         "consulted. Add web_search_call.results for raw results; [] for none.",
+    ),
+    (
+        "user_location",
+        "Approximate location to localise results. Leave all blank for none.",
+        (
+            ("country", "Two-letter ISO code, e.g. US."),
+            ("region", "Free text, e.g. Minnesota."),
+            ("city", "Free text, e.g. Minneapolis."),
+            ("timezone", "IANA timezone, e.g. America/Chicago."),
+        ),
     ),
 )

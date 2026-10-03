@@ -297,3 +297,35 @@ def test_include_takes_only_web_search_data(provider):
 
 def test_without_web_search_nothing_is_included(provider):
     assert "include" not in request_for(search())
+
+
+def test_user_location_is_sent_as_an_approximate_location(provider):
+    location = tool(user_location={"country": "US", "city": "Minneapolis"})["user_location"]
+
+    assert location == {"type": "approximate", "country": "US", "city": "Minneapolis"}
+
+
+def test_every_user_location_field_goes_through(provider):
+    fields = {"country": "GB", "region": "London", "city": "London", "timezone": "Europe/London"}
+
+    assert tool(user_location=fields)["user_location"] == {"type": "approximate", **fields}
+
+
+def test_a_blank_user_location_sends_none(provider):
+    assert "user_location" not in tool(user_location={"country": None, "city": None})
+
+
+@pytest.mark.parametrize("country", ["USA", "U", "us", "1A"])
+def test_country_is_a_two_letter_iso_code(provider, country):
+    with pytest.raises(ValidationError, match="country"):
+        tool(user_location={"country": country})
+
+
+def test_user_location_refuses_a_field_it_does_not_know(provider):
+    with pytest.raises(ValidationError):
+        tool(user_location={"zip": "55401"})
+
+
+def test_a_user_location_without_web_search_is_refused(provider):
+    with pytest.raises(ValidationError, match="web_search"):
+        request_for(search(user_location={"country": "US"}))
