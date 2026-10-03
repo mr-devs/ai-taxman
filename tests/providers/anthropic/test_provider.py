@@ -6,7 +6,12 @@ import yaml
 
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
-from ai_taxman.providers.anthropic.config import DEFAULT_MAX_TOKENS, TEMPLATE_FIELDS
+from ai_taxman.providers.anthropic.config import (
+    DEFAULT_MAX_TOKENS,
+    AnthropicModelConfig,
+    AnthropicSearchConfig,
+    AnthropicThinking,
+)
 from ai_taxman.providers.anthropic.models import DEFAULT_MODEL
 from ai_taxman.providers.anthropic.provider import PROVIDER, AnthropicProvider
 from ai_taxman.providers.base import Provider
@@ -60,9 +65,81 @@ def test_template_fills_in_max_tokens_because_anthropic_requires_it():
 def test_template_leaves_every_other_parameter_blank_as_documentation():
     parsed = yaml.safe_load(PROVIDER.render_template())["model"]
 
-    for key, _ in TEMPLATE_FIELDS:
+    for key in set(AnthropicModelConfig.model_fields) - {
+        "name",
+        "max_tokens",
+        "extra",
+        "thinking",
+        "search",
+    }:
         assert key in parsed, f"{key} is missing from the template"
         assert parsed[key] is None, f"{key} should be blank"
+
+
+def test_every_search_setting_is_in_the_template():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]["search"]
+
+    assert set(parsed) == set(AnthropicSearchConfig.model_fields)
+
+
+def test_the_extra_escape_hatch_stays_out_of_the_template():
+    assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
+
+
+def comment_above(key):
+    """The comment above `key:` in the template, at any depth, without its `#`s."""
+    lines = PROVIDER.render_template().splitlines()
+    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
+    above = []
+    for line in reversed(lines[:index]):
+        if not line.lstrip().startswith("#"):
+            break
+        above.insert(0, line.strip().removeprefix("#").strip())
+    return above
+
+
+@pytest.mark.parametrize(
+    "key",
+    [key for key in AnthropicModelConfig.model_fields if key not in ("extra", "thinking", "search")]
+    + list(AnthropicThinking.model_fields)
+    + [key for key in AnthropicSearchConfig.model_fields if key != "user_location"],
+)
+def test_every_setting_says_what_it_is_when_left_alone(key):
+    above = comment_above(key)
+
+    assert any(line.startswith(("Default:", "Required:")) for line in above), above
+
+
+def test_max_tokens_says_thinking_counts_toward_it():
+    above = " ".join(comment_above("max_tokens"))
+
+    assert "thinking included" in above
+    assert "Required: yes" in comment_above("max_tokens")
+
+
+def test_effort_says_what_each_level_does():
+    above = comment_above("effort")
+
+    assert any(line.startswith("Options:  low ") for line in above), above
+    assert any(line.startswith("max ") for line in above), above
+
+
+def test_thinking_type_says_what_each_mode_does():
+    above = comment_above("type")
+
+    assert any(line.startswith("Options:  adaptive ") for line in above), above
+    assert any(line.startswith("between_tools ") for line in above), above
+
+
+def test_budget_tokens_says_it_needs_room_to_answer():
+    above = " ".join(comment_above("budget_tokens"))
+
+    assert "less than max_tokens" in above
+    assert "whole number, 1024 or more" in above
+
+
+def test_the_newest_search_tool_is_the_default():
+    assert "Default:  blank (web_search_20260318, the newest)" in comment_above("tool_version")
 
 
 # -- the key comes from core, never from the environment -------------------
@@ -187,10 +264,7 @@ def test_thinking_is_set_in_a_block_inside_the_model_block():
 
 
 def test_the_thinking_block_says_blank_means_the_models_default():
-    lines = PROVIDER.render_template().splitlines()
-    index = lines.index("  thinking:")
-
-    assert "model's default" in lines[index - 1]
+    assert "model's default" in " ".join(comment_above("thinking"))
 
 
 def test_web_search_is_set_in_a_search_block_inside_the_model_block():
@@ -201,9 +275,6 @@ def test_web_search_is_set_in_a_search_block_inside_the_model_block():
 
 
 def test_the_search_block_says_its_settings_need_web_search():
-    lines = PROVIDER.render_template().splitlines()
-    index = lines.index("  search:")
+    above = " ".join(comment_above("search"))
 
-    assert lines[index - 1] == (
-        "  # Web search. web_search must be true to use any other setting in this block."
-    )
+    assert "web_search must be true to use any other setting in this block" in above

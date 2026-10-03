@@ -22,11 +22,9 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
+from ai_taxman.core.template import render_block
 from ai_taxman.providers.anthropic.config import (
     DEFAULT_MAX_TOKENS,
-    SEARCH_TEMPLATE_FIELDS,
-    TEMPLATE_FIELDS,
-    THINKING_TEMPLATE_FIELDS,
     AnthropicModelConfig,
     AnthropicSearchConfig,
 )
@@ -198,35 +196,15 @@ def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
 def render_template() -> str:
     """Return the `model:` block for a new Anthropic audit.
 
-    Every parameter appears with a comment saying what it does, blank apart from
-    the model name and `max_tokens`, which Anthropic requires.
+    Every parameter appears under a comment read from its own field, blank apart
+    from the model name and `max_tokens`, which Anthropic requires.
     """
-    lines = [
-        "model:",
-        f"  name: {DEFAULT_MODEL}  # The model to send every message to.",
-        f"  max_tokens: {DEFAULT_MAX_TOKENS}  # Required. Most tokens per response, thinking "
-        "included; a response that reaches it stops mid-answer. Raise execution.timeout_s "
-        "with it.",
-    ]
-    for key, comment in TEMPLATE_FIELDS:
-        lines.append(f"  {key}:  # {comment}")
-    lines += [
-        "",
-        "  # Thinking. Leave every key blank for the model's default, which varies by model.",
-        "  thinking:",
-    ]
-    for key, comment in THINKING_TEMPLATE_FIELDS:
-        lines.append(f"    {key}:  # {comment}")
-    lines += [
-        "",
-        "  # Web search. web_search must be true to use any other setting in this block.",
-        "  search:",
-    ]
-    for key, comment, *nested in SEARCH_TEMPLATE_FIELDS:
-        lines.append(f"    {key}:  # {comment}")
-        for inner_key, inner_comment in nested[0] if nested else ():
-            lines.append(f"      {inner_key}:  # {inner_comment}")
-    return "\n".join(lines) + "\n"
+    lines = render_block(
+        AnthropicModelConfig,
+        indent=2,
+        values={"name": DEFAULT_MODEL, "max_tokens": DEFAULT_MAX_TOKENS},
+    )
+    return "\n".join(["model:", *lines]) + "\n"
 
 
 #: One client per run, so concurrent runs in one process never share a key.

@@ -12,7 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ai_taxman.providers.anthropic.models import (
-    EFFORTS,
+    DEFAULT_WEB_SEARCH_VERSION,
     Effort,
     ThinkingDisplay,
     ThinkingType,
@@ -82,6 +82,17 @@ DEFAULT_MAX_TOKENS = 16000
 #: The documented floor for an extended-thinking budget.
 MIN_THINKING_BUDGET = 1024
 
+#: Anthropic's pages, linked from the template. Each is listed, as its markdown
+#: twin, in docs/provider-apis/anthropic.md.
+MODELS_DOCS = "https://platform.claude.com/docs/en/models/overview"
+CREATE_DOCS = "https://platform.claude.com/docs/en/api/messages/create"
+EFFORT_DOCS = "https://platform.claude.com/docs/en/build-with-claude/effort"
+THINKING_DOCS = "https://platform.claude.com/docs/en/build-with-claude/thinking"
+WEB_SEARCH_DOCS = "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool"
+
+#: What a blank sampling setting does.
+MODEL_DEFAULT = "not sent, so the model's own default applies"
+
 
 class AnthropicThinking(_Block):
     """The `thinking:` block, sent as the `thinking` parameter when `type` is set.
@@ -90,10 +101,39 @@ class AnthropicThinking(_Block):
     takes which type is the API's call.
     """
 
-    type: ThinkingType | None = None
+    type: ThinkingType | None = Field(
+        default=None,
+        description="How Claude thinks before answering. Which modes a model accepts varies.",
+        json_schema_extra={
+            "options": {
+                "adaptive": "Claude decides when and how deeply to think",
+                "enabled": "think up to budget_tokens; older models only",
+                "disabled": "no thinking, on models that allow it",
+                "between_tools": "no up-front thinking; Claude Sonnet 5.5 only, at "
+                "effort high or below",
+            },
+            "blank": "not sent, so the model's default applies",
+        },
+    )
     #: `type: enabled` only, the manual mode older models use.
-    budget_tokens: int | None = Field(default=None, ge=MIN_THINKING_BUDGET)
-    display: ThinkingDisplay | None = None
+    budget_tokens: int | None = Field(
+        default=None,
+        ge=MIN_THINKING_BUDGET,
+        description="The most tokens Claude may spend thinking, with type: enabled "
+        "only. It must be less than max_tokens, which thinking counts toward.",
+        json_schema_extra={"blank": "not sent; type: enabled needs it"},
+    )
+    display: ThinkingDisplay | None = Field(
+        default=None,
+        description="Whether thinking text comes back. Not with type: disabled or between_tools.",
+        json_schema_extra={
+            "options": {
+                "summarized": "a readable summary of Claude's thinking",
+                "omitted": "thinking blocks come back with their text empty",
+            },
+            "blank": "not sent, so the model's default applies: omitted on current models",
+        },
+    )
 
     @model_validator(mode="after")
     def _settings_fit_the_type(self) -> AnthropicThinking:
@@ -118,12 +158,32 @@ class AnthropicThinking(_Block):
 class AnthropicUserLocation(_Block):
     """An approximate location to localise search results. Sent with `type: approximate`."""
 
-    city: str | None = None
-    region: str | None = None
-    #: A two-letter ISO 3166-1 code: `US`, not `us` or `USA`.
-    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
-    #: An IANA timezone, e.g. `America/Chicago`.
-    timezone: str | None = None
+    city: str | None = Field(
+        default=None,
+        description="A city, in free text.",
+        examples=["Minneapolis"],
+        json_schema_extra={"blank": "not sent"},
+    )
+    region: str | None = Field(
+        default=None,
+        description="A region, in free text.",
+        examples=["Minnesota"],
+        json_schema_extra={"blank": "not sent"},
+    )
+    #: ISO 3166-1: `US`, not `us` or `USA`.
+    country: str | None = Field(
+        default=None,
+        pattern=r"^[A-Z]{2}$",
+        description="A two-letter country code, in capitals.",
+        examples=["US"],
+        json_schema_extra={"blank": "not sent"},
+    )
+    timezone: str | None = Field(
+        default=None,
+        description="An IANA time zone.",
+        examples=["America/Chicago"],
+        json_schema_extra={"blank": "not sent"},
+    )
 
 
 class AnthropicSearchConfig(_Block):
@@ -133,33 +193,91 @@ class AnthropicSearchConfig(_Block):
     tool guide as written. Every setting but `web_search` is sent only when set.
     """
 
-    #: Give Claude the web search tool.
-    web_search: bool = False
+    web_search: bool = Field(default=False, description="Give Claude the web search tool.")
 
-    #: Which version of the tool. Blank sends the newest.
-    tool_version: WebSearchVersion | None = None
+    #: Blank sends the newest.
+    tool_version: WebSearchVersion | None = Field(
+        default=None,
+        description="Which version of the web search tool to send.",
+        json_schema_extra={
+            "options": {
+                "web_search_20250305": "basic web search",
+                "web_search_20260209": "adds dynamic filtering: Claude filters results "
+                "with code before reading them",
+                "web_search_20260318": "adds response_inclusion",
+            },
+            "blank": f"{DEFAULT_WEB_SEARCH_VERSION}, the newest",
+        },
+    )
 
-    #: The most searches Claude may run for one message.
-    max_uses: int | None = Field(default=None, ge=1)
+    max_uses: int | None = Field(
+        default=None,
+        ge=1,
+        description="The most searches Claude may run for one message.",
+        json_schema_extra={"blank": "no limit"},
+    )
 
     #: One or the other, never both. Bare domains, optionally with a path:
     #: `example.com/blog`. Subdomains are included.
-    allowed_domains: list[str] | None = None
-    blocked_domains: list[str] | None = None
+    allowed_domains: list[str] | None = Field(
+        default=None,
+        description="Search only these domains, subdomains included. Write each without "
+        "http:// or https://; a path, as in example.com/blog, is allowed. Not with "
+        "blocked_domains.",
+        examples=[["cdc.gov", "who.int"]],
+        json_schema_extra={"blank": "any domain"},
+    )
+    blocked_domains: list[str] | None = Field(
+        default=None,
+        description="Never search these domains, written as for allowed_domains. Not "
+        "with allowed_domains.",
+        examples=[["example.com"]],
+        json_schema_extra={"blank": "none blocked"},
+    )
 
-    user_location: AnthropicUserLocation | None = None
+    user_location: AnthropicUserLocation | None = Field(
+        default=None,
+        description="An approximate location to localise search results. Leave every "
+        "key blank for none.",
+    )
 
-    #: `[direct]` turns dynamic filtering off. Models without programmatic tool
-    #: calling need it on `_20260209` and later; Anthropic says so with a 400.
-    allowed_callers: list[WebSearchCaller] | None = Field(default=None, min_length=1)
+    #: Models without programmatic tool calling need `[direct]` on `_20260209` and
+    #: later; Anthropic says so with a 400.
+    allowed_callers: list[WebSearchCaller] | None = Field(
+        default=None,
+        min_length=1,
+        description="Who may run a search: Claude directly, or code Claude runs to "
+        "filter the results first. [direct] turns dynamic filtering off; models without "
+        "programmatic tool calling need it.",
+        examples=[["direct"]],
+        json_schema_extra={"blank": "not sent, so the tool version's default applies"},
+    )
 
-    #: `web_search_20260318` only. `excluded` drops result blocks a finished code
-    #: execution call already consumed, rather than echoing them back.
-    response_inclusion: Literal["full", "excluded"] | None = None
+    response_inclusion: Literal["full", "excluded"] | None = Field(
+        default=None,
+        description="Whether result blocks that code execution already used come back "
+        "in the response. web_search_20260318 only.",
+        json_schema_extra={
+            "options": {
+                "full": "every result block comes back",
+                "excluded": "drop result blocks a finished code execution call consumed",
+            },
+            "blank": "not sent, so full",
+        },
+    )
 
-    #: Request-level, not on the tool. `any` makes Claude use a tool before
-    #: answering; current models reject it, older ones take it.
-    tool_choice: Literal["auto", "any"] | None = None
+    #: Request-level, not on the tool.
+    tool_choice: Literal["auto", "any"] | None = Field(
+        default=None,
+        description="Whether Claude must search.",
+        json_schema_extra={
+            "options": {
+                "auto": "Claude decides whether to search",
+                "any": "Claude uses a tool before answering; current models reject it",
+            },
+            "blank": "not sent, so auto",
+        },
+    )
 
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
@@ -202,27 +320,81 @@ class AnthropicModelConfig(_Block):
     """Validated Anthropic settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
-    name: str
+    name: str = Field(
+        description="The model every message is sent to. Any name Anthropic accepts works.",
+        json_schema_extra={"docs": MODELS_DOCS},
+    )
 
     #: Required: the Messages API has no default, and rejects a request without it.
-    max_tokens: int = Field(ge=1)
+    max_tokens: int = Field(
+        ge=1,
+        description="The most tokens a response may use, thinking included. Anthropic "
+        "requires it, and a response that reaches it stops mid-answer. Raise "
+        "execution.timeout_s with it.",
+        json_schema_extra={"docs": CREATE_DOCS},
+    )
 
     #: Sent as `output_config.effort`. Blank leaves the model's own default.
-    effort: Effort | None = None
+    effort: Effort | None = Field(
+        default=None,
+        description="How much work Claude puts into a response, thinking included. Not "
+        "every model takes every level.",
+        json_schema_extra={
+            "options": {
+                "low": "the most efficient: big token savings, some loss of capability",
+                "medium": "balanced, with moderate token savings",
+                "high": "as many tokens as the task needs",
+                "xhigh": "extended capability for long-horizon work",
+                "max": "the most capability, with no limit on token spending",
+            },
+            "blank": "not sent, so the model's own default applies: high on most models",
+            "docs": EFFORT_DOCS,
+        },
+    )
 
     #: Sent only when set. Models after Claude Opus 4.6 refuse anything but
     #: temperature 1.0 and top_p >= 0.99, and refuse top_k outright; the API says so.
-    temperature: float | None = Field(default=None, ge=0, le=1)
-    top_p: float | None = Field(default=None, ge=0, le=1)
-    top_k: int | None = Field(default=None, ge=1)
+    temperature: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="How random the sampling is. Models after Claude Opus 4.6 accept "
+        "only 1.0, so leave it blank for them.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
+    )
+    top_p: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Nucleus sampling: Claude considers only the most likely tokens "
+        "that make up this share of the probability. Models after Claude Opus 4.6 "
+        "accept only 0.99 or more.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
+    )
+    top_k: int | None = Field(
+        default=None,
+        ge=1,
+        description="Sample from only the K most likely tokens. Models after Claude "
+        "Opus 4.6 reject it.",
+        json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
+    )
 
     #: Escape hatch for API parameters this config does not name yet. Merged into
     #: the request as written - but never over one it does name.
-    extra: dict[str, Any] = Field(default_factory=dict)
+    extra: dict[str, Any] = Field(default_factory=dict, json_schema_extra={"template": False})
 
     #: Last, as in the template: the nested blocks.
-    thinking: AnthropicThinking = Field(default_factory=AnthropicThinking)
-    search: AnthropicSearchConfig = Field(default_factory=AnthropicSearchConfig)
+    thinking: AnthropicThinking = Field(
+        default_factory=AnthropicThinking,
+        description="Thinking. Leave every key blank for the model's default, which "
+        "varies by model.",
+        json_schema_extra={"docs": THINKING_DOCS},
+    )
+    search: AnthropicSearchConfig = Field(
+        default_factory=AnthropicSearchConfig,
+        description="Web search. web_search must be true to use any other setting in this block.",
+        json_schema_extra={"docs": WEB_SEARCH_DOCS},
+    )
 
     @field_validator("extra")
     @classmethod
@@ -267,74 +439,3 @@ def leaf_paths(block: dict[str, Any], prefix: str = "") -> Iterator[str]:
 def _overlaps(path: str, key: str) -> bool:
     """Whether writing `path` would change `key`: the same, inside it, or replacing it."""
     return path == key or path.startswith(f"{key}.") or key.startswith(f"{path}.")
-
-
-#: Documented in the generated template, in this order, after `name` and `max_tokens`.
-TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
-    (
-        "effort",
-        f"{' | '.join(EFFORTS)}. How much work Claude puts in, thinking included. "
-        "Blank = the model's default. Not every model takes every level.",
-    ),
-    (
-        "temperature",
-        "0.0 - 1.0. Leave blank: models after Claude Opus 4.6 accept only 1.0.",
-    ),
-    ("top_p", "0.0 - 1.0. Leave blank: models after Claude Opus 4.6 accept only 0.99 or more."),
-    ("top_k", "Sample from the top K tokens. Models after Claude Opus 4.6 reject it."),
-)
-
-#: The `thinking:` block, in this order, below a comment saying blank is the default.
-THINKING_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
-    ("type", "adaptive | enabled | disabled | between_tools. Which a model accepts varies."),
-    ("budget_tokens", "type: enabled only. At least 1024, and less than max_tokens."),
-    (
-        "display",
-        "summarized | omitted. Whether thinking text comes back; current models "
-        "default to omitted.",
-    ),
-)
-
-#: The `search:` block, in this order, below a comment saying it needs web_search.
-#: A nested block lists its own fields as a third element.
-TemplateField = tuple[str, str] | tuple[str, str, tuple[tuple[str, str], ...]]
-SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
-    ("web_search", "true to give Claude the web search tool."),
-    (
-        "tool_version",
-        "web_search_20250305 | web_search_20260209 | web_search_20260318. "
-        "Blank = web_search_20260318.",
-    ),
-    ("max_uses", "Most searches per message. Blank = no limit."),
-    (
-        "allowed_domains",
-        "Only search these domains, e.g. [cdc.gov, who.int]. Subdomains included. "
-        "Not with blocked_domains.",
-    ),
-    ("blocked_domains", "Never search these domains. Not with allowed_domains."),
-    (
-        "user_location",
-        "Approximate location to localise results. Leave all blank for none.",
-        (
-            ("city", "Free text, e.g. Minneapolis."),
-            ("region", "Free text, e.g. Minnesota."),
-            ("country", "Two-letter ISO code, e.g. US."),
-            ("timezone", "IANA timezone, e.g. America/Chicago."),
-        ),
-    ),
-    (
-        "allowed_callers",
-        "[direct] to search without dynamic filtering; models without programmatic "
-        "tool calling need it. Blank = the tool version's default.",
-    ),
-    (
-        "response_inclusion",
-        "full | excluded. web_search_20260318 only. excluded drops result blocks "
-        "code execution already consumed. Blank = full.",
-    ),
-    (
-        "tool_choice",
-        "auto | any. any makes Claude search before answering; current models reject "
-        "it. Blank = auto.",
-    ),
-)
