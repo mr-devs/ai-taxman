@@ -11,7 +11,7 @@ import pytest
 import yaml
 from pydantic import BaseModel, Field
 
-from ai_taxman.core.template import render_block, render_setting
+from ai_taxman.core.template import WIDTH, render_block, render_setting
 
 
 class Location(BaseModel):
@@ -90,8 +90,35 @@ def test_a_long_explanation_wraps_without_breaking_a_word():
     lines = comment_above(render_block(Wordy), "setting")
 
     assert len(lines) > 1
-    assert all(len(line) <= 80 for line in lines)
+    assert all(len(line) <= WIDTH for line in lines)
     assert all(line.startswith("# ") for line in lines)
+
+
+def test_each_sentence_of_an_explanation_starts_its_own_line():
+    class Two(BaseModel):
+        setting: int | None = Field(
+            default=None, description="Where output is written. {run_id} is filled in."
+        )
+
+    lines = comment_above(render_block(Two), "setting")
+
+    assert lines[:2] == ["# Where output is written.", "# {run_id} is filled in."]
+
+
+def test_a_sentence_that_fits_the_project_line_length_is_not_broken():
+    sentence = "The name of the environment variable that holds the API key to use for this audit."
+
+    class One(BaseModel):
+        setting: int | None = Field(default=None, description=sentence)
+
+    assert comment_above(render_block(One, indent=2), "setting")[0] == f"  # {sentence}"
+
+
+def test_a_number_inside_a_sentence_does_not_end_it():
+    class One(BaseModel):
+        setting: int | None = Field(default=None, description="Models after 4.6 reject it.")
+
+    assert comment_above(render_block(One), "setting")[0] == "# Models after 4.6 reject it."
 
 
 def test_no_line_ends_in_whitespace():
@@ -224,7 +251,7 @@ def test_a_long_meaning_wraps_under_its_own_column():
     lines = comment_above(render_block(One), "setting")
     column = lines[1].index("word")
 
-    assert all(len(line) <= 80 for line in lines)
+    assert all(len(line) <= WIDTH for line in lines)
     assert lines[2][:column].strip() == "#"
     assert lines[2][column:].startswith("word")
 
@@ -485,6 +512,6 @@ def test_a_long_default_wraps_under_its_own_column():
     default = next(i for i, line in enumerate(lines) if "Default:" in line)
     column = lines[default].index("blank")
 
-    assert all(len(line) <= 80 for line in lines)
+    assert all(len(line) <= WIDTH for line in lines)
     assert lines[default + 1][:column].strip() == "#"
     assert lines[default + 1][column:].startswith("word")

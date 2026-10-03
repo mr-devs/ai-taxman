@@ -22,6 +22,7 @@ pydantic's own `examples=` are written in as the user would type them.
 
 from __future__ import annotations
 
+import re
 import textwrap
 import types
 from collections.abc import Mapping
@@ -33,8 +34,11 @@ from pydantic.fields import FieldInfo
 
 from ai_taxman.core.discovery import yaml_scalar
 
-#: The widest a comment line gets, indentation included.
-WIDTH = 80
+#: The widest a comment line gets, indentation included: the project's line length.
+WIDTH = 100
+
+#: Where one sentence of an explanation ends and the next begins.
+SENTENCE_END = re.compile(r"(?<=\.)\s+")
 
 #: What a value of each type is called, alone and in a list.
 NOUNS: dict[type, tuple[str, str]] = {
@@ -247,10 +251,15 @@ def _number(value: float) -> str:
 
 
 def _wrap(text: str, pad: str) -> list[str]:
+    """An explanation as comment lines, each sentence starting a line of its own."""
     prefix = f"{pad}# "
-    return textwrap.wrap(
-        text, WIDTH, initial_indent=prefix, subsequent_indent=prefix, break_on_hyphens=False
-    )
+    return [
+        line
+        for sentence in SENTENCE_END.split(text.strip())
+        for line in textwrap.wrap(
+            sentence, WIDTH, initial_indent=prefix, subsequent_indent=prefix, break_on_hyphens=False
+        )
+    ]
 
 
 def _block_model(annotation: Any) -> type[BaseModel] | None:
