@@ -113,6 +113,8 @@ def build_request(request: Request) -> dict[str, Any]:
         "input": request.message.text,
         "store": config.store,
     }
+    if request.system_prompt:
+        payload["system_instruction"] = request.system_prompt
     return payload
 
 

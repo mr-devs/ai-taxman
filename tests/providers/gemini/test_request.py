@@ -55,3 +55,13 @@ def test_an_unknown_model_name_is_still_allowed():
 def test_unknown_model_keys_are_rejected():
     with pytest.raises(ValidationError, match="bogus"):
         request_for({**BASE, "bogus": 1})
+
+
+def test_the_system_prompt_becomes_the_system_instruction():
+    payload = request_for(BASE, system_prompt="Answer in one word.")
+
+    assert payload["system_instruction"] == "Answer in one word."
+
+
+def test_no_system_prompt_sends_no_system_instruction():
+    assert "system_instruction" not in request_for(BASE)
