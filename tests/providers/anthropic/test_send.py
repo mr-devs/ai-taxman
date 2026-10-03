@@ -93,6 +93,31 @@ async def test_only_the_key_startup_was_given_is_sent(wire, monkeypatch):
     assert "authorization" not in headers
 
 
+async def test_progress_updates_send_the_beta_header_they_need(wire):
+    """Without it Anthropic rejects `display: updates` as an unknown value."""
+    block = {
+        "name": "claude-opus-5-5",
+        "max_tokens": 1024,
+        "thinking": {"type": "adaptive", "display": "updates"},
+    }
+
+    await send(a_request(block))
+
+    assert wire.requests[0].headers["anthropic-beta"] == "thinking-display-updates-2026-08-18"
+
+
+async def test_no_beta_header_is_sent_for_a_display_out_of_beta(wire):
+    block = {
+        "name": "claude-opus-5-5",
+        "max_tokens": 1024,
+        "thinking": {"type": "adaptive", "display": "summarized"},
+    }
+
+    await send(a_request(block))
+
+    assert "anthropic-beta" not in wire.requests[0].headers
+
+
 async def test_the_audit_timeout_is_the_request_timeout(wire):
     await send(a_request(), timeout_s=42.0)
 

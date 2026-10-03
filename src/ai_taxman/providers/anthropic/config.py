@@ -130,6 +130,7 @@ class AnthropicThinking(_Block):
             "options": {
                 "summarized": "a readable summary of Claude's thinking",
                 "omitted": "thinking blocks come back with their text empty",
+                "updates": "beta: as omitted, but notes between tool calls come back",
             },
             "blank": "not sent, so the model's default applies: omitted on current models",
         },

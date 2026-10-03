@@ -126,6 +126,13 @@ def test_display_goes_with_the_type():
     assert payload["thinking"] == {"type": "adaptive", "display": "summarized"}
 
 
+def test_progress_updates_are_a_display_too():
+    """Beta: reasoning stays hidden, and notes between tool calls come back as text."""
+    payload = thinking(type="adaptive", display="updates")
+
+    assert payload["thinking"] == {"type": "adaptive", "display": "updates"}
+
+
 def test_a_blank_thinking_block_sends_nothing():
     """Blank leaves the model's default, which differs from model to model."""
     payload = thinking(type=None, budget_tokens=None, display=None)

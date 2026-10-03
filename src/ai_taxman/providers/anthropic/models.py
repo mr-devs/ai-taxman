@@ -46,8 +46,13 @@ EFFORTS: tuple[str, ...] = get_args(Effort)
 ThinkingType = Literal["adaptive", "enabled", "disabled", "between_tools"]
 
 #: Whether thinking text comes back. `omitted` returns thinking blocks with an
-#: empty `thinking` field; it is the default on current models.
-ThinkingDisplay = Literal["summarized", "omitted"]
+#: empty `thinking` field; it is the default on current models. `updates` (beta)
+#: does the same, but returns the progress notes some models write between tool
+#: calls as text. It needs `DISPLAY_UPDATES_BETA`, or Anthropic rejects it.
+ThinkingDisplay = Literal["summarized", "omitted", "updates"]
+
+#: The `anthropic-beta` header `display: updates` needs.
+DISPLAY_UPDATES_BETA = "thinking-display-updates-2026-08-18"
 
 #: The web search tool versions, oldest first. `_20260209` added dynamic
 #: filtering (search run from code execution); `_20260318` added

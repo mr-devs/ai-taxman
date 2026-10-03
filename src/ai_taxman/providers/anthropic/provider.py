@@ -31,6 +31,7 @@ from ai_taxman.providers.anthropic.config import (
 from ai_taxman.providers.anthropic.models import (
     DEFAULT_MODEL,
     DEFAULT_WEB_SEARCH_VERSION,
+    DISPLAY_UPDATES_BETA,
     KNOWN_MODELS,
 )
 from ai_taxman.providers.base import Provider, Request
@@ -92,7 +93,10 @@ class AnthropicProvider(Provider):
         # "may take longer than 10 minutes": the audit's timeout_s is the limit.
         named, unnamed = _split_by_sdk_signature(build_request(request), client)
         response = await client.messages.create(
-            **named, extra_body=unnamed or None, timeout=timeout_s
+            **named,
+            extra_body=unnamed or None,
+            extra_headers=request_headers(request.model) or None,
+            timeout=timeout_s,
         )
         # `to_dict` keeps only the fields Anthropic actually sent, under the API's
         # own names. `model_dump` would add a null for every field the SDK merely
@@ -155,6 +159,13 @@ def build_request(request: Request) -> dict[str, Any]:
 
     _merge(payload, config.extra)
     return payload
+
+
+def request_headers(config: AnthropicModelConfig) -> dict[str, str]:
+    """HTTP headers the audit's settings need beside the body: a beta's, today."""
+    if config.thinking.display == "updates":
+        return {"anthropic-beta": DISPLAY_UPDATES_BETA}
+    return {}
 
 
 def _web_search_tool(search: AnthropicSearchConfig) -> dict[str, Any]:
