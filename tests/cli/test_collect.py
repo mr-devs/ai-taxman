@@ -277,8 +277,9 @@ def test_the_log_level_can_be_turned_down(invoke, tmp_path, fake_provider):
 
     invoke("collect", "probe", "--log-file", "run.log", "--log-level", "warning")
 
-    log = (tmp_path / "run.log").read_text(encoding="utf-8")
-    assert "run starting" not in log
+    # Nothing reached the level, so nothing was written - not even an empty file.
+    log = tmp_path / "run.log"
+    assert not log.exists() or "run starting" not in log.read_text(encoding="utf-8")
 
 
 def test_an_unknown_log_level_is_refused_by_name(invoke, tmp_path, fake_provider):
@@ -340,3 +341,13 @@ def test_a_run_that_cannot_start_fails_cleanly(invoke, tmp_path, fake_provider, 
     assert "Traceback" not in result.output
     assert "Collecting" not in result.output
     assert fake_provider.sent == []
+
+
+def test_a_run_that_never_starts_leaves_no_log(invoke, tmp_path, fake_provider):
+    """A log file is a record of a run; there must not be one for a run that never was."""
+    make_project(tmp_path)
+    fake_provider.startup_error = RuntimeError("no network")
+
+    invoke("collect", "probe")
+
+    assert not list(tmp_path.glob("logs/**/*.log"))

@@ -89,8 +89,9 @@ def setup_logging(
         path = Path(log_file)
         path.parent.mkdir(parents=True, exist_ok=True)
         # Append, so a resumed or restarted run adds to the log rather than
-        # erasing the evidence of the run before it.
-        handlers.append(logging.FileHandler(path, mode="a", encoding="utf-8"))
+        # erasing the evidence of the run before it. Delayed, so a run that fails
+        # before its first line leaves no empty log claiming it existed.
+        handlers.append(logging.FileHandler(path, mode="a", encoding="utf-8", delay=True))
     if log_file is None or also_terminal:
         handlers.append(logging.StreamHandler(sys.stderr))
 
