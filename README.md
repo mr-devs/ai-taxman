@@ -139,9 +139,9 @@ audits/election-probe.yaml is valid.
 2 message(s) x 1 repeat(s) = 2 request(s).
 ```
 
-`validate` resolves the config, checks the settings against the provider, and counts the
-requests — **without sending anything or spending anything.** Run it before every real
-collection.
+`validate` resolves the config, checks the settings against the provider, confirms the
+variable in `api_key_env:` is exported, and counts the requests — **without sending
+anything or spending anything.** Run it before every real collection.
 
 ### 5. Run it
 

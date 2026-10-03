@@ -100,6 +100,41 @@ def test_validate_reports_a_missing_message_file(invoke, tmp_path, fake_provider
     assert "probe.txt" in result.output
 
 
+def write_keyed_audit(tmp_path):
+    (tmp_path / "audits").mkdir()
+    (tmp_path / "audits" / "probe.yaml").write_text(
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "api_key_env: TAXMAN_FAKE_API_KEY\nmodel:\n  name: fake-1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
+
+
+def test_validate_rejects_an_unset_key_variable(invoke, tmp_path, fake_provider, monkeypatch):
+    """`collect` would stop on this at once, so `validate` must not call it valid."""
+    fake_provider.requires_api_key = True
+    monkeypatch.delenv("TAXMAN_FAKE_API_KEY", raising=False)
+    write_keyed_audit(tmp_path)
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "TAXMAN_FAKE_API_KEY is not set" in result.output
+    assert "is valid" not in result.output
+
+
+def test_validate_never_prints_the_key(invoke, tmp_path, fake_provider, monkeypatch):
+    fake_provider.requires_api_key = True
+    monkeypatch.setenv("TAXMAN_FAKE_API_KEY", "sk-secret-value")
+    write_keyed_audit(tmp_path)
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code == 0
+    assert "sk-secret-value" not in result.output
+
+
 def test_validate_rejects_a_bad_model_block(invoke, tmp_path, fake_provider):
     (tmp_path / "audits").mkdir()
     (tmp_path / "audits" / "probe.yaml").write_text(

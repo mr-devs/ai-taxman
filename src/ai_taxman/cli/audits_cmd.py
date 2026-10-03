@@ -60,6 +60,7 @@ def validate_command(audit: AuditName) -> None:
     # Imported here, not at module scope: completion imports this module on every
     # Tab press and must not pay for the config parser.
     from ai_taxman.core.config import load_audit
+    from ai_taxman.core.runner import resolve_key
 
     config = load_audit(find_audit(audit))
     provider = get_provider(config.provider)
@@ -71,6 +72,8 @@ def validate_command(audit: AuditName) -> None:
         return
 
     messages = read_messages(config.messages_path)
+    # The first thing `collect` checks, so a "valid" here must mean it passes.
+    resolve_key(provider, config)
     total = len(messages) * config.execution.repeats
     typer.secho(f"{config.source_path} is valid.", fg=typer.colors.GREEN)
     typer.echo(
