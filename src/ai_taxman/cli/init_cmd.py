@@ -65,6 +65,7 @@ def init(
         audit=audit,
         provider=resolved,
         messages=f"messages/{audit}.txt",
+        output_dir="data/{audit}/{run_id}",
         api_key_env=_api_key_env(resolved),
     )
 

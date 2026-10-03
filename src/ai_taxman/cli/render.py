@@ -1,11 +1,11 @@
-"""Generating the audit YAML that `taxman init` writes.
+"""Generating the audit YAML that `taxman audits new` writes.
 
 The file is written as text, not dumped from a dict, so it can carry the
 comments that make it self-documenting. Core owns everything above the `model:`
 block; the provider renders that block itself.
 
 Every value is a default and the file is the only place any of them is chosen.
-`taxman init` accepts no settings and there is no configuration command, so
+`taxman audits new` accepts no settings and there is no configuration command, so
 there is nothing to route or merge here.
 
 The `api_key_env:` field is the one thing taxman cannot fill in: it names the
@@ -46,6 +46,7 @@ def render_audit(
     audit: str,
     provider: Provider,
     messages: str,
+    output_dir: str,
     api_key_env: str | None = None,
 ) -> str:
     """Return the full text of a new audit file.
@@ -53,7 +54,7 @@ def render_audit(
     `api_key_env` is omitted entirely for a provider that needs no key.
     """
     output = {
-        "dir": (_default_output_dir(), "{audit} and {run_id} are filled in at run time."),
+        "dir": (output_dir, "{audit} and {run_id} are filled in at run time."),
         "filename": ("responses.jsonl", "Raw responses, one JSON object per line."),
         "compress": ("false", "true to gzip the output."),
     }
@@ -94,10 +95,3 @@ def _api_key_block(provider: Provider, api_key_env: str) -> list[str]:
 
 def _block(fields: dict[str, tuple[str, str]]) -> list[str]:
     return [f"  {key}: {default}  # {comment}" for key, (default, comment) in fields.items()]
-
-
-def _default_output_dir() -> str:
-    """Read lazily: `render` is imported on every Tab press, the config parser is not."""
-    from ai_taxman.core.config import DEFAULT_OUTPUT_DIR
-
-    return str(DEFAULT_OUTPUT_DIR)

@@ -61,7 +61,7 @@ def test_says_so_when_there_are_no_audits(invoke):
     result = invoke("audits", "list")
 
     assert result.exit_code == 0
-    assert "taxman init" in result.output
+    assert "taxman audits new" in result.output
 
 
 def test_shows_an_audits_resolved_settings(invoke, tmp_path):
