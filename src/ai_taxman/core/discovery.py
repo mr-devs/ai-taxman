@@ -204,6 +204,13 @@ def validate_audit_name(name: str) -> str:
             "contain only letters, digits, dots, dashes and underscores, must start "
             "with a letter or a digit, and leaves off the .yaml - e.g. election-probe."
         )
+    # Case-insensitive, as the filesystems most users are on are.
+    if name.lower() == Path(MARKER_FILENAME).stem:
+        raise ConfigError(
+            f"An audit cannot be called {name!r}: its file would be named like "
+            f"{MARKER_FILENAME}, which marks a project root, and every audit beside it "
+            "would resolve its paths from the wrong place. Choose another name."
+        )
     return name
 
 

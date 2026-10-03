@@ -408,3 +408,13 @@ def test_a_name_yaml_would_misread_still_loads(invoke, tmp_path, name):
 
     assert result.exit_code == 0, result.output
     assert read(tmp_path, name)["audit"] == name
+
+
+@pytest.mark.parametrize("name", ["taxman", "Taxman", "TAXMAN"])
+def test_an_audit_cannot_share_the_markers_name(invoke, tmp_path, name):
+    """`audits/taxman.yaml` would mark the audits folder as a project root."""
+    result = invoke("audits", "new", "openai", name)
+
+    assert result.exit_code != 0
+    assert "taxman.yaml" in result.output
+    assert not list(tmp_path.glob("audits/*.yaml"))
