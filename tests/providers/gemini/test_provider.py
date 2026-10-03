@@ -1,0 +1,122 @@
+import asyncio
+import sys
+
+import pytest
+import yaml
+
+from ai_taxman.core import registry
+from ai_taxman.core.errors import ProviderDependencyError, ProviderError
+from ai_taxman.providers.base import Provider
+from ai_taxman.providers.gemini.config import TEMPLATE_FIELDS
+from ai_taxman.providers.gemini.models import DEFAULT_MODEL
+from ai_taxman.providers.gemini.provider import PROVIDER, GeminiProvider
+
+
+def test_registry_resolves_gemini():
+    assert isinstance(registry.get_provider("gemini"), Provider)
+
+
+def test_module_exports_a_provider_instance():
+    assert isinstance(PROVIDER, GeminiProvider)
+
+
+def test_is_named_gemini():
+    assert PROVIDER.name == "gemini"
+
+
+def test_declares_the_conventional_gemini_variable():
+    assert PROVIDER.default_api_key_env == "GEMINI_API_KEY"
+
+
+def test_lists_known_models_with_the_default_first():
+    models = PROVIDER.known_models()
+
+    assert models[0] == DEFAULT_MODEL
+    assert "gemini-2.5-flash" in models
+
+
+def test_does_not_claim_batch_support_yet():
+    assert PROVIDER.supports_batch is False
+
+
+def test_template_names_the_default_model():
+    parsed = yaml.safe_load(PROVIDER.render_template())
+
+    assert parsed["model"]["name"] == DEFAULT_MODEL
+
+
+def test_template_leaves_every_other_parameter_blank_as_documentation():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
+
+    for key, _ in TEMPLATE_FIELDS:
+        assert key in parsed, f"{key} is missing from the template"
+        assert parsed[key] is None, f"{key} should be blank"
+
+
+# -- the key comes from core, never from the environment -------------------
+
+
+@pytest.fixture
+def ambient(monkeypatch):
+    """Everything the Gemini SDK would read from the environment on its own."""
+    monkeypatch.setenv("GEMINI_API_KEY", "ambient-gemini-key-must-not-be-used")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-google-key-must-not-be-used")
+    monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+
+
+async def test_the_client_is_the_one_startup_was_given(ambient):
+    provider = GeminiProvider()
+
+    await provider.startup(api_key="gm-one")
+    try:
+        assert provider._require_client()._api_client.api_key == "gm-one"
+    finally:
+        await provider.shutdown()
+
+
+async def test_an_ambient_switch_never_sends_the_audit_to_vertex(ambient):
+    """GOOGLE_GENAI_USE_ENTERPRISE would move the audit to another API and another bill."""
+    provider = GeminiProvider()
+
+    await provider.startup(api_key="gm-one")
+    try:
+        assert provider._require_client()._api_client.vertexai is False
+    finally:
+        await provider.shutdown()
+
+
+async def test_shutdown_clears_the_client():
+    provider = GeminiProvider()
+
+    await provider.startup(api_key="gm-one")
+    await provider.shutdown()
+
+    with pytest.raises(ProviderError):
+        provider._require_client()
+
+
+async def test_two_concurrent_runs_do_not_share_a_client():
+    """`get_provider` hands back one instance, so per-run state must not live on it."""
+    provider = GeminiProvider()
+    seen: list[str] = []
+
+    async def run(key: str) -> None:
+        await provider.startup(api_key=key)
+        await asyncio.sleep(0)  # give the other run a chance to clobber us
+        seen.append(provider._require_client()._api_client.api_key)
+        await provider.shutdown()
+
+    await asyncio.gather(run("gm-alpha"), run("gm-beta"))
+
+    assert sorted(seen) == ["gm-alpha", "gm-beta"]
+
+
+async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):
+    """`google` is a namespace other packages share, so only `genai` is taken away."""
+    monkeypatch.setitem(sys.modules, "google.genai", None)
+    if "google" in sys.modules:
+        monkeypatch.delattr(sys.modules["google"], "genai", raising=False)
+
+    with pytest.raises(ProviderDependencyError, match=r"uv add ai-taxman\[gemini\]"):
+        await GeminiProvider().startup(api_key="gm-one")
