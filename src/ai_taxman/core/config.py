@@ -6,20 +6,21 @@ is provider-owned and deliberately opaque to this module — it is handed to the
 provider's own validator untouched. That split is what keeps providers isolated.
 
 Relative paths resolve against the audit's *project root*: the nearest
-directory at or above the file holding a `taxman.yaml` marker. So the documented
-layout works as it reads, from anywhere inside it::
+directory at or above the file holding a `taxman.yaml` marker. So the layout
+`taxman init` makes works as it reads, from anywhere inside it::
 
     my-research/
-    |-- taxman.yaml              <- the project root
-    |-- audits/election.yaml     messages: messages/election.txt
-    |-- messages/election.txt
-    `-- data/
+    |-- taxman.yaml                      <- the project root
+    `-- taxman/
+        |-- audits/election.yaml         messages: taxman/messages/election.txt
+        |-- messages/election.txt
+        |-- prompts/
+        |-- data/
+        `-- logs/
 
-A file handed to `load_audit()` directly with no marker above it falls back to
-its own location - the parent of an `audits/` directory, else the containing
-directory. That is a fact about where the file sits, not a guess at the working
-directory, so it stays deterministic wherever it is loaded from. The CLI never
-reaches it: `find_audit()` requires a project first.
+An audit with no marker above it is refused, by `load_audit()` as by the CLI:
+without a root there is nothing to resolve its paths against, and a guess is
+how collected data ends up somewhere nobody looks.
 """
 
 from __future__ import annotations
@@ -33,13 +34,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from ai_taxman.core.discovery import (
     YAML_SUFFIXES,
     find_audit,
-    find_project_root,
+    require_project_root,
 )
 from ai_taxman.core.errors import ConfigError
-
-#: A loose file with no marker above it, sitting in a directory of this name,
-#: resolves against that directory's parent.
-_LOOSE_AUDITS_DIR = "audits"
 
 DEFAULT_OUTPUT_DIR = "data/{audit}/{run_id}"
 DEFAULT_OUTPUT_FILENAME = "responses.jsonl"
@@ -98,14 +95,8 @@ class AuditConfig(_Strict):
 
     @property
     def project_root(self) -> Path:
-        """The directory relative paths in this file resolve against."""
-        directory = self.source_path.parent
-        marked = find_project_root(directory)
-        if marked is not None:
-            return marked
-        if directory.name == _LOOSE_AUDITS_DIR:
-            return directory.parent
-        return directory
+        """The directory relative paths in this file resolve against: its project's."""
+        return require_project_root(self.source_path.parent)
 
     @property
     def messages_path(self) -> Path:
@@ -162,6 +153,10 @@ def load_audit(path: str | Path) -> AuditConfig:
         config = AuditConfig(**data, source_path=path)
     except ValidationError as exc:
         raise ConfigError(f"Invalid audit file at {path}:\n{_format(exc)}") from exc
+
+    # Outside a project there is no root to resolve its paths against, and
+    # guessing one is how data lands somewhere nobody looks.
+    require_project_root(path.parent)
 
     if config.audit != path.stem:
         raise ConfigError(

@@ -14,12 +14,33 @@ model:
 """
 
 
-def write_audit(tmp_path, body=MINIMAL, name="my-audit", in_audits_dir=True):
+def write_audit(tmp_path, body=MINIMAL, name="my-audit", in_audits_dir=True, marker=True):
+    """An audit file; inside a project rooted at `tmp_path` unless `marker=False`."""
+    from ai_taxman.core.discovery import write_marker
+
+    if marker and find_marker_above(tmp_path) is None:
+        write_marker(tmp_path)
     directory = tmp_path / "audits" if in_audits_dir else tmp_path
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}.yaml"
     path.write_text(textwrap.dedent(body).lstrip(), encoding="utf-8")
     return path
+
+
+def find_marker_above(path):
+    from ai_taxman.core.discovery import find_project_root
+
+    return find_project_root(path)
+
+
+def test_an_audit_outside_a_project_is_refused(tmp_path):
+    """No marker means no root to resolve its paths against - and no guessing at one."""
+    from ai_taxman.core.errors import NotATaxmanProjectError
+
+    path = write_audit(tmp_path, marker=False)
+
+    with pytest.raises(NotATaxmanProjectError, match="not a taxman project"):
+        load_audit(path)
 
 
 def test_loads_the_required_keys(tmp_path):
@@ -79,7 +100,7 @@ def test_relative_message_path_resolves_against_the_project_root(tmp_path):
     assert load_audit(path).messages_path == tmp_path / "messages" / "probe.txt"
 
 
-def test_relative_message_path_resolves_against_the_audit_dir_when_not_in_audits(tmp_path):
+def test_an_audit_anywhere_in_the_project_resolves_against_its_root(tmp_path):
     path = write_audit(tmp_path, in_audits_dir=False)
 
     assert load_audit(path).messages_path == tmp_path / "messages" / "probe.txt"

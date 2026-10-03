@@ -5,6 +5,7 @@ import textwrap
 import pytest
 
 from ai_taxman.core.config import load_audit
+from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.errors import (
     ConfigError,
     MessageFileError,
@@ -16,11 +17,12 @@ from ai_taxman.core.writer import read_jsonl
 
 
 @pytest.fixture
-def project(tmp_path):
+def project(tmp_path, flat_layout):
     """A project directory with three messages and a `fake` provider audit."""
     (tmp_path / "messages").mkdir()
     (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
     (tmp_path / "audits").mkdir()
+    write_marker(tmp_path, flat_layout)
     return tmp_path
 
 

@@ -5,6 +5,12 @@ from ai_taxman import AuditConfig, ResponseRecord, load_audit, read_messages, ru
 
 
 def make_project(tmp_path):
+    from ai_taxman.core.discovery import Layout, write_marker
+
+    write_marker(
+        tmp_path,
+        Layout(data="data", audits="audits", messages="messages", prompts="prompts", logs="logs"),
+    )
     (tmp_path / "messages").mkdir()
     (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\n", encoding="utf-8")
     (tmp_path / "audits").mkdir()
