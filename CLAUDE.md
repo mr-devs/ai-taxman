@@ -303,7 +303,9 @@ src/ai_taxman/
 ├── core/             # config, credentials, discovery, messages, records,
 │                     # writer, runner, registry, state, environment, errors
 └── providers/
-    ├── base.py       # the ONLY shared provider contract + setup question types
+    ├── base.py       # the ONLY shared provider contract
+    ├── anthropic/    # provider.py, config.py, models.py
+    ├── gemini/       # provider.py, config.py, models.py
     └── openai/       # provider.py, config.py, models.py
 
 docs/provider-apis/   # API docs per provider - read before touching provider code
@@ -329,7 +331,7 @@ recalled parameter names, response shapes, usage keys, or error semantics — pr
 and deprecate, and a wrong field name in an adapter fails silently at audit time: the run
 completes, the JSONL fills up, and the data is wrong.
 
-Consult it when you: change `build_request()` or `extract()`; add a key to a `model:` block;
+Consult it when you: change `build_request()` or `send()`; add a key to a `model:` block;
 touch retry or error handling; refresh `known_models()`; or implement a new provider.
 
 Every provider we target serves a markdown twin of its docs. Fetch that, not the HTML page:
