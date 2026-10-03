@@ -25,6 +25,14 @@ from ai_taxman.core.discovery import yaml_scalar
 #: The widest a comment line gets, indentation included.
 WIDTH = 80
 
+#: What a value of each type is called, alone and in a list.
+NOUNS: dict[type, tuple[str, str]] = {
+    bool: ("true or false", "true or false values"),
+    str: ("text", "text"),
+    int: ("whole number", "whole numbers"),
+    float: ("number", "numbers"),
+}
+
 
 def render_block(
     model: type[BaseModel],
@@ -53,8 +61,63 @@ def _render_setting(key: str, field: FieldInfo, *, indent: int, value: Any) -> l
     block = _block_model(field.annotation)
     if block is not None:
         return [*lines, f"{pad}{key}:", *render_block(block, indent=indent + 2, values=value)]
+    kind = _describe_type(field)
+    if kind:
+        lines.append(_label(pad, "Type", kind))
     written = _yaml_value(value)
     return [*lines, f"{pad}{key}: {written}" if written else f"{pad}{key}:"]
+
+
+def _label(pad: str, name: str, text: str) -> str:
+    return f"{pad}#   {name + ':':<10}{text}"
+
+
+def _describe_type(field: FieldInfo) -> str | None:
+    """What the setting takes, with its bounds, e.g. `number, 0 to 2`."""
+    kind = _strip_none(field.annotation)
+    if get_origin(kind) is list:
+        (item,) = get_args(kind)
+        if item not in NOUNS:
+            return None
+        return f"list of {NOUNS[item][1]}{_length_bounds(field)}"
+    if kind not in NOUNS:
+        return None
+    return f"{NOUNS[kind][0]}{_number_bounds(field)}"
+
+
+def _number_bounds(field: FieldInfo) -> str:
+    ge, gt = _constraint(field, "ge"), _constraint(field, "gt")
+    le, lt = _constraint(field, "le"), _constraint(field, "lt")
+    if ge is not None and le is not None:
+        return f", {_number(ge)} to {_number(le)}"
+    parts = [
+        *([f"{_number(ge)} or more"] if ge is not None else []),
+        *([f"more than {_number(gt)}"] if gt is not None else []),
+        *([f"up to {_number(le)}"] if le is not None else []),
+        *([f"less than {_number(lt)}"] if lt is not None else []),
+    ]
+    return "".join(f", {part}" for part in parts)
+
+
+def _length_bounds(field: FieldInfo) -> str:
+    least, most = _constraint(field, "min_length"), _constraint(field, "max_length")
+    if least is not None and most is not None:
+        return f", {least} to {most}"
+    if least is not None:
+        return f", at least {least}"
+    if most is not None:
+        return f", up to {most}"
+    return ""
+
+
+def _constraint(field: FieldInfo, name: str) -> Any:
+    """The bound `Field(ge=1)` and the like set, by that name, or None without one."""
+    return next((getattr(c, name) for c in field.metadata if hasattr(c, name)), None)
+
+
+def _number(value: float) -> str:
+    """`2.0` as `2`: a bound reads as the user would write it."""
+    return str(int(value)) if float(value).is_integer() else str(value)
 
 
 def _wrap(text: str, pad: str) -> list[str]:

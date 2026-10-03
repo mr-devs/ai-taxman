@@ -59,7 +59,7 @@ def test_a_nested_block_is_indented_under_its_own_explanation():
 
     assert lines[index - 1] == "# Where to search from."
     assert lines[index + 1] == "  # A city to search from."
-    assert lines[index + 2] == "  city:"
+    assert "  city:" in lines[index:]
 
 
 def test_a_block_can_be_indented_inside_another():
@@ -112,3 +112,54 @@ def test_a_setting_without_an_explanation_is_refused():
 
     with pytest.raises(ValueError, match="setting"):
         render_block(Undocumented)
+
+
+# --- what a setting takes ---------------------------------------------------
+
+
+def label(lines, key, name):
+    """The text after `name:` in the comment above `key`, or None."""
+    for line in comment_above(lines, key):
+        text = line.lstrip("# ")
+        if text.startswith(f"{name}:"):
+            return text.removeprefix(f"{name}:").strip()
+    return None
+
+
+def typed(annotation, **constraints):
+    class One(BaseModel):
+        setting: annotation = Field(default=None, description="A setting.", **constraints)
+
+    return label(render_block(One), "setting", "Type")
+
+
+@pytest.mark.parametrize(
+    "annotation, constraints, expected",
+    [
+        (bool | None, {}, "true or false"),
+        (str | None, {}, "text"),
+        (int | None, {}, "whole number"),
+        (float | None, {}, "number"),
+        (int | None, {"ge": 1}, "whole number, 1 or more"),
+        (float | None, {"gt": 0}, "number, more than 0"),
+        (float | None, {"ge": 0, "le": 2}, "number, 0 to 2"),
+        (float | None, {"le": 1.5}, "number, up to 1.5"),
+        (list[str] | None, {}, "list of text"),
+        (list[str] | None, {"max_length": 100}, "list of text, up to 100"),
+        (list[int] | None, {"min_length": 1}, "list of whole numbers, at least 1"),
+    ],
+)
+def test_the_type_says_what_the_setting_takes(annotation, constraints, expected):
+    assert typed(annotation, **constraints) == expected
+
+
+def test_the_type_line_follows_the_explanation():
+    lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "temperature")
+
+    assert lines == ["# How random sampling is.", "#   Type:     number"]
+
+
+def test_a_nested_block_has_no_type_line():
+    lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "location")
+
+    assert lines == ["# Where to search from."]
