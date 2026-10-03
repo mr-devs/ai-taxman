@@ -24,11 +24,17 @@ from typing import TYPE_CHECKING, Any
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.anthropic.config import (
     DEFAULT_MAX_TOKENS,
+    SEARCH_TEMPLATE_FIELDS,
     TEMPLATE_FIELDS,
     THINKING_TEMPLATE_FIELDS,
     AnthropicModelConfig,
+    AnthropicSearchConfig,
 )
-from ai_taxman.providers.anthropic.models import DEFAULT_MODEL, KNOWN_MODELS
+from ai_taxman.providers.anthropic.models import (
+    DEFAULT_MODEL,
+    DEFAULT_WEB_SEARCH_VERSION,
+    KNOWN_MODELS,
+)
 from ai_taxman.providers.base import Provider, Request
 
 if TYPE_CHECKING:
@@ -142,11 +148,18 @@ def build_request(request: Request) -> dict[str, Any]:
         payload["output_config"] = {"effort": config.effort}
     if config.thinking.type is not None:
         payload["thinking"] = config.thinking.model_dump(exclude_none=True)
+    if config.search.web_search:
+        payload["tools"] = [_web_search_tool(config.search)]
     if request.system_prompt:
         payload["system"] = request.system_prompt
 
     _merge(payload, config.extra)
     return payload
+
+
+def _web_search_tool(search: AnthropicSearchConfig) -> dict[str, Any]:
+    """The web search tool, carrying only the settings the audit chose."""
+    return {"type": search.tool_version or DEFAULT_WEB_SEARCH_VERSION, "name": "web_search"}
 
 
 def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
@@ -184,6 +197,13 @@ def render_template() -> str:
         "  thinking:",
     ]
     for key, comment in THINKING_TEMPLATE_FIELDS:
+        lines.append(f"    {key}:  # {comment}")
+    lines += [
+        "",
+        "  # Web search. web_search must be true to use any other setting in this block.",
+        "  search:",
+    ]
+    for key, comment in SEARCH_TEMPLATE_FIELDS:
         lines.append(f"    {key}:  # {comment}")
     return "\n".join(lines) + "\n"
 

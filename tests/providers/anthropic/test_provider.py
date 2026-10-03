@@ -191,3 +191,19 @@ def test_the_thinking_block_says_blank_means_the_models_default():
     index = lines.index("  thinking:")
 
     assert "model's default" in lines[index - 1]
+
+
+def test_web_search_is_set_in_a_search_block_inside_the_model_block():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
+
+    assert "web_search" not in parsed
+    assert parsed["search"]["web_search"] is None
+
+
+def test_the_search_block_says_its_settings_need_web_search():
+    lines = PROVIDER.render_template().splitlines()
+    index = lines.index("  search:")
+
+    assert lines[index - 1] == (
+        "  # Web search. web_search must be true to use any other setting in this block."
+    )

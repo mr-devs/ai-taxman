@@ -16,6 +16,7 @@ from ai_taxman.providers.anthropic.models import (
     Effort,
     ThinkingDisplay,
     ThinkingType,
+    WebSearchVersion,
 )
 
 
@@ -63,6 +64,7 @@ SET_BY_TAXMAN = frozenset(
         "top_k",
         "output_config.effort",
         "thinking",
+        "tools",
     }
 )
 
@@ -111,6 +113,31 @@ class AnthropicThinking(_Block):
         return self
 
 
+class AnthropicSearchConfig(_Block):
+    """The `search:` block: Claude's web search tool and its settings.
+
+    Names are Anthropic's own, so each one can be looked up in the web search
+    tool guide as written. Every setting but `web_search` is sent only when set.
+    """
+
+    #: Give Claude the web search tool.
+    web_search: bool = False
+
+    #: Which version of the tool. Blank sends the newest.
+    tool_version: WebSearchVersion | None = None
+
+    @model_validator(mode="after")
+    def _settings_need_web_search(self) -> AnthropicSearchConfig:
+        """A setting for a tool that is not sent would be recorded but never used."""
+        chosen = sorted(self.model_fields_set - {"web_search"})
+        if chosen and not self.web_search:
+            raise ValueError(
+                f"{', '.join(chosen)} set in `search:`, but `web_search` is not true. "
+                "Set `web_search: true`, or leave the other search settings blank."
+            )
+        return self
+
+
 class AnthropicModelConfig(_Block):
     """Validated Anthropic settings for one audit."""
 
@@ -133,8 +160,9 @@ class AnthropicModelConfig(_Block):
     #: the request as written - but never over one it does name.
     extra: dict[str, Any] = Field(default_factory=dict)
 
-    #: Last, as in the template: it is a nested block.
+    #: Last, as in the template: the nested blocks.
     thinking: AnthropicThinking = Field(default_factory=AnthropicThinking)
+    search: AnthropicSearchConfig = Field(default_factory=AnthropicSearchConfig)
 
     @field_validator("extra")
     @classmethod
@@ -204,5 +232,15 @@ THINKING_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "display",
         "summarized | omitted. Whether thinking text comes back; current models "
         "default to omitted.",
+    ),
+)
+
+#: The `search:` block, in this order, below a comment saying it needs web_search.
+SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("web_search", "true to give Claude the web search tool."),
+    (
+        "tool_version",
+        "web_search_20250305 | web_search_20260209 | web_search_20260318. "
+        "Blank = web_search_20260318.",
     ),
 )

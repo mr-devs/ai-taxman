@@ -48,3 +48,11 @@ ThinkingType = Literal["adaptive", "enabled", "disabled", "between_tools"]
 #: Whether thinking text comes back. `omitted` returns thinking blocks with an
 #: empty `thinking` field; it is the default on current models.
 ThinkingDisplay = Literal["summarized", "omitted"]
+
+#: The web search tool versions, oldest first. `_20260209` added dynamic
+#: filtering (search run from code execution); `_20260318` added
+#: `response_inclusion`. See docs/provider-apis/anthropic.md.
+WebSearchVersion = Literal["web_search_20250305", "web_search_20260209", "web_search_20260318"]
+
+#: The version sent when the audit names none: the newest.
+DEFAULT_WEB_SEARCH_VERSION: WebSearchVersion = "web_search_20260318"

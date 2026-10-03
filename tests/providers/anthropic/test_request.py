@@ -288,6 +288,7 @@ def test_every_key_taxman_sends_is_protected_from_extra():
         "top_p": 0.99,
         "top_k": 5,
         "thinking": {"type": "enabled", "budget_tokens": 2048, "display": "summarized"},
+        "search": {"web_search": True},
     }
     payload = request_for(block, system_prompt="Be terse.")
 
@@ -302,3 +303,59 @@ def leaf_paths(payload, prefix=""):
             yield from leaf_paths(value, f"{path}.")
         else:
             yield path
+
+
+# -- web search --------------------------------------------------------------
+
+
+def search(**settings):
+    return request_for({**BASE, "search": {"web_search": True, **settings}})
+
+
+def tool(**settings):
+    return search(**settings)["tools"][0]
+
+
+def test_web_search_gives_claude_the_latest_web_search_tool():
+    assert search()["tools"] == [{"type": "web_search_20260318", "name": "web_search"}]
+
+
+@pytest.mark.parametrize(
+    "version", ["web_search_20250305", "web_search_20260209", "web_search_20260318"]
+)
+def test_a_tool_version_can_be_pinned(version):
+    assert tool(tool_version=version)["type"] == version
+
+
+def test_an_unknown_tool_version_is_refused():
+    with pytest.raises(ValidationError, match="tool_version"):
+        search(tool_version="web_search_2099")
+
+
+def test_web_search_false_adds_no_tools():
+    assert "tools" not in request_for({**BASE, "search": {"web_search": False}})
+
+
+def test_a_blank_search_block_adds_no_tools():
+    assert "tools" not in request_for({**BASE, "search": {"web_search": None}})
+
+
+def test_web_search_lives_in_the_search_block():
+    with pytest.raises(ValidationError, match="web_search"):
+        request_for({**BASE, "web_search": True})
+
+
+def test_the_search_block_refuses_a_setting_it_does_not_know():
+    with pytest.raises(ValidationError, match="bogus"):
+        search(bogus=1)
+
+
+def test_a_search_setting_without_web_search_is_refused():
+    """A setting for a tool that is not sent would be recorded but never used."""
+    with pytest.raises(ValidationError, match="web_search"):
+        request_for({**BASE, "search": {"tool_version": "web_search_20250305"}})
+
+
+def test_extra_cannot_add_tools_of_its_own():
+    with pytest.raises(ValidationError, match="tools"):
+        request_for({**BASE, "extra": {"tools": []}})
