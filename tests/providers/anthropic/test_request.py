@@ -288,7 +288,7 @@ def test_every_key_taxman_sends_is_protected_from_extra():
         "top_p": 0.99,
         "top_k": 5,
         "thinking": {"type": "enabled", "budget_tokens": 2048, "display": "summarized"},
-        "search": {"web_search": True},
+        "search": {"web_search": True, "tool_choice": "any"},
     }
     payload = request_for(block, system_prompt="Be terse.")
 
@@ -455,3 +455,21 @@ def test_response_inclusion_needs_a_tool_version_that_has_it(version):
 def test_response_inclusion_is_full_or_excluded():
     with pytest.raises(ValidationError, match="response_inclusion"):
         search(response_inclusion="partial")
+
+
+def test_tool_choice_any_makes_claude_use_a_tool_first():
+    assert search(tool_choice="any")["tool_choice"] == {"type": "any"}
+
+
+def test_tool_choice_is_left_to_anthropic_unless_set():
+    assert "tool_choice" not in search()
+
+
+def test_tool_choice_is_auto_or_any():
+    with pytest.raises(ValidationError, match="search.tool_choice"):
+        search(tool_choice="required")
+
+
+def test_extra_cannot_set_tool_choice():
+    with pytest.raises(ValidationError, match="cannot set tool_choice"):
+        request_for({**BASE, "extra": {"tool_choice": {"type": "none"}}})

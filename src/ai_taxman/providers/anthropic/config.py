@@ -66,6 +66,7 @@ SET_BY_TAXMAN = frozenset(
         "output_config.effort",
         "thinking",
         "tools",
+        "tool_choice",
     }
 )
 
@@ -155,6 +156,10 @@ class AnthropicSearchConfig(_Block):
     #: `web_search_20260318` only. `excluded` drops result blocks a finished code
     #: execution call already consumed, rather than echoing them back.
     response_inclusion: Literal["full", "excluded"] | None = None
+
+    #: Request-level, not on the tool. `any` makes Claude use a tool before
+    #: answering; current models reject it, older ones take it.
+    tool_choice: Literal["auto", "any"] | None = None
 
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
@@ -326,5 +331,10 @@ SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
         "response_inclusion",
         "full | excluded. web_search_20260318 only. excluded drops result blocks "
         "code execution already consumed. Blank = full.",
+    ),
+    (
+        "tool_choice",
+        "auto | any. any makes Claude search before answering; current models reject "
+        "it. Blank = auto.",
     ),
 )

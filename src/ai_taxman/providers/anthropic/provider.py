@@ -150,6 +150,8 @@ def build_request(request: Request) -> dict[str, Any]:
         payload["thinking"] = config.thinking.model_dump(exclude_none=True)
     if config.search.web_search:
         payload["tools"] = [_web_search_tool(config.search)]
+        if config.search.tool_choice is not None:
+            payload["tool_choice"] = {"type": config.search.tool_choice}
     if request.system_prompt:
         payload["system"] = request.system_prompt
 
