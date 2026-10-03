@@ -362,12 +362,14 @@ and update `docs/provider-apis/` if the URL moved.
    provider's index URL are in `docs/provider-apis/README.md`.
 2. `mkdir src/ai_taxman/providers/<name>/` — mirror the `openai/` layout exactly.
 3. Add the SDK as an optional extra in `pyproject.toml` (and to the `all` extra), then `uv sync --all-extras`.
-4. Write failing tests first: `build_request`, `extract` against a recorded fixture, template parses.
+4. Write failing tests first: `build_request` for each `model:` key, the template parses and
+   validates, `is_retryable` against the SDK's own error classes.
 5. Implement `Provider` from `providers/base.py`; export `PROVIDER` at module level.
 6. Implement `known_models()`, `render_template()`, `describe_model()` and
    `default_api_key_env` — these feed `taxman audits new` and shell completion. `render_template()`
    takes no arguments and renders every parameter blank but commented.
-7. Confirm the conformance suite (`tests/providers/test_conformance.py`) picks it up and passes.
+7. Confirm the conformance suite (`tests/providers/test_conformance.py`) passes. It is
+   parametrized over the registry, so a new folder is checked with nothing to add to it.
 8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.
 
 ## Commits
