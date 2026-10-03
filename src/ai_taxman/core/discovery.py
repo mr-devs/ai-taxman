@@ -191,8 +191,9 @@ def require_project_root(start: Path | None = None) -> Path:
 def render_marker(layout: Layout) -> str:
     """The text of a marker recording `layout`, commented for the person editing it."""
     width = max(len(purpose) for purpose in FOLDER_PURPOSES) + 1
+    folder_width = max(len(folder) for folder in layout.as_dict().values())
     folders = [
-        f"  {purpose + ':':<{width}} {getattr(layout, purpose)}  # {label}"
+        f"  {purpose + ':':<{width}} {getattr(layout, purpose):<{folder_width}}  # {label}"
         for purpose, label in FOLDER_PURPOSES.items()
     ]
     return "\n".join(
