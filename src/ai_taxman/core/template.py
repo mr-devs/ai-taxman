@@ -37,8 +37,9 @@ from ai_taxman.core.discovery import yaml_scalar
 #: The widest a comment line gets, indentation included: the project's line length.
 WIDTH = 100
 
-#: Where one sentence of an explanation ends and the next begins.
-SENTENCE_END = re.compile(r"(?<=\.)\s+")
+#: Where one sentence of an explanation ends and the next begins: after a period,
+#: unless it closes dotted initials such as `e.g.` or `U.S.`.
+SENTENCE_END = re.compile(r"(?<=\.)(?<!\b[A-Za-z]\.[A-Za-z]\.)\s+")
 
 #: What a value of each type is called, alone and in a list.
 NOUNS: dict[type, tuple[str, str]] = {

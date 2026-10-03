@@ -121,6 +121,15 @@ def test_a_number_inside_a_sentence_does_not_end_it():
     assert comment_above(render_block(One), "setting")[0] == "# Models after 4.6 reject it."
 
 
+def test_an_abbreviation_inside_a_sentence_does_not_end_it():
+    sentence = "Bare domains, e.g. cdc.gov, and U.S. sites only."
+
+    class One(BaseModel):
+        setting: int | None = Field(default=None, description=sentence)
+
+    assert comment_above(render_block(One), "setting")[0] == f"# {sentence}"
+
+
 def test_no_line_ends_in_whitespace():
     lines = render_block(Settings, indent=2, values={"name": "gpt-5"})
 
