@@ -79,7 +79,7 @@ DATA_DOCS = "https://developers.openai.com/api/docs/guides/your-data"
 WEB_SEARCH_DOCS = "https://developers.openai.com/api/docs/guides/tools-web-search"
 
 #: What a blank sampling or length setting does.
-MODEL_DEFAULT = "not sent, so the model's own default applies"
+MODEL_DEFAULT = "model default"
 
 #: The web-search data `include` can ask for: every URL consulted, and the raw
 #: results (which is where image results arrive).
@@ -94,25 +94,25 @@ class OpenAIUserLocation(_Block):
     country: str | None = Field(
         default=None,
         pattern=r"^[A-Z]{2}$",
-        description="A two-letter country code, in capitals.",
+        description="Two-letter country code.",
         examples=["US"],
         json_schema_extra={"blank": "not sent"},
     )
     region: str | None = Field(
         default=None,
-        description="A region, in free text.",
+        description="Region name.",
         examples=["Minnesota"],
         json_schema_extra={"blank": "not sent"},
     )
     city: str | None = Field(
         default=None,
-        description="A city, in free text.",
+        description="City name.",
         examples=["Minneapolis"],
         json_schema_extra={"blank": "not sent"},
     )
     timezone: str | None = Field(
         default=None,
-        description="An IANA time zone.",
+        description="IANA time zone.",
         examples=["America/Chicago"],
         json_schema_extra={"blank": "not sent"},
     )
@@ -124,12 +124,12 @@ class OpenAIImageSettings(_Block):
     max_results: int | None = Field(
         default=None,
         ge=1,
-        description="How many image results to ask for.",
-        json_schema_extra={"blank": "not sent, so OpenAI's default applies"},
+        description="Number of image results to request.",
+        json_schema_extra={"blank": "OpenAI default"},
     )
     caption: bool | None = Field(
         default=None,
-        description="Ask for a short description of each image, where one is available.",
+        description="Request a short caption for each image.",
         json_schema_extra={"blank": "not sent"},
     )
 
@@ -143,34 +143,29 @@ class OpenAISearchConfig(_Block):
 
     web_search: bool = Field(
         default=False,
-        description="Give the model the web search tool. Whether it searches is up to "
-        "the model, unless tool_choice is required.",
+        description="Give the model the web search tool.",
     )
 
     search_context_size: Literal["low", "medium", "high"] | None = Field(
         default=None,
-        description="How much context from search results the model sees before it "
-        "answers. Not an exact token count, nor a number of sources.",
-        json_schema_extra={"blank": "not sent, so OpenAI's default applies"},
+        description="How much search-result context the model sees.",
+        json_schema_extra={"blank": "OpenAI default"},
     )
     external_web_access: bool | None = Field(
         default=None,
-        description="Whether search fetches live pages. false limits it to cached and "
-        "indexed results.",
-        json_schema_extra={"blank": "not sent, so search is live"},
+        description="Fetch live pages; false limits search to cached results.",
+        json_schema_extra={"blank": "live"},
     )
     #: GPT-5+ reasoning web search only.
     return_token_budget: Literal["default", "unlimited"] | None = Field(
         default=None,
-        description="How much search-result content the tool may return in one run. "
-        "GPT-5 and later reasoning models only. unlimited can raise latency and cost: "
-        "keep it for high-effort research or evaluation runs.",
+        description="How much content one search run may return. GPT-5+ reasoning models only.",
         json_schema_extra={
             "options": {
-                "default": "the standard budget, the same as leaving this blank",
-                "unlimited": "no budget",
+                "default": "the standard budget",
+                "unlimited": "no budget; raises latency and cost",
             },
-            "blank": "not sent, so the standard budget applies",
+            "blank": "the standard budget",
         },
     )
 
@@ -178,25 +173,22 @@ class OpenAISearchConfig(_Block):
     allowed_domains: list[str] | None = Field(
         default=None,
         max_length=MAX_DOMAINS,
-        description="Search only these domains, subdomains included. Write each without "
-        "http:// or https://.",
+        description="Only search these domains, subdomains included.",
         examples=[["cdc.gov", "who.int"]],
         json_schema_extra={"blank": "any domain"},
     )
     blocked_domains: list[str] | None = Field(
         default=None,
         max_length=MAX_DOMAINS,
-        description="Never search these domains, subdomains included. Write each "
-        "without http:// or https://.",
+        description="Never search these domains, subdomains included.",
         examples=[["example.com"]],
-        json_schema_extra={"blank": "none blocked"},
+        json_schema_extra={"blank": "none"},
     )
 
     #: Not supported for deep-research models; OpenAI rejects it there.
     user_location: OpenAIUserLocation | None = Field(
         default=None,
-        description="An approximate location to localise search results. Leave every "
-        "key blank for none. Deep-research models reject it.",
+        description="Approximate location to localise results. Deep-research models reject it.",
     )
 
     #: Request-level, not on the tool.
@@ -205,10 +197,10 @@ class OpenAISearchConfig(_Block):
         description="Whether the model must search.",
         json_schema_extra={
             "options": {
-                "auto": "the model decides, and may not search at all",
+                "auto": "the model decides",
                 "required": "the model searches before answering",
             },
-            "blank": "not sent, so auto",
+            "blank": "auto",
         },
     )
 
@@ -216,11 +208,11 @@ class OpenAISearchConfig(_Block):
     #: not only those it cited, is what an audit of search needs.
     include: list[WebSearchInclude] = Field(
         default_factory=lambda: [SOURCES],
-        description="Which search data each response records. Write [] to record neither.",
+        description="Search data to record; [] records neither.",
         json_schema_extra={
             "options": {
-                SOURCES: "every URL the model consulted, not only those it cited",
-                "web_search_call.results": "the raw search results, where image results arrive",
+                SOURCES: "every URL consulted, not only those cited",
+                "web_search_call.results": "raw results, including image results",
             }
         },
     )
@@ -229,14 +221,14 @@ class OpenAISearchConfig(_Block):
     search_content_types: list[Literal["text", "image"]] | None = Field(
         default=None,
         min_length=1,
-        description="Which kinds of search result to ask for. Image results arrive in "
-        "web_search_call.results, so add that to include to record them.",
+        description="Kinds of search result to request. "
+        "To record image results, add web_search_call.results to include.",
         examples=[["image", "text"]],
-        json_schema_extra={"blank": "not sent, so OpenAI's default applies"},
+        json_schema_extra={"blank": "OpenAI default"},
     )
     image_settings: OpenAIImageSettings | None = Field(
         default=None,
-        description="Image results only: needs image in search_content_types.",
+        description="Image result settings, which need image in search_content_types.",
     )
 
     @field_validator("allowed_domains", "blocked_domains")
@@ -274,7 +266,7 @@ class OpenAIModelConfig(_Block):
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
     name: str = Field(
-        description="The model every message is sent to. Any name OpenAI accepts works.",
+        description="The model to send every message to.",
         json_schema_extra={"docs": MODELS_DOCS},
     )
 
@@ -283,32 +275,29 @@ class OpenAIModelConfig(_Block):
         default=None,
         ge=0,
         le=2,
-        description="How random the sampling is: lower is more focused and "
-        "deterministic, higher more varied. OpenAI recommends changing this or top_p, "
-        "not both.",
+        description="Sampling randomness, from focused to varied. "
+        "OpenAI recommends changing this or top_p, not both.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
     )
     top_p: float | None = Field(
         default=None,
         ge=0,
         le=1,
-        description="Nucleus sampling: the model considers only the most likely tokens "
-        "that make up this share of the probability. 0.1 means the top 10%.",
+        description="Nucleus sampling: 0.1 means only the top 10% of probability mass "
+        "is considered.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
     )
     max_output_tokens: int | None = Field(
         default=None,
         ge=1,
-        description="The most tokens a response may use, reasoning tokens included. A "
-        "response that reaches it stops short.",
+        description="Max tokens per response, reasoning tokens included.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": CREATE_DOCS},
     )
 
     #: Reasoning models only. Other models reject it.
     reasoning_effort: ReasoningEffort | None = Field(
         default=None,
-        description="How much the model reasons before answering. Reasoning models only: "
-        "other models reject it, and not every reasoning model takes every level.",
+        description="How much the model reasons before answering. Reasoning models only.",
         json_schema_extra={"blank": MODEL_DEFAULT, "docs": REASONING_DOCS},
     )
 
@@ -316,8 +305,7 @@ class OpenAIModelConfig(_Block):
     #: auditing from.
     store: bool = Field(
         default=False,
-        description="Let OpenAI keep the response on its servers. Off, so an audit "
-        "leaves no trail in the account it runs from.",
+        description="Let OpenAI keep responses on its servers.",
         json_schema_extra={"docs": DATA_DOCS},
     )
 
@@ -346,6 +334,6 @@ class OpenAIModelConfig(_Block):
     #: Last, as it is in the template: it is the one nested block.
     search: OpenAISearchConfig = Field(
         default_factory=OpenAISearchConfig,
-        description="Web search. web_search must be true to use any other setting in this block.",
+        description="Web search: web_search must be true to use any other setting in this block.",
         json_schema_extra={"docs": WEB_SEARCH_DOCS},
     )

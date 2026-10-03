@@ -82,9 +82,7 @@ def test_max_output_tokens_says_what_it_counts():
 
 
 def test_a_blank_sampling_setting_leaves_the_models_default():
-    assert "Default:  blank (not sent, so the model's own default applies)" in comment_above(
-        "temperature"
-    )
+    assert "Default:  blank (model default)" in comment_above("temperature")
 
 
 def test_reasoning_effort_lists_every_level_openai_documents():
