@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from ai_taxman.core.messages import Message
-from ai_taxman.providers.anthropic.models import EFFORTS, Effort
+from ai_taxman.providers.anthropic.models import Effort
 from ai_taxman.providers.anthropic.provider import AnthropicProvider, build_request
 from ai_taxman.providers.base import Request
 
@@ -88,7 +88,7 @@ def test_effort_goes_in_output_config():
     assert request_for({**BASE, "effort": "low"})["output_config"] == {"effort": "low"}
 
 
-@pytest.mark.parametrize("effort", EFFORTS)
+@pytest.mark.parametrize("effort", get_args(Effort))
 def test_every_documented_effort_level_is_accepted(effort):
     """Which model takes which level is the API's call; taxman only checks the name."""
     assert request_for({**BASE, "effort": effort})["output_config"]["effort"] == effort
@@ -97,10 +97,6 @@ def test_every_documented_effort_level_is_accepted(effort):
 def test_adaptive_is_a_thinking_mode_not_an_effort_level():
     with pytest.raises(ValidationError, match="effort"):
         request_for({**BASE, "effort": "adaptive"})
-
-
-def test_the_effort_list_and_the_validated_type_cannot_drift():
-    assert get_args(Effort) == EFFORTS
 
 
 # -- thinking ----------------------------------------------------------------

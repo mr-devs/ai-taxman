@@ -11,7 +11,7 @@ should name the exact model it ran against. See docs/provider-apis/anthropic.md.
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import Literal
 
 #: Offered by `taxman audits new anthropic` and tab completion. First entry is the
 #: default, the model Anthropic's models overview says to start with.
@@ -36,9 +36,6 @@ DEFAULT_MODEL = KNOWN_MODELS[0]
 #: every model accepts every one - `xhigh` and `max` are newer, and Haiku 4.5 takes
 #: none - so taxman validates the name and lets Anthropic rule on the pairing.
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
-
-#: The same levels as a tuple, for templates and completion.
-EFFORTS: tuple[str, ...] = get_args(Effort)
 
 #: The documented `thinking.type` values. Which a model accepts varies - current
 #: models reject `enabled`, older ones reject `adaptive`, only Sonnet 5.5 takes
