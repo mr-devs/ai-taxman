@@ -11,7 +11,7 @@ these is mandatory.
 |---|---|---|---|
 | OpenAI | [openai.md](openai.md) | Responses API (`POST /v1/responses`) | `OPENAI_API_KEY` |
 | Anthropic | [anthropic.md](anthropic.md) | Messages API (`POST /v1/messages`) | `ANTHROPIC_API_KEY` |
-| Google Gemini | [gemini.md](gemini.md) | `generateContent` / Interactions API | `GEMINI_API_KEY` |
+| Google Gemini | [gemini.md](gemini.md) | Interactions API (`POST /v1beta/interactions`) | `GEMINI_API_KEY` |
 | xAI (Grok) | [xai.md](xai.md) | OpenAI-compatible `POST /v1/chat/completions` | `XAI_API_KEY` |
 | Perplexity | [perplexity.md](perplexity.md) | Agent API, plus OpenAI-compatible Router | `PPLX_API_KEY` |
 
