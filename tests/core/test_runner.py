@@ -316,6 +316,23 @@ async def test_the_manifest_records_which_system_prompt_was_sent(project, fake_p
     assert manifest["system_prompt_hash"] == hash_message("Be terse.")
 
 
+async def test_the_manifest_keeps_the_system_prompt_text(project, fake_provider):
+    """The file can be edited or deleted later; what was sent must survive it."""
+    result = await run_audit_async(with_system_prompt(project, "Be terse.\n"))
+    (project / "prompts" / "neutral.txt").write_text("Something else.", encoding="utf-8")
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["system_prompt_text"] == "Be terse."
+
+
+async def test_without_a_system_prompt_the_manifest_records_none(project, fake_provider):
+    result = await run_audit_async(audit(project))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["system_prompt_text"] is None
+
+
 async def test_every_record_carries_the_system_prompt_hash(project, fake_provider):
     from ai_taxman.core.messages import hash_message
 

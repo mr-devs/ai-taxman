@@ -618,6 +618,7 @@ def _new_manifest(
             _project_relative(system_prompt.path, config.project_root) if system_prompt else None
         ),
         system_prompt_hash=system_prompt.hash if system_prompt else None,
+        system_prompt_text=system_prompt.text if system_prompt else None,
         n_messages=len(messages),
         repeats=config.execution.repeats,
         config=config.model_dump(mode="json"),

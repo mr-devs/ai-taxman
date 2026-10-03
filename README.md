@@ -261,8 +261,9 @@ system_prompt: taxman/prompts/neutral.txt
 ```
 
 It is set the same way for every provider, and each provider sends it the way its API
-takes one (OpenAI's `instructions`, for example). The manifest records which file was sent
-and a hash of its text, and every response row carries the same hash.
+takes one (OpenAI's `instructions`, for example). The manifest records which file was sent,
+its text, and a hash of that text, so the run still says what was sent after the file
+changes. Every response row carries the same hash.
 
 **3. Run it.**
 
@@ -286,6 +287,7 @@ every response that came back before that moment is already on disk:
   "messages_hash": "sha256:…",
   "system_prompt_path": "taxman/prompts/neutral.txt",
   "system_prompt_hash": "sha256:…",
+  "system_prompt_text": "You are a neutral assistant. Answer briefly.",
   "n_messages": 40, "repeats": 3,
   "started_at": "…", "finished_at": null,
   "n_ok": 26, "n_error": 0,
