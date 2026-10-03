@@ -86,7 +86,7 @@ and derives nothing from it. With `store: false`, the response carries no `id`, 
 |---|---|
 | **Safety settings**: the Interactions overview says custom safety settings are not supported. The beta reference lists `safety_settings`, so it can be tried through `extra:` | [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview.md.txt) |
 | **Batch mode**: the Batch API serves `generateContent` only | [Batch API](https://ai.google.dev/gemini-api/docs/batch-api.md.txt) |
-| **`thinking_budget`** (Gemini 2.5): the Interactions API has only `thinking_level`, so 2.5 models get their default thinking | [Gemini thinking](https://ai.google.dev/gemini-api/docs/thinking.md.txt) |
+| **`thinking_budget`**: the Interactions API has only `thinking_level`, which 2.5 models take as `low`, `medium`, or `high`; a token budget cannot be set | [Gemini thinking](https://ai.google.dev/gemini-api/docs/thinking.md.txt) |
 | **Streaming and background execution**: refused in `extra:`, since neither returns a finished response | [Streaming](https://ai.google.dev/gemini-api/docs/streaming.md.txt), [Background execution](https://ai.google.dev/gemini-api/docs/background-execution.md.txt) |
 | **Service tiers**: reachable through `extra: {service_tier: flex}` | [Flex inference](https://ai.google.dev/gemini-api/docs/flex-inference.md.txt) |
 | **`Retry-After`** (ignored; core uses a fixed backoff) | [Rate limits](https://ai.google.dev/gemini-api/docs/rate-limits.md.txt) |

@@ -30,8 +30,10 @@ KNOWN_MODELS: tuple[str, ...] = (
 DEFAULT_MODEL = KNOWN_MODELS[0]
 
 #: The documented `generation_config.thinking_level` values, ascending. Gemini 3
-#: models take it; `minimal` does not promise no thinking at all. The Interactions
-#: API has no `thinking_budget`, so 2.5 models keep their default thinking.
+#: and 2.5 models both take it, but not every model takes every level - 2.5 models
+#: take low, medium, and high - so taxman validates the name and lets Google rule
+#: on the pairing. It is the Interactions API's only thinking control: there is no
+#: `thinking_budget`.
 ThinkingLevel = Literal["minimal", "low", "medium", "high"]
 
 #: The same levels as a tuple, for templates and completion.
