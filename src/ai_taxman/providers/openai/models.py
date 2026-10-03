@@ -1,6 +1,6 @@
 """Known OpenAI model names and reasoning levels.
 
-A convenience list for `taxman init` and shell completion only — an unlisted
+A convenience list for `taxman audits new` and shell completion only — an unlisted
 model is still accepted, because OpenAI ships models faster than this file is
 updated.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal, get_args
 
-#: Offered by `taxman init openai` and tab completion. First entry is the default.
+#: Offered by `taxman audits new openai` and tab completion. First entry is the default.
 KNOWN_MODELS: tuple[str, ...] = (
     "gpt-5",
     "gpt-5-mini",

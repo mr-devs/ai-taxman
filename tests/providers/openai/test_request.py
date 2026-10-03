@@ -121,7 +121,7 @@ def test_unknown_model_keys_are_rejected(provider):
 
 
 def test_blank_values_are_treated_as_unset(provider):
-    """`taxman init` writes keys with no value; YAML reads those as None."""
+    """`taxman audits new` writes keys with no value; YAML reads those as None."""
     config = provider.validate_model_config(
         {"name": "gpt-5", "temperature": None, "reasoning_effort": None}
     )

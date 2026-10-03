@@ -2,14 +2,15 @@
 
 The command line is the main interface::
 
-    taxman init openai gpt-5-probe
+    taxman init
+    taxman audits new openai gpt-5-probe
     taxman collect gpt-5-probe
 
 The same workflow from Python::
 
     from ai_taxman import load_audit, run_audit
 
-    result = run_audit("audits/gpt-5-probe.yaml")
+    result = run_audit("gpt-5-probe")
     print(result.n_ok, result.output_path)
 
 Every public name is resolved on first use rather than at import time. Shell

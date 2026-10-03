@@ -25,7 +25,7 @@ class OpenAIModelConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _blank_means_unset(cls, block: Any) -> Any:
-        """`taxman init` writes keys with no value; YAML reads those as None.
+        """`taxman audits new` writes keys with no value; YAML reads those as None.
 
         Dropping them here lets the field defaults apply, so a freshly generated
         template validates as-is.

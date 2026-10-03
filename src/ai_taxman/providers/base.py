@@ -59,7 +59,7 @@ class Provider(ABC):
     requires_api_key: bool = True
 
     #: The variable this provider's own SDK conventionally reads, e.g.
-    #: "OPENAI_API_KEY". A documentation hint only: `taxman init` names it in a
+    #: "OPENAI_API_KEY". A documentation hint only: `taxman audits new` names it in a
     #: comment so the user knows what to put in `api_key_env:`. Core never
     #: resolves a key from it - the audit's own field is the only name read.
     default_api_key_env: str = ""
@@ -77,7 +77,7 @@ class Provider(ABC):
 
     @abstractmethod
     def known_models(self) -> list[str]:
-        """Model names offered by `taxman init` and shell completion.
+        """Model names offered by `taxman audits new` and shell completion.
 
         A best-effort list for convenience — an unknown model is still allowed
         through, because providers ship new ones faster than we can.
@@ -93,12 +93,12 @@ class Provider(ABC):
 
     @abstractmethod
     def render_template(self) -> str:
-        """Return the YAML text of the `model:` block for `taxman init`.
+        """Return the YAML text of the `model:` block for `taxman audits new`.
 
         Every parameter this provider accepts should be present but blank, with
         a comment saying what it does, so the scaffolded file doubles as the
         documentation the user edits. There are no saved values to merge in:
-        `init` writes defaults, and the user fills in the rest by hand.
+        `audits new` writes defaults, and the user fills in the rest by hand.
         """
 
     # -- I/O ----------------------------------------------------------------

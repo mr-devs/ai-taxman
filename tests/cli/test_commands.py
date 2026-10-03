@@ -1,6 +1,6 @@
 """The commands the CLI offers.
 
-There is no interactive configuration command. `taxman init` writes a fully
+There is no interactive configuration command. `taxman audits new` writes a fully
 commented audit file, and the user edits it - that is the only place any setting
 is chosen, the `api_key_env:` variable name included.
 """

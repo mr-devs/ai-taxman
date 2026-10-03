@@ -4,7 +4,7 @@ Implemented in [`src/ai_taxman/providers/openai/`](../../src/ai_taxman/providers
 
 - **Endpoint:** Responses API, `POST /v1/responses`, via `AsyncOpenAI().responses.create()`.
 - **Key env:** whatever the audit's `api_key_env:` names. `OPENAI_API_KEY` is OpenAI's own
-  convention and the hint `taxman init` writes into a comment; taxman resolves no other name.
+  convention and the hint `taxman audits new` writes into a comment; taxman resolves no other name.
 - **Index:** <https://developers.openai.com/api/llms.txt>
 - **Markdown convention:** `developers.openai.com/api/<path>` + `.md`. Note the host —
   `platform.openai.com/...md` returns HTML with a 200.
