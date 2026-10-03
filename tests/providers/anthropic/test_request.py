@@ -424,3 +424,18 @@ def test_country_is_a_two_letter_iso_code(country):
 def test_user_location_refuses_a_field_it_does_not_know():
     with pytest.raises(ValidationError, match="user_location.street"):
         search(user_location={"street": "Main St"})
+
+
+def test_allowed_callers_go_on_the_tool():
+    """`[direct]` turns dynamic filtering off; models without code execution need it."""
+    assert tool(allowed_callers=["direct"])["allowed_callers"] == ["direct"]
+
+
+def test_allowed_callers_are_ones_anthropic_documents():
+    with pytest.raises(ValidationError, match=r"allowed_callers\.0"):
+        search(allowed_callers=["anyone"])
+
+
+def test_allowed_callers_cannot_be_empty():
+    with pytest.raises(ValidationError, match="at least 1"):
+        search(allowed_callers=[])

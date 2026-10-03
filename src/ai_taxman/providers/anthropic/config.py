@@ -16,6 +16,7 @@ from ai_taxman.providers.anthropic.models import (
     Effort,
     ThinkingDisplay,
     ThinkingType,
+    WebSearchCaller,
     WebSearchVersion,
 )
 
@@ -146,6 +147,10 @@ class AnthropicSearchConfig(_Block):
     blocked_domains: list[str] | None = None
 
     user_location: AnthropicUserLocation | None = None
+
+    #: `[direct]` turns dynamic filtering off. Models without programmatic tool
+    #: calling need it on `_20260209` and later; Anthropic says so with a 400.
+    allowed_callers: list[WebSearchCaller] | None = Field(default=None, min_length=1)
 
     @field_validator("allowed_domains", "blocked_domains")
     @classmethod
@@ -299,5 +304,10 @@ SEARCH_TEMPLATE_FIELDS: tuple[TemplateField, ...] = (
             ("country", "Two-letter ISO code, e.g. US."),
             ("timezone", "IANA timezone, e.g. America/Chicago."),
         ),
+    ),
+    (
+        "allowed_callers",
+        "[direct] to search without dynamic filtering; models without programmatic "
+        "tool calling need it. Blank = the tool version's default.",
     ),
 )

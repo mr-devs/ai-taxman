@@ -56,3 +56,9 @@ WebSearchVersion = Literal["web_search_20250305", "web_search_20260209", "web_se
 
 #: The version sent when the audit names none: the newest.
 DEFAULT_WEB_SEARCH_VERSION: WebSearchVersion = "web_search_20260318"
+
+#: Who may run a web search: Claude directly, or code Claude runs (dynamic
+#: filtering). From `_20260209` the default is code execution only.
+WebSearchCaller = Literal[
+    "direct", "code_execution_20250825", "code_execution_20260120", "code_execution_20260521"
+]
