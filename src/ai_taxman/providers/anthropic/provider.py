@@ -163,7 +163,7 @@ def _web_search_tool(search: AnthropicSearchConfig) -> dict[str, Any]:
         "type": search.tool_version or DEFAULT_WEB_SEARCH_VERSION,
         "name": "web_search",
     }
-    for key in ("max_uses",):
+    for key in ("max_uses", "allowed_domains", "blocked_domains"):
         value = getattr(search, key)
         if value is not None:
             tool[key] = value

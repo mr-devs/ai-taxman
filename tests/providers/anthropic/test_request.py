@@ -372,3 +372,23 @@ def test_max_uses_is_a_positive_number():
 
 def test_unset_tool_settings_are_left_to_anthropic():
     assert set(tool()) == {"type", "name"}
+
+
+def test_allowed_domains_go_on_the_tool():
+    assert tool(allowed_domains=["cdc.gov", "who.int"])["allowed_domains"] == ["cdc.gov", "who.int"]
+
+
+def test_blocked_domains_go_on_the_tool():
+    assert tool(blocked_domains=["example.com/blog"])["blocked_domains"] == ["example.com/blog"]
+
+
+def test_allowed_and_blocked_domains_cannot_both_be_set():
+    """Anthropic refuses the pair with a 400; better to say so before the run."""
+    with pytest.raises(ValidationError, match="one or the other"):
+        search(allowed_domains=["cdc.gov"], blocked_domains=["example.com"])
+
+
+@pytest.mark.parametrize("domain", ["https://cdc.gov", "http://who.int/"])
+def test_a_domain_with_a_scheme_is_refused_rather_than_rewritten(domain):
+    with pytest.raises(ValidationError, match="without the http"):
+        search(allowed_domains=[domain])

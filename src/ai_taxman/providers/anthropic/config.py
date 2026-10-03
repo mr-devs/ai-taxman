@@ -129,6 +129,23 @@ class AnthropicSearchConfig(_Block):
     #: The most searches Claude may run for one message.
     max_uses: int | None = Field(default=None, ge=1)
 
+    #: One or the other, never both. Bare domains, optionally with a path:
+    #: `example.com/blog`. Subdomains are included.
+    allowed_domains: list[str] | None = None
+    blocked_domains: list[str] | None = None
+
+    @field_validator("allowed_domains", "blocked_domains")
+    @classmethod
+    def _bare_domains(cls, domains: list[str] | None) -> list[str] | None:
+        """Anthropic wants `cdc.gov`, not `https://cdc.gov/`. Refused, not rewritten."""
+        for domain in domains or []:
+            if domain.lower().startswith(("http://", "https://")):
+                raise ValueError(
+                    f"{domain!r}: write the domain without the http:// or https:// prefix, "
+                    "e.g. cdc.gov. Subdomains are included."
+                )
+        return domains
+
     @model_validator(mode="after")
     def _settings_need_web_search(self) -> AnthropicSearchConfig:
         """A setting for a tool that is not sent would be recorded but never used."""
@@ -137,6 +154,11 @@ class AnthropicSearchConfig(_Block):
             raise ValueError(
                 f"{', '.join(chosen)} set in `search:`, but `web_search` is not true. "
                 "Set `web_search: true`, or leave the other search settings blank."
+            )
+        if self.allowed_domains is not None and self.blocked_domains is not None:
+            raise ValueError(
+                "allowed_domains and blocked_domains are both set in `search:`; Anthropic "
+                "takes one or the other. Keep one and leave the other blank."
             )
         return self
 
@@ -247,4 +269,10 @@ SEARCH_TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
         "Blank = web_search_20260318.",
     ),
     ("max_uses", "Most searches per message. Blank = no limit."),
+    (
+        "allowed_domains",
+        "Only search these domains, e.g. [cdc.gov, who.int]. Subdomains included. "
+        "Not with blocked_domains.",
+    ),
+    ("blocked_domains", "Never search these domains. Not with allowed_domains."),
 )
