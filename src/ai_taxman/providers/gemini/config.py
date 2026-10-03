@@ -6,9 +6,11 @@ to `GeminiProvider.validate_model_config`, which returns one of these.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from ai_taxman.providers.gemini.models import THINKING_LEVELS, ThinkingLevel
 
 
 class _Block(BaseModel):
@@ -48,6 +50,9 @@ class GeminiModelConfig(_Block):
     top_p: float | None = Field(default=None, ge=0, le=1)
     #: Thinking counts toward it, so a small cap can leave no room for an answer.
     max_output_tokens: int | None = Field(default=None, ge=1)
+    thinking_level: ThinkingLevel | None = None
+    #: `auto` returns a summary of the model's thinking in a `thought` step.
+    thinking_summaries: Literal["auto", "none"] | None = None
 
     #: Whether Google keeps the interaction server-side. Off by default, and always
     #: sent: the Interactions API keeps everything for 55 days unless told not to,
@@ -56,7 +61,13 @@ class GeminiModelConfig(_Block):
 
 
 #: The `model:` keys sent, under the same names, inside `generation_config`.
-GENERATION_CONFIG_KEYS: tuple[str, ...] = ("temperature", "top_p", "max_output_tokens")
+GENERATION_CONFIG_KEYS: tuple[str, ...] = (
+    "temperature",
+    "top_p",
+    "max_output_tokens",
+    "thinking_level",
+    "thinking_summaries",
+)
 
 
 #: Documented in the generated template, in this order.
@@ -64,6 +75,11 @@ TEMPLATE_FIELDS: tuple[tuple[str, str], ...] = (
     ("temperature", "0.0 - 2.0. Leave blank for the model default."),
     ("top_p", "0.0 - 1.0. Leave blank for the model default."),
     ("max_output_tokens", "Maximum tokens per response, thinking included."),
+    (
+        "thinking_level",
+        f"{' | '.join(THINKING_LEVELS)}. Gemini 3 models only. Blank = the model's default.",
+    ),
+    ("thinking_summaries", "auto | none. auto returns a summary of the model's thinking."),
     (
         "store",
         "true to let Google keep the interaction (55 days paid tier, 1 day free). Blank = false.",

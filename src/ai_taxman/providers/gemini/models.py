@@ -10,6 +10,8 @@ docs/provider-apis/gemini.md.
 
 from __future__ import annotations
 
+from typing import Literal, get_args
+
 #: Offered by `taxman audits new gemini` and tab completion. First entry is the default.
 KNOWN_MODELS: tuple[str, ...] = (
     "gemini-3.8-flash",
@@ -26,3 +28,11 @@ KNOWN_MODELS: tuple[str, ...] = (
 )
 
 DEFAULT_MODEL = KNOWN_MODELS[0]
+
+#: The documented `generation_config.thinking_level` values, ascending. Gemini 3
+#: models take it; `minimal` does not promise no thinking at all. The Interactions
+#: API has no `thinking_budget`, so 2.5 models keep their default thinking.
+ThinkingLevel = Literal["minimal", "low", "medium", "high"]
+
+#: The same levels as a tuple, for templates and completion.
+THINKING_LEVELS: tuple[str, ...] = get_args(ThinkingLevel)

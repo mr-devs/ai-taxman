@@ -90,3 +90,31 @@ def test_settings_share_one_generation_config():
 def test_out_of_range_generation_values_are_refused(block):
     with pytest.raises(ValidationError, match=next(iter(block))):
         request_for({**BASE, **block})
+
+
+# -- thinking ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("level", ["minimal", "low", "medium", "high"])
+def test_every_documented_thinking_level_goes_in_generation_config(level):
+    """Gemini 3 models take it; which model takes which level is Google's call."""
+    assert request_for({**BASE, "thinking_level": level})["generation_config"] == {
+        "thinking_level": level
+    }
+
+
+def test_an_undocumented_thinking_level_is_refused():
+    with pytest.raises(ValidationError, match="thinking_level"):
+        request_for({**BASE, "thinking_level": "max"})
+
+
+@pytest.mark.parametrize("summaries", ["auto", "none"])
+def test_thinking_summaries_go_in_generation_config(summaries):
+    assert request_for({**BASE, "thinking_summaries": summaries})["generation_config"] == {
+        "thinking_summaries": summaries
+    }
+
+
+def test_thinking_summaries_are_auto_or_none():
+    with pytest.raises(ValidationError, match="thinking_summaries"):
+        request_for({**BASE, "thinking_summaries": "full"})
