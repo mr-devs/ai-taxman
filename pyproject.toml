@@ -45,7 +45,8 @@ classifiers = [
 [project.optional-dependencies]
 openai = ["openai>=1.60"]
 anthropic = ["anthropic>=1.2"]
-all = ["ai-taxman[openai,anthropic]"]
+gemini = ["google-genai>=2.28"]
+all = ["ai-taxman[openai,anthropic,gemini]"]
 
 [project.scripts]
 taxman = "ai_taxman.cli:app"
