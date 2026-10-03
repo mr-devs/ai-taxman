@@ -150,13 +150,15 @@ The audit file is the documentation, so a setting's explanation lives on its own
 field and `core/template.py` writes it above the key. **Never hand-write a template
 comment** — core's blocks and every provider's `model:` block are rendered the same way.
 
-A field says what it does with `description=`, which the renderer refuses to go without,
-and may add `examples=` and these `json_schema_extra` keys:
+A field says what it does with `description=`, which the renderer refuses to go without:
+one or two short sentences, each written on its own line. Say what the setting is and any
+rule a user would trip over; leave out the reasons, and anything the labels below already
+say. The conformance suite fails a provider setting that runs to three sentences. It may
+add `examples=` and these `json_schema_extra` keys:
 
 - `options` — what each `Literal` value means. It must name exactly the values accepted.
-- `blank` — what leaving a None-default setting blank does: "no limit", "not sent, so
-  the model's own default applies". Only for a None default; blank otherwise means the
-  default, which the file already names.
+- `blank` — what leaving a None-default setting blank does: "no limit", "model default".
+  Only for a None default; blank otherwise means the default, which the file already names.
 - `required` — for a setting validation lets through blank but a run refuses (`api_key_env`).
 - `docs` — a link, which must be a page `docs/provider-apis/<name>.md` lists as its markdown
   twin. Only listed pages are checked for rot; `tests/test_provider_docs.py` enforces it.

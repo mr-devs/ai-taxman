@@ -146,9 +146,7 @@ provider gets its own audit file.
 One field is left blank on purpose, because only you know the answer:
 
 ```yaml
-# The name of the environment variable that holds this audit's API key: the
-# name, not the key itself. Export the variable in your shell. taxman reads this
-# name and no other, and never stores a key.
+# The name of the environment variable that holds the API key to use for this audit.
 #   Type:     string
 #   Required: yes
 #   Example:  OPENAI_API_KEY
@@ -218,10 +216,10 @@ or options it takes, what it is when left blank, an example where one helps, and
 to the provider's own documentation:
 
 ```yaml
-  # How random the sampling is: lower is more focused and deterministic, higher
-  # more varied. OpenAI recommends changing this or top_p, not both.
+  # Sampling randomness, from focused to varied.
+  # OpenAI recommends changing this or top_p, not both.
   #   Type:     float, 0 to 2
-  #   Default:  blank (not sent, so the model's own default applies)
+  #   Default:  blank (model default)
   #   Docs:     https://developers.openai.com/api/reference/resources/responses/methods/create
   temperature:
 ```
