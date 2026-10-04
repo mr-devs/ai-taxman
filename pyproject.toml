@@ -1,6 +1,6 @@
 [project]
 name = "ai-taxman"
-version = "0.1.0"
+version = "0.1.1"
 description = "A simple command line interface to audit popular AI systems, importable as a Python package."
 readme = "README.md"
 authors = [
