@@ -6,7 +6,6 @@ to `AnthropicProvider.validate_model_config`, which returns one of these.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -19,7 +18,7 @@ from ai_taxman.providers.anthropic.models import (
     WebSearchCaller,
     WebSearchVersion,
 )
-from ai_taxman.providers.settings import SettingsBlock
+from ai_taxman.providers.settings import SettingsBlock, check_extra
 
 #: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
 #: anything else - a key inside one of these objects included, so `output_config`
@@ -357,19 +356,7 @@ class AnthropicModelConfig(SettingsBlock):
     @classmethod
     def _extra_names_only_what_taxman_does_not(cls, extra: dict[str, Any]) -> dict[str, Any]:
         """Overriding a named setting would bypass its checks, and its defaults."""
-        paths = list(leaf_paths(extra))
-        for path in paths:
-            if path in NEVER_SENT:
-                raise ValueError(f"`extra:` cannot set {path}: {NEVER_SENT[path]}.")
-        taken = sorted({key for key in SET_BY_TAXMAN for path in paths if _overlaps(path, key)})
-        if taken:
-            raise ValueError(
-                f"`extra:` cannot set {', '.join(taken)}: taxman sets "
-                f"{'it' if len(taken) == 1 else 'them'} from this audit. Use the named "
-                "setting in `model:` instead (the system prompt is the audit's "
-                "`system_prompt:`)."
-            )
-        return extra
+        return check_extra(extra, set_by_taxman=SET_BY_TAXMAN, never_sent=NEVER_SENT)
 
     @model_validator(mode="after")
     def _thinking_leaves_room_to_answer(self) -> AnthropicModelConfig:
@@ -381,18 +368,3 @@ class AnthropicModelConfig(SettingsBlock):
                 f"({self.max_tokens}): thinking and the answer share it."
             )
         return self
-
-
-def leaf_paths(block: dict[str, Any], prefix: str = "") -> Iterator[str]:
-    """Every dotted path in `block` that ends in a value rather than a further object."""
-    for key, value in block.items():
-        path = f"{prefix}{key}"
-        if isinstance(value, dict) and value:
-            yield from leaf_paths(value, f"{path}.")
-        else:
-            yield path
-
-
-def _overlaps(path: str, key: str) -> bool:
-    """Whether writing `path` would change `key`: the same, inside it, or replacing it."""
-    return path == key or path.startswith(f"{key}.") or key.startswith(f"{path}.")

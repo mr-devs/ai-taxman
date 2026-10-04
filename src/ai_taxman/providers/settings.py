@@ -8,6 +8,7 @@ registry imports those lazily.
 
 from __future__ import annotations
 
+from collections.abc import Collection, Iterator, Mapping
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -41,3 +42,42 @@ def _blank(value: Any) -> bool:
     if isinstance(value, dict):
         return all(_blank(inner) for inner in value.values())
     return value is None
+
+
+def check_extra(
+    extra: dict[str, Any], *, set_by_taxman: Collection[str], never_sent: Mapping[str, str]
+) -> dict[str, Any]:
+    """Return `extra` if it only adds to the request, and refuse it otherwise.
+
+    `set_by_taxman` holds the dotted paths `build_request` writes, which `extra`
+    may neither override nor reach inside; `never_sent` maps each key `send`
+    could not record a response to onto the reason why.
+    """
+    paths = list(_leaf_paths(extra))
+    for path in paths:
+        if path in never_sent:
+            raise ValueError(f"`extra:` cannot set {path}: {never_sent[path]}.")
+    taken = sorted({key for key in set_by_taxman for path in paths if _overlaps(path, key)})
+    if taken:
+        raise ValueError(
+            f"`extra:` cannot set {', '.join(taken)}: taxman sets "
+            f"{'it' if len(taken) == 1 else 'them'} from this audit. Use the named "
+            "setting in `model:` instead (the system prompt is the audit's "
+            "`system_prompt:`)."
+        )
+    return extra
+
+
+def _leaf_paths(block: dict[str, Any], prefix: str = "") -> Iterator[str]:
+    """Every dotted path in `block` that ends in a value rather than a further object."""
+    for key, value in block.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict) and value:
+            yield from _leaf_paths(value, f"{path}.")
+        else:
+            yield path
+
+
+def _overlaps(path: str, key: str) -> bool:
+    """Whether writing `path` would change `key`: the same, inside it, or replacing it."""
+    return path == key or path.startswith(f"{key}.") or key.startswith(f"{path}.")

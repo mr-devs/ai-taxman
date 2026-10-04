@@ -18,7 +18,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from ai_taxman.providers.openai.models import ReasoningEffort
-from ai_taxman.providers.settings import SettingsBlock
+from ai_taxman.providers.settings import SettingsBlock, check_extra
 
 #: Request keys `build_request` sets itself. `extra:` may not touch them.
 SET_BY_TAXMAN = frozenset(
@@ -297,18 +297,7 @@ class OpenAIModelConfig(SettingsBlock):
         `extra: {include: [...]}` with web search on would quietly drop the
         default sources, for one.
         """
-        for key in extra:
-            if key in NEVER_SENT:
-                raise ValueError(f"`extra:` cannot set {key}: {NEVER_SENT[key]}.")
-        taken = sorted(set(extra) & SET_BY_TAXMAN)
-        if taken:
-            raise ValueError(
-                f"`extra:` cannot set {', '.join(taken)}: taxman sets "
-                f"{'it' if len(taken) == 1 else 'them'} from this audit. Use the named "
-                "setting in `model:` or `search:` instead (the system prompt is the "
-                "audit's `system_prompt:`)."
-            )
-        return extra
+        return check_extra(extra, set_by_taxman=SET_BY_TAXMAN, never_sent=NEVER_SENT)
 
     #: Last, as it is in the template: it is the one nested block.
     search: OpenAISearchConfig = Field(

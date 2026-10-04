@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import Field, ValidationError
 
-from ai_taxman.providers.settings import SettingsBlock
+from ai_taxman.providers.settings import SettingsBlock, check_extra
 
 
 class Location(SettingsBlock):
@@ -36,3 +36,35 @@ def test_extra_keeps_the_nulls_written_in_it():
 def test_an_unknown_setting_is_refused():
     with pytest.raises(ValidationError, match="tempreature"):
         Settings(tempreature=0.5)
+
+
+# --- extra: ---------------------------------------------------------------
+
+SET_BY_TAXMAN = frozenset({"model", "output_config.effort"})
+NEVER_SENT = {"stream": "a stream is not a response"}
+
+
+def check(extra):
+    return check_extra(extra, set_by_taxman=SET_BY_TAXMAN, never_sent=NEVER_SENT)
+
+
+def test_extra_may_add_anything_taxman_does_not_set():
+    extra = {"service_tier": "flex", "output_config": {"format": {"type": "json_schema"}}}
+
+    assert check(extra) == extra
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"model": "x"}, {"output_config": {"effort": "low"}}, {"output_config": "replaced"}],
+    ids=["the same key", "inside it", "replacing what holds it"],
+)
+def test_extra_cannot_change_a_setting_taxman_sets(extra):
+    """Overriding a named setting would bypass its checks, and its defaults."""
+    with pytest.raises(ValueError, match="taxman sets"):
+        check(extra)
+
+
+def test_extra_cannot_set_what_taxman_never_sends():
+    with pytest.raises(ValueError, match="cannot set stream: a stream is not a response"):
+        check({"stream": True})
