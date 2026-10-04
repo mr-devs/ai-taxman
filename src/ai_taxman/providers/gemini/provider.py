@@ -17,7 +17,6 @@ runner writes it verbatim.
 
 from __future__ import annotations
 
-import copy
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +28,7 @@ from ai_taxman.providers.gemini.config import (
     GeminiModelConfig,
 )
 from ai_taxman.providers.gemini.models import DEFAULT_MODEL, KNOWN_MODELS
+from ai_taxman.providers.settings import merge_extra
 
 if TYPE_CHECKING:
     from google.genai import Client
@@ -146,22 +146,8 @@ def build_request(request: Request) -> dict[str, Any]:
     if request.system_prompt:
         payload["system_instruction"] = request.system_prompt
 
-    _merge(payload, config.extra)
+    merge_extra(payload, config.extra)
     return payload
-
-
-def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
-    """Write `extra` into `payload`, filling in objects rather than replacing them.
-
-    Validation has already refused any path that would touch a setting taxman
-    names, so this only adds. Values are copied: every request in a run shares
-    the audit's one `extra`, and none may write back into it.
-    """
-    for key, value in extra.items():
-        if isinstance(value, dict) and value and isinstance(payload.get(key), dict):
-            _merge(payload[key], value)
-        else:
-            payload[key] = copy.deepcopy(value)
 
 
 def render_template() -> str:

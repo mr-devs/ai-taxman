@@ -35,6 +35,7 @@ from ai_taxman.providers.anthropic.models import (
     KNOWN_MODELS,
 )
 from ai_taxman.providers.base import Provider, Request
+from ai_taxman.providers.settings import merge_extra
 
 if TYPE_CHECKING:
     from anthropic import AsyncAnthropic
@@ -157,7 +158,7 @@ def build_request(request: Request) -> dict[str, Any]:
     if request.system_prompt:
         payload["system"] = request.system_prompt
 
-    _merge(payload, config.extra)
+    merge_extra(payload, config.extra)
     return payload
 
 
@@ -189,20 +190,6 @@ def _web_search_tool(search: AnthropicSearchConfig) -> dict[str, Any]:
         location = search.user_location.model_dump(exclude_none=True)
         tool["user_location"] = {"type": "approximate", **location}
     return tool
-
-
-def _merge(payload: dict[str, Any], extra: dict[str, Any]) -> None:
-    """Write `extra` into `payload`, filling in objects rather than replacing them.
-
-    Validation has already refused any path that would touch a setting taxman
-    names, so this only adds. Values are copied: every request in a run shares
-    the audit's one `extra`, and none may write back into it.
-    """
-    for key, value in extra.items():
-        if isinstance(value, dict) and value and isinstance(payload.get(key), dict):
-            _merge(payload[key], value)
-        else:
-            payload[key] = copy.deepcopy(value)
 
 
 def render_template() -> str:

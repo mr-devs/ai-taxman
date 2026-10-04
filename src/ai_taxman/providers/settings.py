@@ -8,6 +8,7 @@ registry imports those lazily.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Collection, Iterator, Mapping
 from typing import Any
 
@@ -66,6 +67,20 @@ def check_extra(
             "`system_prompt:`)."
         )
     return extra
+
+
+def merge_extra(payload: dict[str, Any], extra: dict[str, Any]) -> None:
+    """Write `extra` into `payload`, filling in objects rather than replacing them.
+
+    `check_extra` has already refused any path that would touch a setting taxman
+    names, so this only adds. Values are copied: every request in a run shares
+    the audit's one `extra`, and none may write back into it.
+    """
+    for key, value in extra.items():
+        if isinstance(value, dict) and value and isinstance(payload.get(key), dict):
+            merge_extra(payload[key], value)
+        else:
+            payload[key] = copy.deepcopy(value)
 
 
 def _leaf_paths(block: dict[str, Any], prefix: str = "") -> Iterator[str]:

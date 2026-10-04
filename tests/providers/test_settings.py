@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import Field, ValidationError
 
-from ai_taxman.providers.settings import SettingsBlock, check_extra
+from ai_taxman.providers.settings import SettingsBlock, check_extra, merge_extra
 
 
 class Location(SettingsBlock):
@@ -68,3 +68,22 @@ def test_extra_cannot_change_a_setting_taxman_sets(extra):
 def test_extra_cannot_set_what_taxman_never_sends():
     with pytest.raises(ValueError, match="cannot set stream: a stream is not a response"):
         check({"stream": True})
+
+
+def test_merging_extra_fills_in_an_object_rather_than_replacing_it():
+    payload = {"output_config": {"effort": "low"}}
+
+    merge_extra(payload, {"output_config": {"format": {"type": "json_schema"}}})
+
+    assert payload == {"output_config": {"effort": "low", "format": {"type": "json_schema"}}}
+
+
+def test_merging_extra_copies_what_it_writes():
+    """Every request in a run shares the audit's one `extra`; none may write back into it."""
+    extra = {"metadata": {"user_id": "audit"}}
+    payload: dict[str, Any] = {}
+
+    merge_extra(payload, extra)
+    payload["metadata"]["user_id"] = "changed"
+
+    assert extra == {"metadata": {"user_id": "audit"}}
