@@ -128,6 +128,34 @@ def test_an_audit_anywhere_in_the_project_resolves_against_its_root(tmp_path):
     assert load_audit(path).messages_path == tmp_path / "messages" / "probe.txt"
 
 
+def test_an_audit_in_a_symlinked_audits_folder_belongs_to_the_project(tmp_path):
+    """Following the link would walk up from where it points, and miss the marker."""
+    from ai_taxman.core.discovery import write_marker
+
+    project = tmp_path / "project"
+    write_marker(project)
+    write_audit(tmp_path / "storage", marker=False)
+    (project / "audits").symlink_to(tmp_path / "storage" / "audits", target_is_directory=True)
+
+    config = load_audit(project / "audits" / "my-audit.yaml")
+
+    assert config.messages_path == project / "messages" / "probe.txt"
+
+
+def test_an_audit_linked_in_from_another_project_belongs_to_this_one(tmp_path):
+    """Following the link would quietly resolve every path against the other project."""
+    from ai_taxman.core.discovery import write_marker
+
+    project, other = tmp_path / "project", tmp_path / "other"
+    write_marker(project)
+    write_audit(other)
+    (project / "audits").symlink_to(other / "audits", target_is_directory=True)
+
+    config = load_audit(project / "audits" / "my-audit.yaml")
+
+    assert config.messages_path == project / "messages" / "probe.txt"
+
+
 def test_absolute_message_path_is_left_alone(tmp_path):
     absolute = tmp_path / "elsewhere" / "probe.txt"
     path = write_audit(

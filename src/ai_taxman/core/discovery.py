@@ -152,10 +152,14 @@ def taxman_home() -> Path:
 
 
 def find_project_root(start: Path | None = None) -> Path | None:
-    """The nearest directory at or above `start` holding a marker, or None."""
-    current = Path(start) if start is not None else Path.cwd()
+    """The nearest directory at or above `start` holding a marker, or None.
+
+    Walks up the path as written, without following symlinks: a project folder
+    linked in from elsewhere still belongs to this project, and resolving it
+    first would walk up from wherever the link points instead.
+    """
     try:
-        current = current.resolve()
+        current = _absolute(Path(start) if start is not None else Path.cwd())
     except OSError:
         return None
 
@@ -344,7 +348,9 @@ def _resolve_direct_path(path: Path, root: Path) -> Path:
         raise AuditNotFoundError(f"No audit file at {path}.")
 
     try:
-        inside = path.resolve().is_relative_to(root.resolve())
+        # As written first, so a folder linked in from elsewhere counts as inside.
+        written = _absolute(path).is_relative_to(_absolute(root))
+        inside = written or path.resolve().is_relative_to(root.resolve())
     except OSError:
         inside = False
 
@@ -355,6 +361,11 @@ def _resolve_direct_path(path: Path, root: Path) -> Path:
             f"move it into {audits_dir(root)}."
         )
     return path
+
+
+def _absolute(path: Path) -> Path:
+    """`path` made absolute and normalised, with any symlinks in it left as they are."""
+    return Path(os.path.abspath(path))
 
 
 def _marker_version(path: Path) -> int:

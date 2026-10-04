@@ -127,6 +127,42 @@ def test_the_audits_directory_hangs_off_the_root(project):
     assert audits_dir(project) == project / "taxman" / "audits"
 
 
+# --- folders reached through a symlink -------------------------------------
+
+
+def link_folder(link, target):
+    """Make `link` a symlink to the directory `target`, creating `target`."""
+    target.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target, target_is_directory=True)
+    return link
+
+
+def test_the_root_is_found_through_a_symlinked_folder(project, tmp_path):
+    """The walk follows the path as written; the link's target is not in the project."""
+    linked = link_folder(project / "linked", tmp_path / "elsewhere")
+
+    assert find_project_root(linked) == project
+
+
+def test_an_audit_path_through_a_symlinked_audits_folder_is_inside(project, tmp_path):
+    audits = project / "taxman" / "audits"
+    audits.rmdir()
+    link_folder(audits, tmp_path / "storage")
+    make(audits, "probe")
+
+    assert find_audit(str(audits / "probe.yaml"), root=project) == audits / "probe.yaml"
+
+
+def test_an_audit_path_through_a_symlink_to_the_project_is_inside(project, tmp_path):
+    """The same file named through a link to the root is still this project's."""
+    make(project / "taxman" / "audits", "probe")
+    alias = tmp_path / "alias"
+    alias.symlink_to(project, target_is_directory=True)
+    path = alias / "taxman" / "audits" / "probe.yaml"
+
+    assert find_audit(str(path), root=project) == path
+
+
 # --- the folders a project uses -------------------------------------------
 
 
