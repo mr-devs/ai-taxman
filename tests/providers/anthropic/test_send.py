@@ -82,6 +82,40 @@ async def test_the_body_on_the_wire_is_exactly_what_build_request_made(wire):
     assert json.loads(wire.requests[0].content) == build_request(request)
 
 
+async def test_every_setting_reaches_the_wire_whichever_way_the_sdk_takes_it(wire):
+    """`send` passes what the installed SDK names as keywords and the rest in
+    `extra_body`, so which is which moves with the SDK version. The body must not."""
+    block = {
+        "name": "claude-opus-5-5",
+        "max_tokens": 4096,
+        "effort": "low",
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "top_k": 40,
+        "thinking": {"type": "enabled", "budget_tokens": 2048, "display": "summarized"},
+        "search": {
+            "web_search": True,
+            "tool_version": "web_search_20260318",
+            "max_uses": 2,
+            "allowed_domains": ["cdc.gov"],
+            "user_location": {"city": "Minneapolis", "country": "US"},
+            "allowed_callers": ["direct"],
+            "response_inclusion": "full",
+            "tool_choice": "auto",
+        },
+        "extra": {
+            "metadata": {"user_id": "audit"},
+            "output_config": {"format": {"type": "json_schema", "schema": {"type": "object"}}},
+            "brand_new": {"x": 1},
+        },
+    }
+    request = a_request(block, system_prompt="Answer in one word.")
+
+    await send(request)
+
+    assert json.loads(wire.requests[0].content) == build_request(request)
+
+
 async def test_only_the_key_startup_was_given_is_sent(wire, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-ambient-must-not-be-used")
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "ambient-token-must-not-be-used")
