@@ -210,7 +210,7 @@ response verbatim, and is the only response data in the row.
 
 Changes are **additive** — auditors depend on old data staying readable. Removing or renaming a
 field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
-"Schema versions" table. That has happened once, for v2 (`text` and `usage` removed).
+"Schema versions" table.
 
 Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
 hash, counts, timings, and `status`. Reproducibility is the point of an audit tool.

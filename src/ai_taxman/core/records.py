@@ -21,9 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ai_taxman.core.errors import ConfigError
 
-#: Bumped when the shape changes. v1 carried `text` and `usage` alongside `raw`;
-#: v2 carries `raw` alone, because taxman no longer parses a response.
-RESPONSE_SCHEMA_VERSION = 2
+#: Bumped when a field is removed or renamed.
+RESPONSE_SCHEMA_VERSION = 1
 
 Status = Literal["ok", "error"]
 

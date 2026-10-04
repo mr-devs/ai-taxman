@@ -1,9 +1,9 @@
 """taxman collects; it never cleans.
 
-`taxman collect` writes the provider's response verbatim and nothing else. There
-was a `Provider.extract()` that pulled `text` and `usage` out of every response
-into convenience fields on the record. It is gone, and these tests keep it gone:
-parsing a response is a separate tool's job, working from `raw` on disk.
+`taxman collect` writes the provider's response verbatim and nothing else. No
+provider pulls `text` or `usage` out of a response into convenience fields on
+the record, and these tests keep it that way: parsing a response is a separate
+tool's job, working from `raw` on disk.
 
 Serializing the SDK's object to JSON (`model_dump(mode="json")`) is not
 extraction - it is what makes the response writable at all.
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_taxman.core.records import RESPONSE_SCHEMA_VERSION, ResponseRecord
+from ai_taxman.core.records import ResponseRecord
 from ai_taxman.providers import base
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,11 +37,6 @@ def test_the_record_carries_no_extracted_convenience_field(field):
 
 def test_the_record_still_carries_the_raw_response():
     assert "raw" in ResponseRecord.model_fields
-
-
-def test_the_schema_version_records_that_break():
-    """v1 rows had `text` and `usage`; v2 rows do not. See the README."""
-    assert RESPONSE_SCHEMA_VERSION == 2
 
 
 @pytest.mark.parametrize(

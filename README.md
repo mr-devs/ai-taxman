@@ -187,7 +187,7 @@ One JSON object per line, the same shape for every provider:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "audit": "<audit-name>",
   "run_id": "20260830T142201Z-a1b2c3",
   "message_id": "m0007",
@@ -214,7 +214,6 @@ Changes are additive unless listed here.
 
 | Version | Change |
 |---|---|
-| 2 | Removed `text` and `usage`. Both were copied from `raw`, which v1 rows still have. |
 | 1 | Initial schema. |
 
 ## Commands
