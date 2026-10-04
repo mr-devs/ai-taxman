@@ -21,14 +21,11 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
+from ai_taxman.core.template import render_block
 from ai_taxman.providers.base import Provider, Request
-from ai_taxman.providers.openai.config import (
-    SEARCH_TEMPLATE_FIELDS,
-    TEMPLATE_FIELDS,
-    OpenAIModelConfig,
-    OpenAISearchConfig,
-)
+from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
 from ai_taxman.providers.openai.models import DEFAULT_MODEL, KNOWN_MODELS
+from ai_taxman.providers.settings import merge_extra
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
@@ -138,7 +135,7 @@ def build_request(request: Request) -> dict[str, Any]:
     if request.system_prompt:
         payload["instructions"] = request.system_prompt
 
-    payload.update(config.extra)
+    merge_extra(payload, config.extra)
     return payload
 
 
@@ -151,7 +148,7 @@ def _web_search_tool(search: OpenAISearchConfig) -> dict[str, Any]:
             tool[key] = value
 
     filters = {
-        key: getattr(search, key)
+        key: list(getattr(search, key))
         for key in ("allowed_domains", "blocked_domains")
         if getattr(search, key) is not None
     }
@@ -172,25 +169,11 @@ def _web_search_tool(search: OpenAISearchConfig) -> dict[str, Any]:
 def render_template() -> str:
     """Return the `model:` block for a new OpenAI audit.
 
-    Every parameter appears with a comment saying what it does, blank apart from
-    the model name, so the generated file is the documentation the user edits.
+    Every parameter appears under a comment read from its own field, blank apart
+    from the model name, so the generated file is the documentation the user edits.
     """
-    lines = [
-        "model:",
-        f"  name: {DEFAULT_MODEL}  # The model to send every message to.",
-    ]
-    for key, comment in TEMPLATE_FIELDS:
-        lines.append(f"  {key}:  # {comment}")
-    lines += [
-        "",
-        "  # Web search. web_search must be true to use any other setting in this block.",
-        "  search:",
-    ]
-    for key, comment, *nested in SEARCH_TEMPLATE_FIELDS:
-        lines.append(f"    {key}:  # {comment}")
-        for inner_key, inner_comment in nested[0] if nested else ():
-            lines.append(f"      {inner_key}:  # {inner_comment}")
-    return "\n".join(lines) + "\n"
+    lines = render_block(OpenAIModelConfig, indent=2, values={"name": DEFAULT_MODEL})
+    return "\n".join(["model:", *lines]) + "\n"
 
 
 #: One client per run, so concurrent runs in one process never share a key.

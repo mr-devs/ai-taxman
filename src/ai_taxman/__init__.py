@@ -24,7 +24,7 @@ at that moment.
 import logging
 from typing import TYPE_CHECKING
 
-__version__ = "0.0.2"
+__version__ = "0.1.0"
 
 # A library does not configure logging for its caller. `taxman collect` attaches
 # a real handler; importing `ai_taxman` and using the Python API stays silent.

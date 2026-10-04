@@ -55,41 +55,98 @@ class OutputConfig(_Strict):
     writes both from `taxman.yaml`.
     """
 
-    dir: str
-    filename: str = DEFAULT_OUTPUT_FILENAME
-    compress: bool = False
-    #: Each run's log is `<log_dir>/<run_id>.log`.
-    log_dir: str
+    dir: str = Field(
+        description="Where responses and manifest are written to, relative to the project root. "
+        "{audit} and {run_id} are filled in at run time."
+    )
+    filename: str = Field(
+        default=DEFAULT_OUTPUT_FILENAME,
+        description="Filename for the responses file in the `output` directory.",
+    )
+    compress: bool = Field(
+        default=False, description="Gzip the responses file as it is written, adding .gz."
+    )
+    log_dir: str = Field(
+        description="Path to directory where the log file is written, saved as <run_id>.log, and "
+        "relative to the project root. {audit} and {run_id} are filled in at run time."
+    )
 
 
 class ExecutionConfig(_Strict):
     """How the messages are sent."""
 
-    repeats: int = Field(default=1, ge=1)
-    max_concurrency: int = Field(default=8, ge=1)
-    batch: bool = False
-    timeout_s: float = Field(default=120.0, gt=0)
-    max_retries: int = Field(default=5, ge=0)
-    on_error: Literal["continue", "stop"] = "continue"
-    shuffle: bool = False
+    repeats: int = Field(
+        default=1,
+        ge=1,
+        description="How many times each message is sent.",
+    )
+    max_concurrency: int = Field(
+        default=8,
+        ge=1,
+        description="Max number of simultaneous requests.",
+    )
+    batch: bool = Field(
+        default=False,
+        description="Send the messages through the provider's batch API instead of one "
+        "request at a time. Not available yet: true is refused before anything is sent.",
+    )
+    timeout_s: float = Field(
+        default=120.0,
+        gt=0,
+        description="Seconds to wait for a response before an attempt fails.",
+    )
+    max_retries: int = Field(
+        default=5,
+        ge=0,
+        description="How many times to retry a request after a rate limit, timeout, or "
+        "server error.",
+    )
+    on_error: Literal["continue", "stop"] = Field(
+        default="continue",
+        description="What to do when a request fails after all retries.",
+        json_schema_extra={
+            "options": {
+                "continue": "record the failure and keep going",
+                "stop": "stop sending; the run ends as stopped_early",
+            }
+        },
+    )
+    shuffle: bool = Field(
+        default=False,
+        description="Send requests in random order instead of file order.",
+    )
 
 
 class AuditConfig(_Strict):
     """One audit, as loaded from its YAML file."""
 
-    audit: str
-    provider: str
-    messages: str
+    audit: str = Field(description="This audit's name, which must match this file's name.")
+    provider: str = Field(description="The AI provider this audit sends messages to.")
+    messages: str = Field(
+        description="A filepath, relative to the project root, of messages to send."
+    )
 
-    #: A file of system prompt text, sent with every message. None sends none.
-    system_prompt: str | None = None
+    #: None sends none.
+    system_prompt: str | None = Field(
+        default=None,
+        description="A filepath, relative to the project root, of a system prompt to send "
+        "with every message.",
+        json_schema_extra={"blank": "no system prompt"},
+    )
 
     #: The single environment variable holding this audit's API key. There is no
     #: fallback: this name, or nothing. Required unless the provider needs no key.
-    api_key_env: str | None = None
+    api_key_env: str | None = Field(
+        default=None,
+        description="The name of the environment variable that holds the API key to use "
+        "for this audit.",
+        json_schema_extra={"required": True},
+    )
 
-    output: OutputConfig
-    execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
+    output: OutputConfig = Field(description="Where output files are written.")
+    execution: ExecutionConfig = Field(
+        default_factory=ExecutionConfig, description="How the messages are sent."
+    )
     #: Provider-owned. Core never inspects these keys.
     model: dict[str, Any] = Field(default_factory=dict)
 

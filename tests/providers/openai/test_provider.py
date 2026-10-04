@@ -6,7 +6,7 @@ import yaml
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderError
 from ai_taxman.providers.base import Provider
-from ai_taxman.providers.openai.config import TEMPLATE_FIELDS
+from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
 from ai_taxman.providers.openai.models import DEFAULT_MODEL
 from ai_taxman.providers.openai.provider import PROVIDER, OpenAIProvider
 
@@ -46,27 +46,60 @@ def test_template_names_a_model_this_provider_knows():
     assert parsed["model"]["name"] in PROVIDER.known_models()
 
 
+def comment_above(key, text=None):
+    """The comment above `key:` in the template, at any depth, without its `#`s."""
+    lines = (text or PROVIDER.render_template()).splitlines()
+    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
+    above = []
+    for line in reversed(lines[:index]):
+        if not line.lstrip().startswith("#"):
+            break
+        above.insert(0, line.strip().removeprefix("#").strip())
+    return above
+
+
 def test_template_leaves_every_other_parameter_blank_as_documentation():
     """The scaffolded file is the documentation; the user fills in the blanks."""
     parsed = yaml.safe_load(PROVIDER.render_template())["model"]
 
-    for key, _ in TEMPLATE_FIELDS:
+    for key in set(OpenAIModelConfig.model_fields) - {"name", "extra", "search"}:
         assert key in parsed, f"{key} is missing from the template"
         assert parsed[key] is None, f"{key} should be blank"
 
 
-def test_every_template_line_carries_a_comment():
-    """A setting explains itself inline; a block is explained by the line above it."""
-    body = PROVIDER.render_template().splitlines()[1:]
+def test_every_search_setting_is_in_the_template():
+    parsed = yaml.safe_load(PROVIDER.render_template())["model"]["search"]
 
-    for previous, line in zip(body, body[1:], strict=False):
-        if line.strip() and "#" not in line:
-            assert line.rstrip().endswith(":"), line
-            assert previous.lstrip().startswith("#"), line
+    assert set(parsed) == set(OpenAISearchConfig.model_fields)
+
+
+def test_the_extra_escape_hatch_stays_out_of_the_template():
+    assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
 
 
 def test_max_output_tokens_says_what_it_counts():
-    assert "  max_output_tokens:  # Maximum tokens per response." in PROVIDER.render_template()
+    assert "reasoning tokens included" in " ".join(comment_above("max_output_tokens"))
+
+
+def test_a_blank_sampling_setting_leaves_the_models_default():
+    assert "Default:  blank (model default)" in comment_above("temperature")
+
+
+def test_reasoning_effort_lists_every_level_openai_documents():
+    assert "Options:  none | minimal | low | medium | high | xhigh | max" in comment_above(
+        "reasoning_effort"
+    )
+
+
+def test_include_says_what_each_option_records():
+    above = comment_above("include")
+
+    assert any(line.startswith("Options:  web_search_call.action.sources") for line in above)
+    assert "Default:  [web_search_call.action.sources]" in above
+
+
+def test_store_is_off_unless_the_user_turns_it_on():
+    assert "Default:  false" in comment_above("store")
 
 
 def test_web_search_is_set_in_a_search_block_inside_the_model_block():
@@ -77,12 +110,9 @@ def test_web_search_is_set_in_a_search_block_inside_the_model_block():
 
 
 def test_the_search_block_says_its_settings_need_web_search():
-    lines = PROVIDER.render_template().splitlines()
-    index = lines.index("  search:")
+    above = " ".join(comment_above("search"))
 
-    assert lines[index - 1] == (
-        "  # Web search. web_search must be true to use any other setting in this block."
-    )
+    assert "web_search must be true to use any other setting in this block" in above
 
 
 def test_template_takes_no_arguments():

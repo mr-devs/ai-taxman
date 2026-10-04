@@ -562,8 +562,8 @@ def preflight(config: AuditConfig, provider: Provider) -> Preflight:
 
     `audits validate`, `collect` (foreground and background) and the runner all
     call this, so "valid" means the same thing everywhere: if it passes, the run
-    can start. Add a check here, never to one caller - the separate lists those
-    callers used to keep had already drifted apart.
+    can start. Add a check here, never to one caller - a separate list per caller
+    drifts apart.
     """
     model = validate_model(provider, config)
     messages = read_messages(config.messages_path)

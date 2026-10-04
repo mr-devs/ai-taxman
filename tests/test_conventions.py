@@ -167,7 +167,7 @@ def test_core_ignores_every_other_key_in_the_marker(tmp_path):
     plain = load_audit(audit).model_dump(mode="json")
 
     (tmp_path / MARKER_FILENAME).write_text(
-        "taxman_project: 2\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
+        "taxman_project: 1\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
         encoding="utf-8",
     )
 
@@ -183,3 +183,20 @@ def test_remembered_state_is_only_ever_skip_flags():
     for field in fields(State):
         assert field.name.startswith("skip_"), f"{field.name} is not a doctor skip flag"
         assert field.type in ("bool", bool), f"{field.name} is not a yes/no answer"
+
+
+# --- API keys -------------------------------------------------------------
+
+#: A developer's own prefix for live-test key variables. See CLAUDE.md.
+LIVE_KEY_PREFIX = "TAXMAN_LIVE_KEY_PREFIX"
+
+
+def test_taxman_itself_never_reads_the_live_test_key_prefix():
+    """Core looks up the one variable an audit names; a prefix would be a second guess."""
+    offenders = [
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "src").rglob("*.py")
+        if LIVE_KEY_PREFIX in path.read_text(encoding="utf-8")
+    ]
+
+    assert not offenders

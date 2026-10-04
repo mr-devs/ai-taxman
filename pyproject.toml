@@ -1,6 +1,6 @@
 [project]
 name = "ai-taxman"
-version = "0.0.2"
+version = "0.1.0"
 description = "A simple command line interface to audit popular AI systems, importable as a Python package."
 readme = "README.md"
 authors = [
@@ -44,8 +44,9 @@ classifiers = [
 
 [project.optional-dependencies]
 openai = ["openai>=1.60"]
-anthropic = ["anthropic>=0.40"]
-all = ["ai-taxman[openai,anthropic]"]
+anthropic = ["anthropic>=1.2"]
+gemini = ["google-genai>=2.28"]
+all = ["ai-taxman[openai,anthropic,gemini]"]
 
 [project.scripts]
 taxman = "ai_taxman.cli:app"
@@ -74,7 +75,9 @@ asyncio_mode = "auto"
 markers = [
     "live: hits real provider APIs; deselected by default",
 ]
-addopts = "-m 'not live'"
+# importlib, so each provider's tests can mirror the others' file names
+# (tests/providers/<name>/test_provider.py) without a collection clash.
+addopts = "-m 'not live' --import-mode=importlib"
 
 [tool.ruff]
 line-length = 100

@@ -174,7 +174,7 @@ def test_the_refusal_says_what_to_do(invoke, tmp_path):
     result = invoke("audits", "new", "openai", "probe")
 
     assert "already exists" in result.output
-    # The flags that used to be suggested are gone; do not advertise them.
+    # Neither flag exists; do not advertise them.
     assert "--force" not in result.output
     assert "--name" not in result.output
 
@@ -196,7 +196,7 @@ def test_the_generated_file_carries_explanatory_comments(invoke, tmp_path):
     invoke("audits", "new", "openai", "probe")
     text = (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8")
 
-    assert "# Times to send EACH message" in text
+    assert "# How many times each message is sent." in text
     assert "taxman collect probe" in text
 
 
@@ -349,26 +349,72 @@ def test_settings_are_in_the_order_a_user_fills_them_in(invoke, tmp_path):
     ]
 
 
-def test_every_top_level_setting_explains_itself(invoke, tmp_path):
-    text = audit_text(invoke, tmp_path)
+@pytest.mark.parametrize("key", ["audit", "provider", "api_key_env", "messages", "system_prompt"])
+def test_every_top_level_setting_explains_itself(invoke, tmp_path, key):
+    """What it does, then what it is when left alone, above the key itself."""
+    above = comment_above(audit_text(invoke, tmp_path), key)
 
-    assert comment_above(text, "audit") == ["# Audit name"]
-    assert comment_above(text, "provider") == ["# AI provider"]
-    assert comment_above(text, "api_key_env") == [
-        "# The name of an environment variable that holds an API key for the provider. "
-        "This is required.",
-        "# For openai this is usually OPENAI_API_KEY.",
-    ]
-    assert comment_above(text, "messages") == [
-        "# Path to the file containing the messages to send. Each line is a separate message;",
-        "# blank lines and lines starting with `#` are skipped.",
-    ]
-    assert comment_above(text, "system_prompt") == [
-        "# Path, relative to the project root, to a file containing the system prompt to send",
-        "# with every message.",
-        "#  - e.g. prompts/neutral.txt",
-        "# Leave blank to exclude a system prompt.",
-    ]
+    assert not above[0].startswith("#   "), above
+    assert any(line.startswith(("#   Default:", "#   Required:")) for line in above), above
+
+
+def test_the_audit_name_says_it_must_match_the_file(invoke, tmp_path):
+    above = " ".join(nested_comment_above(audit_text(invoke, tmp_path), "audit"))
+
+    assert "must match this file's name" in above
+
+
+def test_the_api_key_variable_is_required_and_hints_at_the_usual_name(invoke, tmp_path):
+    above = nested_comment_above(audit_text(invoke, tmp_path), "api_key_env")
+
+    assert "Required: yes" in above
+    assert "Example:  OPENAI_API_KEY" in above
+
+
+def explanation(text, key):
+    """The sentences above `key:`, joined: `# ...` lines, not the `#   Label:` ones."""
+    lines = text.splitlines()
+    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
+    sentences = []
+    for line in reversed(lines[:index]):
+        if not line.lstrip().startswith("#"):
+            break
+        if not line.lstrip().startswith("#  "):
+            sentences.insert(0, line.lstrip().removeprefix("# "))
+    return " ".join(sentences)
+
+
+#: The wording a user settled on by editing a generated file by hand.
+CONCISE = {
+    "audit": "This audit's name, which must match this file's name.",
+    "provider": "The AI provider this audit sends messages to.",
+    "api_key_env": "The name of the environment variable that holds the API key to use for "
+    "this audit.",
+    "messages": "A filepath, relative to the project root, of messages to send.",
+    "system_prompt": "A filepath, relative to the project root, of a system prompt to send "
+    "with every message.",
+    "output": "Where output files are written.",
+    "dir": "Where responses and manifest are written to, relative to the project root. "
+    "{audit} and {run_id} are filled in at run time.",
+    "filename": "Filename for the responses file in the `output` directory.",
+    "log_dir": "Path to directory where the log file is written, saved as <run_id>.log, and "
+    "relative to the project root. {audit} and {run_id} are filled in at run time.",
+    "execution": "How the messages are sent.",
+    "repeats": "How many times each message is sent.",
+    "max_concurrency": "Max number of simultaneous requests.",
+}
+
+
+@pytest.mark.parametrize("key", CONCISE)
+def test_each_core_setting_is_explained_in_one_or_two_short_sentences(invoke, tmp_path, key):
+    assert explanation(audit_text(invoke, tmp_path), key) == CONCISE[key]
+
+
+def test_a_blank_system_prompt_means_none_is_sent(invoke, tmp_path):
+    above = comment_above(audit_text(invoke, tmp_path), "system_prompt")
+
+    assert "#   Default:  blank (no system prompt)" in above
+    assert "#   Example:  prompts/neutral.txt" in above
 
 
 def test_no_line_ends_in_whitespace(invoke, tmp_path):
@@ -377,10 +423,70 @@ def test_no_line_ends_in_whitespace(invoke, tmp_path):
     assert [line for line in text.splitlines() if line != line.rstrip()] == []
 
 
-def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
-    line = next(line for line in audit_text(invoke, tmp_path).splitlines() if "batch:" in line)
+def nested_comment_above(text, key):
+    """The comment lines directly above `key:`, at any depth, without their `#`."""
+    lines = text.splitlines()
+    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
+    above = []
+    for line in reversed(lines[:index]):
+        if not line.lstrip().startswith("#"):
+            break
+        above.insert(0, line.strip().removeprefix("#").strip())
+    return above
 
-    assert line == "  batch: false  # true to use the provider's batch API (not available yet)."
+
+def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
+    above = nested_comment_above(audit_text(invoke, tmp_path), "batch")
+
+    assert "Not available yet" in " ".join(above)
+
+
+CORE_SETTINGS = (
+    *("dir", "filename", "compress", "log_dir"),
+    *("repeats", "max_concurrency", "batch", "timeout_s", "max_retries", "on_error", "shuffle"),
+)
+
+
+@pytest.mark.parametrize("key", CORE_SETTINGS)
+def test_every_output_and_execution_setting_explains_itself(invoke, tmp_path, key):
+    """What it does, then what it is when left alone, above the key itself."""
+    above = nested_comment_above(audit_text(invoke, tmp_path), key)
+
+    assert not above[0].endswith(":"), above
+    assert any(line.startswith(("Default:", "Required:")) for line in above), above
+
+
+@pytest.mark.parametrize("key", ["output", "execution"])
+def test_each_core_block_says_what_it_is_for(invoke, tmp_path, key):
+    assert comment_above(audit_text(invoke, tmp_path), key)
+
+
+def test_on_error_says_what_each_choice_does(invoke, tmp_path):
+    above = nested_comment_above(audit_text(invoke, tmp_path), "on_error")
+
+    assert any(line.startswith("Options:  continue  ") for line in above), above
+    assert any(line.startswith("stop      ") for line in above), above
+
+
+def test_execution_is_written_at_its_defaults(invoke, tmp_path):
+    invoke("audits", "new", "openai", "probe")
+
+    assert read(tmp_path, "probe")["execution"] == {
+        "repeats": 1,
+        "max_concurrency": 8,
+        "batch": False,
+        "timeout_s": 120,
+        "max_retries": 5,
+        "on_error": "continue",
+        "shuffle": False,
+    }
+
+
+def test_responses_are_written_uncompressed_by_default(invoke, tmp_path):
+    invoke("audits", "new", "openai", "probe")
+    output = read(tmp_path, "probe")["output"]
+
+    assert (output["filename"], output["compress"]) == ("responses.jsonl", False)
 
 
 # --- what an audit may be called -------------------------------------------

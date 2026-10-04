@@ -77,7 +77,10 @@ changing, or breaking one provider must not touch another.
 - One provider never imports another.
 - Provider SDKs are **optional extras** (`ai-taxman[openai]`). A missing SDK must produce a clear
   "`uv add ai-taxman[openai]`" message, never a raw ImportError traceback.
-- All shared behaviour lives in `providers/base.py` (the contract) or the conformance test suite.
+- All shared behaviour lives in `providers/base.py` (the contract), `providers/settings.py`
+  (what every `model:` block is built from), or the conformance test suite. The two modules
+  stay apart because `base.py` is imported on every shell completion and must not pull in
+  pydantic; `tests/cli/test_import_cost.py` fails the suite if it does.
 
 ### Pure / IO split
 
@@ -125,6 +128,13 @@ never named.
 Core owns "read the variable this audit names". Providers own "use this key". A provider
 never reads the environment itself, and never sees a variable name.
 
+**Live tests read the provider's own variable, unless `TAXMAN_LIVE_KEY_PREFIX` says
+otherwise.** Each `test_live.py` names `$TAXMAN_LIVE_KEY_PREFIX` + `PROVIDER.default_api_key_env`
+in `api_key_env:`, so a prefix of `MY_` reads `MY_OPENAI_API_KEY`. Which keys a developer bills
+is a fact about their machine: the prefix is set in their shell, never in the repo, and
+nothing under `src/` reads it. When you name a key variable yourself — a scratch audit, a
+one-off script — build it the same way, from the prefix the shell exports.
+
 ## There is no configuration command
 
 `taxman audits new` writes a fully commented audit file and the user edits it. That is the
@@ -135,7 +145,30 @@ them to `~/.taxman/providers/<name>.yaml`. It is gone, and so is `set-key`. **Do
 either back**, in any form: a second channel for setting audit values means core has to
 route each one to its owner, providers have to validate arbitrary keys, and the rendered
 template has to round-trip saved values through YAML. All of that existed and all of it
-was deleted. If a setting is hard to discover, fix its comment in the template.
+was deleted. If a setting is hard to discover, fix its description on its field.
+
+## Every setting documents itself
+
+The audit file is the documentation, so a setting's explanation lives on its own pydantic
+field and `core/template.py` writes it above the key. **Never hand-write a template
+comment** — core's blocks and every provider's `model:` block are rendered the same way.
+
+A field says what it does with `description=`, which the renderer refuses to go without:
+one or two short sentences, each written on its own line. Say what the setting is and any
+rule a user would trip over; leave out the reasons, and anything the labels below already
+say. The conformance suite fails a provider setting that runs to three sentences. It may
+add `examples=` and these `json_schema_extra` keys:
+
+- `options` — what each `Literal` value means. It must name exactly the values accepted.
+- `blank` — what leaving a None-default setting blank does: "no limit", "model default".
+  Only for a None default; blank otherwise means the default, which the file already names.
+- `required` — for a setting validation lets through blank but a run refuses (`api_key_env`).
+- `docs` — a link, which must be a page `docs/provider-apis/<name>.md` lists as its markdown
+  twin. Only listed pages are checked for rot; `tests/test_provider_docs.py` enforces it.
+- `template: False` — leave the field out of the file (`extra:`).
+
+`Type:`, `Options:`, bounds and `Default:` are read from the field's annotation, `Field`
+constraints and default, so the file cannot disagree with what validation accepts.
 
 The CLI has two interactive prompts, and neither asks about an audit: `doctor`'s yes/no
 about the machine (`cli/doctor_cmd.py`), and `init`'s folder questions about the project
@@ -177,7 +210,7 @@ response verbatim, and is the only response data in the row.
 
 Changes are **additive** — auditors depend on old data staying readable. Removing or renaming a
 field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
-"Schema versions" table. That has happened once, for v2 (`text` and `usage` removed).
+"Schema versions" table.
 
 Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
 hash, counts, timings, and `status`. Reproducibility is the point of an audit tool.
@@ -300,10 +333,13 @@ src/ai_taxman/
 ├── __init__.py       # __version__ + public Python API
 ├── __main__.py       # python -m ai_taxman
 ├── cli/              # Typer app: init, audits (new/list/show/validate), collect, doctor
-├── core/             # config, credentials, discovery, messages, records,
+├── core/             # config, credentials, discovery, messages, records, template,
 │                     # writer, runner, registry, state, environment, errors
 └── providers/
-    ├── base.py       # the ONLY shared provider contract + setup question types
+    ├── base.py       # the ONLY shared provider contract
+    ├── settings.py   # the ONLY shared pieces of a model: block
+    ├── anthropic/    # provider.py, config.py, models.py
+    ├── gemini/       # provider.py, config.py, models.py
     └── openai/       # provider.py, config.py, models.py
 
 docs/provider-apis/   # API docs per provider - read before touching provider code
@@ -329,7 +365,7 @@ recalled parameter names, response shapes, usage keys, or error semantics — pr
 and deprecate, and a wrong field name in an adapter fails silently at audit time: the run
 completes, the JSONL fills up, and the data is wrong.
 
-Consult it when you: change `build_request()` or `extract()`; add a key to a `model:` block;
+Consult it when you: change `build_request()` or `send()`; add a key to a `model:` block;
 touch retry or error handling; refresh `known_models()`; or implement a new provider.
 
 Every provider we target serves a markdown twin of its docs. Fetch that, not the HTML page:
@@ -362,12 +398,16 @@ and update `docs/provider-apis/` if the URL moved.
    provider's index URL are in `docs/provider-apis/README.md`.
 2. `mkdir src/ai_taxman/providers/<name>/` — mirror the `openai/` layout exactly.
 3. Add the SDK as an optional extra in `pyproject.toml` (and to the `all` extra), then `uv sync --all-extras`.
-4. Write failing tests first: `build_request`, `extract` against a recorded fixture, template parses.
-5. Implement `Provider` from `providers/base.py`; export `PROVIDER` at module level.
+4. Write failing tests first: `build_request` for each `model:` key, the template parses and
+   validates, `is_retryable` against the SDK's own error classes.
+5. Implement `Provider` from `providers/base.py`, building the config from
+   `providers/settings.py`; export `PROVIDER` at module level.
 6. Implement `known_models()`, `render_template()`, `describe_model()` and
    `default_api_key_env` — these feed `taxman audits new` and shell completion. `render_template()`
-   takes no arguments and renders every parameter blank but commented.
-7. Confirm the conformance suite (`tests/providers/test_conformance.py`) picks it up and passes.
+   takes no arguments and renders the config model with `core.template.render_block`, every
+   parameter blank. Document each field on the field itself (see "Every setting documents itself").
+7. Confirm the conformance suite (`tests/providers/test_conformance.py`) passes. It is
+   parametrized over the registry, so a new folder is checked with nothing to add to it.
 8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.
 
 ## Commits

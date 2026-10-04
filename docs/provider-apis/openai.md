@@ -47,7 +47,7 @@ in the collected data, waiting for whatever reads it.
 | Gap | Documentation |
 |---|---|
 | **Batch mode** (`supports_batch = False`; the runner rejects `execution.batch`) | [Batch API guide](https://developers.openai.com/api/docs/guides/batch.md), [Batches — Create](https://developers.openai.com/api/reference/resources/batches/methods/create.md), [Batches — Retrieve](https://developers.openai.com/api/reference/resources/batches/methods/retrieve.md), [Files — Create](https://developers.openai.com/api/reference/resources/files/methods/create.md) |
-| **Streaming** | [Streaming responses](https://developers.openai.com/api/docs/guides/streaming-responses.md), [Responses streaming events](https://developers.openai.com/api/reference/resources/responses/streaming-events.md) |
+| **Streaming** (`stream` is refused in `extra:`: a stream is not a response) | [Streaming responses](https://developers.openai.com/api/docs/guides/streaming-responses.md), [Responses streaming events](https://developers.openai.com/api/reference/resources/responses/streaming-events.md) |
 | **Structured outputs** (`text.format`) | [Structured model outputs](https://developers.openai.com/api/docs/guides/structured-outputs.md) |
 | **Function calling, `parallel_tool_calls`** (`tool_choice` is exposed only for web search) | [Function calling](https://developers.openai.com/api/docs/guides/function-calling.md) |
 | **`url_citation` annotations** (in `raw`; a reader's job, not taxman's) | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md), [Citation formatting](https://developers.openai.com/api/docs/guides/citation-formatting.md) |
@@ -56,7 +56,7 @@ in the collected data, waiting for whatever reads it.
 | **`service_tier`** — flex, priority, and the latency trade-offs | [Flex processing](https://developers.openai.com/api/docs/guides/flex-processing.md), [Fast mode](https://developers.openai.com/api/docs/guides/fast-mode.md), [Latency optimization](https://developers.openai.com/api/docs/guides/latency-optimization.md) |
 | **`prompt_cache_key`, `safety_identifier`** | [Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching.md), [Production best practices](https://developers.openai.com/api/docs/guides/production-best-practices.md) |
 | **Seed / reproducible outputs, `logprobs`** | [Advanced usage](https://developers.openai.com/api/docs/guides/advanced-usage.md) |
-| **`background: true`** for long runs | [Background mode](https://developers.openai.com/api/docs/guides/background.md) |
+| **`background: true`** for long runs (refused in `extra:`: it returns before the answer) | [Background mode](https://developers.openai.com/api/docs/guides/background.md) |
 | **Multi-turn input arrays, `previous_response_id`** | [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state.md) |
 | **`Retry-After` / `x-ratelimit-*` headers** (ignored; core uses fixed backoff) | [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
 | **`base_url`, `organization`, `project`** (not surfaced) | [Admin APIs](https://developers.openai.com/api/docs/guides/admin-apis.md) |

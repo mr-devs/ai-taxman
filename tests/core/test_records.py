@@ -51,6 +51,11 @@ def test_carries_the_schema_version():
     assert make_record().to_dict()["schema_version"] == RESPONSE_SCHEMA_VERSION
 
 
+def test_the_schema_is_version_1():
+    """Bumped only for a break, with a row in the README's "Schema versions" table."""
+    assert RESPONSE_SCHEMA_VERSION == 1
+
+
 def test_defaults_to_one_attempt():
     assert make_record().attempts == 1
 
@@ -93,7 +98,7 @@ def test_manifest_round_trips():
         run_id="r1",
         provider="openai",
         model="gpt-5",
-        taxman_version="0.0.2",
+        taxman_version="0.1.0",
         schema_version=RESPONSE_SCHEMA_VERSION,
         messages_path="messages/probe.txt",
         messages_hash="sha256:def",

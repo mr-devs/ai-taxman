@@ -1,62 +1,80 @@
 # Anthropic (Claude)
 
-**Not yet implemented.** `anthropic>=0.40` is already declared as an optional extra in
-`pyproject.toml`; the subpackage does not exist. Follow the checklist in
-[CLAUDE.md](../../CLAUDE.md#adding-a-new-provider).
+Implemented in [`src/ai_taxman/providers/anthropic/`](../../src/ai_taxman/providers/anthropic/).
 
-- **Endpoint:** Messages API, `POST /v1/messages`.
-- **Key env:** `ANTHROPIC_API_KEY` (or `TAXMAN_ANTHROPIC_API_KEY`).
+- **Endpoint:** Messages API, `POST /v1/messages`, via `AsyncAnthropic().messages.create()`.
+- **Key env:** whatever the audit's `api_key_env:` names. `ANTHROPIC_API_KEY` is Anthropic's
+  own convention, and `taxman audits new` writes it into a comment as a hint; taxman reads no
+  other name. Passing the key explicitly also stops the SDK reading `ANTHROPIC_AUTH_TOKEN`.
 - **Index:** <https://platform.claude.com/llms.txt>
 - **Markdown convention:** `platform.claude.com/docs/en/<path>` + `.md`.
 
-Start here — the authoritative request and response schema:
+The authoritative list of every request parameter and response field is the *create*
+reference. Read it before adding any key to the `model:` block:
 
 > <https://platform.claude.com/docs/en/api/messages/create.md>
 
-## Mapping the taxman feature set
+Anthropic's request differs from OpenAI's in four ways that matter to the adapter:
+- `system` is a **top-level parameter**, not a turn in `messages`.
+- `max_tokens` is **required**.
+- Reasoning is steered by `output_config.effort` and a separate `thinking` object.
+- Current models **reject** non-default sampling parameters.
 
-Left column is the taxman feature, so this reads across against
-[openai.md](openai.md). Anthropic's shape differs in three ways that matter for the adapter:
-`system` is a **top-level parameter**, not part of the message array; `max_tokens` is
-**required**; and thinking is configured as a token **budget** or an **effort** level rather
-than OpenAI's single `effort` string.
+## What taxman implements today
 
-| Taxman feature | Anthropic equivalent | Documentation |
+| Feature | Where in the code | Documentation |
 |---|---|---|
-| Send one message | `messages: [{role: "user", content: ...}]` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md), [Messages](https://platform.claude.com/docs/en/api/messages.md) |
-| `system_prompt` | top-level `system` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
-| `max_output_tokens` | `max_tokens` — **required** | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md), [Context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows.md) |
-| `temperature`, `top_p` | same names | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
-| `reasoning_effort` | `thinking` budget, or the newer `effort` control | [Thinking overview](https://platform.claude.com/docs/en/build-with-claude/thinking.md), [Effort](https://platform.claude.com/docs/en/build-with-claude/effort.md), [Steering and cost control](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost.md) |
-| `web_search` | `tools: [{type: "web_search_20250305", ...}]` | [Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool.md) |
-| `extract_text` | `content[]` blocks of type `text` (also `thinking`, `tool_use`) | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
-| Refusals / stop reason | `stop_reason` (`end_turn`, `max_tokens`, `refusal`, `stop_sequence`) | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md), [Handle streaming refusals](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/handle-streaming-refusals.md) |
-| `extract_usage` | `usage.input_tokens` / `output_tokens` | [Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting.md), [Count tokens in a Message](https://platform.claude.com/docs/en/api/messages/count_tokens.md) |
-| `cached_tokens` | `usage.cache_read_input_tokens`, `cache_creation_input_tokens` | [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching.md) |
-| Retry semantics | `overloaded_error` (529) is distinctive and **must** be retried | [Errors](https://platform.claude.com/docs/en/api/errors.md), [Rate limits](https://platform.claude.com/docs/en/api/rate-limits.md) |
-| `known_models()` | | [Models overview](https://platform.claude.com/docs/en/models/overview.md), [List Models](https://platform.claude.com/docs/en/api/models/list.md), [Choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model.md) |
-| API key setup | `x-api-key` header | [Get your API key](https://platform.claude.com/docs/en/get-api-key.md), [Quickstart](https://platform.claude.com/docs/en/get-started.md) |
-| SDK client | `anthropic.AsyncAnthropic` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md), [SDKs overview](https://platform.claude.com/docs/en/cli-sdks-libraries/overview.md) |
+| `messages.create` call | `provider.py` `send()` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
+| The message, as one user turn in `messages` | `provider.py` `build_request()` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
+| `model:` `name` | `config.py`, `models.py` | [Models overview](https://platform.claude.com/docs/en/models/overview.md) |
+| `system_prompt` (core's, `Request.system_prompt`) → top-level `system` | `provider.py` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
+| `max_tokens`, required; the template writes 16000 | `config.py` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
+| `effort` → `output_config.effort` | `config.py`, `provider.py` | [Effort](https://platform.claude.com/docs/en/build-with-claude/effort.md) |
+| `thinking:` `type`, `budget_tokens`, `display` → `thinking`; `display: updates` (beta) also sends `anthropic-beta: thinking-display-updates-2026-08-18` | `config.py`, `provider.py` `request_headers()` | [Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking.md) |
+| `temperature`, `top_p`, `top_k` (models after Claude Opus 4.6 refuse non-default values) | `config.py` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
+| `search.web_search` → `tools: [{type: <tool_version>, name: web_search}]`, newest version by default | `provider.py` `_web_search_tool()` | [Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool.md) |
+| `search.max_uses`, `allowed_domains`, `blocked_domains`, `allowed_callers`, `response_inclusion` → the same names on the tool | `config.py`, `provider.py` | [Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool.md), [Server tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/server-tools.md) |
+| `search.user_location` → the tool's `user_location`, with `type: approximate` | `provider.py` `_web_search_tool()` | [Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool.md) |
+| `search.tool_choice` → request-level `tool_choice: {type: auto \| any}` | `provider.py` `build_request()` | [Create a Message](https://platform.claude.com/docs/en/api/messages/create.md) |
+| `extra:`, merged into the request at any depth, never over a key path in `SET_BY_TAXMAN`; keys the SDK does not name go in `extra_body` | `config.py`, `provider.py` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
+| `raw` = `Message.to_dict(mode="json")`: only the fields Anthropic sent, under the API's names | `provider.py` `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
+| Retry set: `RateLimitError`, `OverloadedError` (529), `InternalServerError`, `ServiceUnavailableError`, `DeadlineExceededError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Errors](https://platform.claude.com/docs/en/api/errors.md) |
+| Client construction, `max_retries=0`, explicit `timeout=` per call | `provider.py` `_new_client()`, `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 
-## Beyond parity
+`OverloadedError`, `ServiceUnavailableError` and `DeadlineExceededError` are siblings of
+`InternalServerError` in SDK v1, not subclasses, so each is listed. A test fails if the SDK
+grows another 429 or 5xx class that the set misses.
 
-| Capability | Documentation |
+The explicit timeout matters for another reason. Without one, the SDK refuses a
+non-streaming request whose `max_tokens` it estimates would take more than 10 minutes. With
+one, the audit's `execution.timeout_s` is the only limit, so raise it alongside a large
+`max_tokens`.
+
+Validation checks names and the rules Anthropic documents for every model. It does not
+check which model accepts which `effort` or `thinking.type`, because that differs from model
+to model. The API answers with a 400, and the row records it.
+
+## Known gaps, with the spec to read first
+
+Nothing here is about *reading* a response. taxman writes Anthropic's answer verbatim to
+`raw` and derives nothing from it.
+
+| Gap | Documentation |
 |---|---|
-| **Batch mode** — the natural first implementation of the `supports_batch` contract | [Batch processing](https://platform.claude.com/docs/en/build-with-claude/batch-processing.md), [Create a Message Batch](https://platform.claude.com/docs/en/api/messages/batches/create.md), [Retrieve results](https://platform.claude.com/docs/en/api/messages/batches/results.md) |
-| Structured outputs | [Structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md) |
-| Streaming | [Streaming Messages](https://platform.claude.com/docs/en/build-with-claude/streaming.md) |
-| Service tiers / priority capacity | [Service tiers](https://platform.claude.com/docs/en/api/service-tiers.md) |
-| Preserving thinking across turns | [Preserved thinking](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking.md), [Thinking in tool workflows](https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows.md) |
-| Cost estimation for an audit run | [Pricing](https://platform.claude.com/docs/en/about-claude/pricing.md) |
-| `anthropic-version` header pinning | [Versions](https://platform.claude.com/docs/en/api/versioning.md) |
-| Model retirement dates | [Model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations.md) |
-| Reusing the OpenAI adapter shape | [OpenAI SDK compatibility](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk.md) — a compatibility layer, not full parity; prefer the native SDK |
+| **Batch mode** (`supports_batch = False`) | [Batch processing](https://platform.claude.com/docs/en/build-with-claude/batch-processing.md), [Create a Message Batch](https://platform.claude.com/docs/en/api/messages/batches/create.md) |
+| **`pause_turn`**: a long server-tool turn can pause. The paused message is recorded as-is; taxman does not continue it | [Web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool.md), [Server tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/server-tools.md) |
+| **Streaming** (`stream` is refused in `extra:`: a stream is not a response) | [Streaming Messages](https://platform.claude.com/docs/en/build-with-claude/streaming.md) |
+| **Structured outputs**: reachable through `extra: {output_config: {format: ...}}` | [Structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md) |
+| **Service tiers, `inference_geo`**: reachable through `extra:` | [Service tiers](https://platform.claude.com/docs/en/api/service-tiers.md) |
+| **Prompt caching**: opt-in per content block, so `cache_read_input_tokens` stays zero | [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching.md) |
+| **`retry-after` header** (ignored; core uses a fixed backoff) | [Rate limits](https://platform.claude.com/docs/en/api/rate-limits.md) |
+| **`ANTHROPIC_BASE_URL`**: read by the SDK and not pinned, as with OpenAI's base URL | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
+| **Thinking troubleshooting**: per-model `type` and `effort` rules | [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting.md) |
 
-## Gotchas to check against the docs, not memory
+## Keeping the model list current
 
-- `max_tokens` has no default. A missing value is a 400, so `config.py` should require it
-  rather than omitting the key the way the OpenAI adapter does.
-- Thinking imposes constraints on `temperature` and on the thinking budget relative to
-  `max_tokens`. See [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting.md).
-- Prompt caching is opt-in per content block (`cache_control`), unlike OpenAI's automatic
-  caching — so `cache_read_input_tokens` stays zero unless the adapter asks for it.
+`models.py` hardcodes `KNOWN_MODELS`, as pinned snapshot IDs. Refresh it against the
+[Models overview](https://platform.claude.com/docs/en/models/overview.md), and check
+[Model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations.md)
+before removing a name. An audit YAML in the wild may still reference it, and unknown names
+are allowed on purpose.

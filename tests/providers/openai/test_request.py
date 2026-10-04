@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from ai_taxman.core.messages import Message
 from ai_taxman.providers.base import Request
 from ai_taxman.providers.openai.config import OpenAIModelConfig
-from ai_taxman.providers.openai.models import REASONING_EFFORTS, ReasoningEffort
+from ai_taxman.providers.openai.models import ReasoningEffort
 from ai_taxman.providers.openai.provider import OpenAIProvider, build_request
 
 
@@ -57,7 +57,7 @@ def test_reasoning_effort_becomes_the_reasoning_block(provider):
     assert payload["reasoning"] == {"effort": "high"}
 
 
-@pytest.mark.parametrize("effort", REASONING_EFFORTS)
+@pytest.mark.parametrize("effort", get_args(ReasoningEffort))
 def test_every_documented_effort_level_is_accepted(provider, effort):
     """The Responses API documents none | minimal | low | medium | high | xhigh | max.
 
@@ -67,11 +67,6 @@ def test_every_documented_effort_level_is_accepted(provider, effort):
     payload = request_for({"name": "gpt-5", "reasoning_effort": effort})
 
     assert payload["reasoning"] == {"effort": effort}
-
-
-def test_the_effort_list_and_the_validated_type_cannot_drift():
-    """One source of truth, so a new level only has to be added once."""
-    assert set(REASONING_EFFORTS) == set(get_args(ReasoningEffort))
 
 
 def test_web_search_becomes_a_tool(provider):
@@ -385,6 +380,42 @@ def test_extra_cannot_override_a_setting_taxman_names(provider, key):
     """Otherwise `extra: {include: [...]}` would quietly drop the default sources."""
     with pytest.raises(ValidationError, match=key):
         request_for({"name": "gpt-5", "extra": {key: "anything"}})
+
+
+@pytest.mark.parametrize("key", ["stream", "background"])
+def test_extra_cannot_ask_for_a_response_send_could_not_record(provider, key):
+    with pytest.raises(ValidationError, match=f"cannot set {key}"):
+        request_for({"name": "gpt-5", "extra": {key: True}})
+
+
+def test_a_request_never_carries_changes_from_the_one_before(provider):
+    """Two requests from one audit share its `extra:`; merging must not write back into it."""
+    block = {"name": "gpt-5", "extra": {"text": {"format": {"type": "json_schema"}}}}
+    config = OpenAIProvider().validate_model_config(block)
+    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    first = build_request(Request(message=message, repeat=0, model=config))
+    first["text"]["format"]["type"] = "changed"
+
+    second = build_request(Request(message=message, repeat=1, model=config))
+
+    assert second["text"]["format"] == {"type": "json_schema"}
+
+
+def test_a_request_never_shares_the_audits_search_lists(provider):
+    """Every request in a run is built from one config; none may write back into it."""
+    search = {"web_search": True, "allowed_domains": ["cdc.gov"], "blocked_domains": ["x.com"]}
+    config = OpenAIProvider().validate_model_config({"name": "gpt-5", "search": search})
+    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    first = build_request(Request(message=message, repeat=0, model=config))
+    first["tools"][0]["filters"]["allowed_domains"].append("example.com")
+    first["tools"][0]["filters"]["blocked_domains"].clear()
+
+    second = build_request(Request(message=message, repeat=1, model=config))
+
+    assert second["tools"][0]["filters"] == {
+        "allowed_domains": ["cdc.gov"],
+        "blocked_domains": ["x.com"],
+    }
 
 
 def test_every_key_taxman_sends_is_protected_from_extra(provider):
