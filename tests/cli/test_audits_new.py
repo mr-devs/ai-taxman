@@ -174,7 +174,7 @@ def test_the_refusal_says_what_to_do(invoke, tmp_path):
     result = invoke("audits", "new", "openai", "probe")
 
     assert "already exists" in result.output
-    # The flags that used to be suggested are gone; do not advertise them.
+    # Neither flag exists; do not advertise them.
     assert "--force" not in result.output
     assert "--name" not in result.output
 
