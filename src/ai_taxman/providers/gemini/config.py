@@ -9,40 +9,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
 from ai_taxman.providers.gemini.models import ThinkingLevel
-
-
-class _Block(BaseModel):
-    """A block of settings where a key left blank takes its default."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _blank_means_unset(cls, block: Any) -> Any:
-        """`taxman audits new` writes keys with no value; YAML reads those as None.
-
-        Dropping them here lets the field defaults apply, so a freshly generated
-        template validates as-is.
-        """
-        if isinstance(block, dict):
-            return {
-                key: value
-                for key, value in block.items()
-                # `extra:` is sent as written, so only a wholly blank one is dropped.
-                if not (value is None if key == "extra" else _blank(value))
-            }
-        return block
-
-
-def _blank(value: Any) -> bool:
-    """None, or a nested block whose every key was left blank."""
-    if isinstance(value, dict):
-        return all(_blank(inner) for inner in value.values())
-    return value is None
-
+from ai_taxman.providers.settings import SettingsBlock
 
 #: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
 #: anything else - a key inside `generation_config` included, so a `seed` can sit
@@ -80,7 +50,7 @@ NEVER_SENT = {
 }
 
 
-class GeminiSearchConfig(_Block):
+class GeminiSearchConfig(SettingsBlock):
     """The `search:` block: grounding with Google Search.
 
     `web_search` is its only setting. The Interactions API's `google_search` tool
@@ -94,7 +64,7 @@ class GeminiSearchConfig(_Block):
     web_search: bool = Field(default=False, description="Ground answers with Google Search.")
 
 
-class GeminiModelConfig(_Block):
+class GeminiModelConfig(SettingsBlock):
     """Validated Gemini settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.

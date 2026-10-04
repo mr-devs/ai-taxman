@@ -1,9 +1,10 @@
 """The one contract every provider implements.
 
-This module is the *only* thing providers share. Anything that would need to be
-added here to make a single provider work probably belongs inside that
-provider's own package instead — the point of this seam is that adding or
-breaking one provider cannot touch another.
+This module is the *only* contract providers share; `settings.py` beside it holds
+the pieces their configs are built from. Anything that would need to be added
+here to make a single provider work probably belongs inside that provider's own
+package instead — the point of this seam is that adding or breaking one provider
+cannot touch another.
 
 Each provider splits into pure functions (`validate_model_config`,
 `render_template`, `build_request`) that are unit-tested against recorded

@@ -15,40 +15,10 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from ai_taxman.providers.openai.models import ReasoningEffort
-
-
-class _Block(BaseModel):
-    """A block of settings where a key left blank takes its default."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _blank_means_unset(cls, block: Any) -> Any:
-        """`taxman audits new` writes keys with no value; YAML reads those as None.
-
-        Dropping them here lets the field defaults apply, so a freshly generated
-        template validates as-is.
-        """
-        if isinstance(block, dict):
-            return {
-                key: value
-                for key, value in block.items()
-                # `extra:` is sent as written, so only a wholly blank one is dropped.
-                if not (value is None if key == "extra" else _blank(value))
-            }
-        return block
-
-
-def _blank(value: Any) -> bool:
-    """None, or a nested block whose every key was left blank."""
-    if isinstance(value, dict):
-        return all(_blank(inner) for inner in value.values())
-    return value is None
-
+from ai_taxman.providers.settings import SettingsBlock
 
 #: Request keys `build_request` sets itself. `extra:` may not touch them.
 SET_BY_TAXMAN = frozenset(
@@ -93,7 +63,7 @@ WebSearchInclude = Literal["web_search_call.action.sources", "web_search_call.re
 SOURCES: WebSearchInclude = "web_search_call.action.sources"
 
 
-class OpenAIUserLocation(_Block):
+class OpenAIUserLocation(SettingsBlock):
     """An approximate location to localise search results. Sent with `type: approximate`."""
 
     #: ISO 3166-1, as OpenAI takes it: `US`, not `us` or `USA`.
@@ -124,7 +94,7 @@ class OpenAIUserLocation(_Block):
     )
 
 
-class OpenAIImageSettings(_Block):
+class OpenAIImageSettings(SettingsBlock):
     """Image results, when `search_content_types` asks for them."""
 
     max_results: int | None = Field(
@@ -140,7 +110,7 @@ class OpenAIImageSettings(_Block):
     )
 
 
-class OpenAISearchConfig(_Block):
+class OpenAISearchConfig(SettingsBlock):
     """The `search:` block: the web-search tool and its settings.
 
     Names are OpenAI's own, so each one can be looked up in the web-search guide
@@ -267,7 +237,7 @@ class OpenAISearchConfig(_Block):
         return self
 
 
-class OpenAIModelConfig(_Block):
+class OpenAIModelConfig(SettingsBlock):
     """Validated OpenAI settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.

@@ -77,7 +77,10 @@ changing, or breaking one provider must not touch another.
 - One provider never imports another.
 - Provider SDKs are **optional extras** (`ai-taxman[openai]`). A missing SDK must produce a clear
   "`uv add ai-taxman[openai]`" message, never a raw ImportError traceback.
-- All shared behaviour lives in `providers/base.py` (the contract) or the conformance test suite.
+- All shared behaviour lives in `providers/base.py` (the contract), `providers/settings.py`
+  (what every `model:` block is built from), or the conformance test suite. The two modules
+  stay apart because `base.py` is imported on every shell completion and must not pull in
+  pydantic; `tests/cli/test_import_cost.py` fails the suite if it does.
 
 ### Pure / IO split
 
@@ -334,6 +337,7 @@ src/ai_taxman/
 │                     # writer, runner, registry, state, environment, errors
 └── providers/
     ├── base.py       # the ONLY shared provider contract
+    ├── settings.py   # the ONLY shared pieces of a model: block
     ├── anthropic/    # provider.py, config.py, models.py
     ├── gemini/       # provider.py, config.py, models.py
     └── openai/       # provider.py, config.py, models.py
@@ -396,7 +400,8 @@ and update `docs/provider-apis/` if the URL moved.
 3. Add the SDK as an optional extra in `pyproject.toml` (and to the `all` extra), then `uv sync --all-extras`.
 4. Write failing tests first: `build_request` for each `model:` key, the template parses and
    validates, `is_retryable` against the SDK's own error classes.
-5. Implement `Provider` from `providers/base.py`; export `PROVIDER` at module level.
+5. Implement `Provider` from `providers/base.py`, building the config from
+   `providers/settings.py`; export `PROVIDER` at module level.
 6. Implement `known_models()`, `render_template()`, `describe_model()` and
    `default_api_key_env` — these feed `taxman audits new` and shell completion. `render_template()`
    takes no arguments and renders the config model with `core.template.render_block`, every
