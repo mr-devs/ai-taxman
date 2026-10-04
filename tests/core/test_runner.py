@@ -225,6 +225,20 @@ async def test_the_manifest_names_the_message_file_relative_to_the_project(proje
     assert manifest["messages_path"] == "messages/probe.txt"
 
 
+async def test_the_manifest_names_a_linked_message_file_relative_to_the_project(
+    project, fake_provider, tmp_path_factory
+):
+    """A messages folder linked in from elsewhere is still named as the project names it."""
+    storage = tmp_path_factory.mktemp("storage")
+    (project / "messages").rename(storage / "messages")
+    (project / "messages").symlink_to(storage / "messages", target_is_directory=True)
+
+    result = await run_audit_async(audit(project))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["messages_path"] == "messages/probe.txt"
+
+
 async def test_writes_a_manifest_beside_the_jsonl(project, fake_provider):
     result = await run_audit_async(audit(project, "execution:\n  repeats: 2"))
 

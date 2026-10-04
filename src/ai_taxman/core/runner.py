@@ -629,12 +629,15 @@ def _new_manifest(
 def _project_relative(path: Path, root: Path) -> str:
     """`path` as the project names it, so a committed manifest leaks no home directory.
 
-    A message file outside the project can only be named absolutely.
+    A message file outside the project can only be named absolutely. One in a
+    folder linked in from elsewhere is named as written, through the link.
     """
-    try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        return str(path)
+    for written, base in ((path, root), (path.resolve(), root.resolve())):
+        try:
+            return written.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return str(path)
 
 
 def _file_hash(path: Path) -> str:
