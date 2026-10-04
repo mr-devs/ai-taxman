@@ -25,6 +25,7 @@ from ai_taxman.core.template import render_block
 from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
 from ai_taxman.providers.openai.models import DEFAULT_MODEL, KNOWN_MODELS
+from ai_taxman.providers.settings import merge_extra
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
@@ -134,7 +135,7 @@ def build_request(request: Request) -> dict[str, Any]:
     if request.system_prompt:
         payload["instructions"] = request.system_prompt
 
-    payload.update(config.extra)
+    merge_extra(payload, config.extra)
     return payload
 
 

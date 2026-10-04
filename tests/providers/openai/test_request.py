@@ -388,6 +388,19 @@ def test_extra_cannot_ask_for_a_response_send_could_not_record(provider, key):
         request_for({"name": "gpt-5", "extra": {key: True}})
 
 
+def test_a_request_never_carries_changes_from_the_one_before(provider):
+    """Two requests from one audit share its `extra:`; merging must not write back into it."""
+    block = {"name": "gpt-5", "extra": {"text": {"format": {"type": "json_schema"}}}}
+    config = OpenAIProvider().validate_model_config(block)
+    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    first = build_request(Request(message=message, repeat=0, model=config))
+    first["text"]["format"]["type"] = "changed"
+
+    second = build_request(Request(message=message, repeat=1, model=config))
+
+    assert second["text"]["format"] == {"type": "json_schema"}
+
+
 def test_a_request_never_shares_the_audits_search_lists(provider):
     """Every request in a run is built from one config; none may write back into it."""
     search = {"web_search": True, "allowed_domains": ["cdc.gov"], "blocked_domains": ["x.com"]}
