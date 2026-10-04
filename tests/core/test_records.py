@@ -98,7 +98,7 @@ def test_manifest_round_trips():
         run_id="r1",
         provider="openai",
         model="gpt-5",
-        taxman_version="0.0.2",
+        taxman_version="0.1.0",
         schema_version=RESPONSE_SCHEMA_VERSION,
         messages_path="messages/probe.txt",
         messages_hash="sha256:def",
