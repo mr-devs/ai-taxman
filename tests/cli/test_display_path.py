@@ -28,3 +28,14 @@ def test_the_working_directory_itself_is_shown_as_a_dot(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     assert display_path(tmp_path) == "."
+
+
+def test_a_path_through_a_linked_folder_is_shown_relative(tmp_path, monkeypatch):
+    """A folder linked in from elsewhere is still under the working directory as written."""
+    (tmp_path / "storage").mkdir()
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "audits").symlink_to(tmp_path / "storage", target_is_directory=True)
+    monkeypatch.chdir(project)
+
+    assert display_path(project / "audits" / "probe.yaml") == "audits/probe.yaml"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
@@ -22,10 +23,19 @@ def display_path(path: Path) -> str:
     fewest characters; outside it, only an absolute path does.
     """
     try:
-        relative = path.resolve().relative_to(Path.cwd().resolve())
-    except (ValueError, OSError):
+        cwd = Path.cwd()
+        # As written first, so a file in a folder linked in from elsewhere is still
+        # shown under the working directory it was reached from.
+        candidates = ((Path(os.path.abspath(path)), cwd), (path.resolve(), cwd.resolve()))
+    except OSError:
         return str(path)
-    return str(relative) if relative.parts else "."
+    for written, base in candidates:
+        try:
+            relative = written.relative_to(base)
+        except ValueError:
+            continue
+        return str(relative) if relative.parts else "."
+    return str(path)
 
 
 def fail(message: str, code: int = 1) -> None:
