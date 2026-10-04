@@ -89,6 +89,14 @@ def test_requiring_a_root_without_one_names_the_directory_searched(tmp_path):
     assert "taxman init" in message
 
 
+def test_a_new_marker_is_version_1(project):
+    import yaml
+
+    marker = yaml.safe_load((project / MARKER_FILENAME).read_text(encoding="utf-8"))
+
+    assert marker["taxman_project"] == 1
+
+
 def test_a_marker_from_a_newer_taxman_is_refused(project):
     (project / MARKER_FILENAME).write_text("taxman_project: 99\n", encoding="utf-8")
 
@@ -160,20 +168,13 @@ def test_audits_are_found_in_the_folder_the_marker_names(tmp_path):
 
 def test_a_folder_missing_from_the_marker_takes_its_default(tmp_path):
     (tmp_path / MARKER_FILENAME).write_text(
-        "taxman_project: 2\npaths:\n  audits: studies\n", encoding="utf-8"
+        "taxman_project: 1\npaths:\n  audits: studies\n", encoding="utf-8"
     )
 
     layout = read_layout(tmp_path)
 
     assert layout.audits == "studies"
     assert layout.data == "taxman/data"
-
-
-def test_a_marker_from_an_older_taxman_is_refused(tmp_path):
-    (tmp_path / MARKER_FILENAME).write_text("taxman_project: 1\n", encoding="utf-8")
-
-    with pytest.raises(ConfigError, match="taxman init"):
-        require_project_root(tmp_path)
 
 
 def test_an_unreadable_marker_cannot_name_its_folders(project):
@@ -185,7 +186,7 @@ def test_an_unreadable_marker_cannot_name_its_folders(project):
 
 def test_a_folder_the_marker_points_outside_the_project_is_refused(tmp_path):
     (tmp_path / MARKER_FILENAME).write_text(
-        "taxman_project: 2\npaths:\n  data: ../elsewhere\n", encoding="utf-8"
+        "taxman_project: 1\npaths:\n  data: ../elsewhere\n", encoding="utf-8"
     )
 
     with pytest.raises(ConfigError, match="elsewhere"):

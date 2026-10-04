@@ -42,7 +42,7 @@ YAML_SUFFIXES = (".yaml", ".yml")
 MARKER_FILENAME = "taxman.yaml"
 
 MARKER_VERSION_KEY = "taxman_project"
-MARKER_VERSION = 2
+MARKER_VERSION = 1
 
 #: The marker's block of folders.
 MARKER_PATHS_KEY = "paths"
@@ -181,12 +181,6 @@ def require_project_root(start: Path | None = None) -> Path:
         )
 
     version = _marker_version(root / MARKER_FILENAME)
-    if version < MARKER_VERSION:
-        raise ConfigError(
-            f"{root / MARKER_FILENAME} was written by an earlier version of taxman, "
-            "before a project recorded its folders. Delete it and run `taxman init` "
-            "in that directory to set the project up again."
-        )
     if version > MARKER_VERSION:
         raise ConfigError(
             f"{root / MARKER_FILENAME} was written by a newer version of taxman "

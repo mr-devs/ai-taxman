@@ -167,7 +167,7 @@ def test_core_ignores_every_other_key_in_the_marker(tmp_path):
     plain = load_audit(audit).model_dump(mode="json")
 
     (tmp_path / MARKER_FILENAME).write_text(
-        "taxman_project: 2\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
+        "taxman_project: 1\nprovider: anthropic\noutput:\n  dir: somewhere-else\n",
         encoding="utf-8",
     )
 
