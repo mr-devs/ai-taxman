@@ -26,10 +26,6 @@ from ai_taxman.core.errors import ConfigError
 #: once taxman is released. Until then it stays at 1 (see CLAUDE.md).
 RESPONSE_SCHEMA_VERSION = 1
 
-#: Fields an older schema version wrote that this one no longer has. Version 2
-#: dropped `message_hash` once `message_id` was derived from the text.
-RETIRED_FIELDS: dict[int, tuple[str, ...]] = {1: ("message_hash",)}
-
 Status = Literal["ok", "error"]
 
 #: How a run ended, or that it has not. `running` is what a killed run leaves
@@ -55,8 +51,8 @@ class ResponseRecord(BaseModel):
     repeat: int
 
     #: The line of the message file the message is on, so rows that arrived out
-    #: of order can be put back in file order. None in rows written before it.
-    message_line: int | None = None
+    #: of order can be put back in file order.
+    message_line: int
 
     #: The hash of the system prompt sent with the message, or None for none.
     system_prompt_hash: str | None = None
@@ -81,12 +77,8 @@ class ResponseRecord(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ResponseRecord:
-        """Rebuild a record from a parsed JSONL row, from this schema or an older one.
-
-        Fields a later version dropped are set aside, so an old row still reads.
-        """
-        retired = RETIRED_FIELDS.get(data.get("schema_version", RESPONSE_SCHEMA_VERSION), ())
-        return cls(**{key: value for key, value in data.items() if key not in retired})
+        """Rebuild a record from a parsed JSONL row."""
+        return cls(**data)
 
 
 class RunManifest(BaseModel):

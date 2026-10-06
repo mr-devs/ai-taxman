@@ -19,6 +19,7 @@ def make_record(**overrides):
         message_id="m0007",
         message="hello",
         repeat=2,
+        message_line=9,
         provider="openai",
         model="gpt-5",
         requested_at="2026-08-30T14:22:01.000000Z",
@@ -39,11 +40,12 @@ def test_round_trips_through_json():
     assert restored == record
 
 
-def test_a_row_written_before_message_line_existed_still_reads():
+def test_a_record_must_name_the_line_its_message_came_from():
     row = make_record().to_dict()
     del row["message_line"]
 
-    assert ResponseRecord.from_dict(row).message_line is None
+    with pytest.raises(ValueError):
+        ResponseRecord.from_dict(row)
 
 
 def test_a_record_carries_no_message_hash():

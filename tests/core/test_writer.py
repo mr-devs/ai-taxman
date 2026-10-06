@@ -12,6 +12,7 @@ def make_record(message_id="m0000", repeat=0):
         message_id=message_id,
         message="hello",
         repeat=repeat,
+        message_line=1,
         provider="fake",
         model="fake-1",
         requested_at="2026-08-30T00:00:00.000000Z",
@@ -20,39 +21,6 @@ def make_record(message_id="m0000", repeat=0):
         status="ok",
         raw={},
     )
-
-
-#: A row as version 1 of the schema wrote it: a positional id, a `message_hash`,
-#: and no `message_line`.
-VERSION_1_ROW = {
-    "schema_version": 1,
-    "audit": "a",
-    "run_id": "r",
-    "message_id": "m0007",
-    "message_hash": "sha256:x",
-    "message": "hello",
-    "repeat": 0,
-    "system_prompt_hash": None,
-    "provider": "fake",
-    "model": "fake-1",
-    "requested_at": "2026-08-30T00:00:00.000000Z",
-    "received_at": "2026-08-30T00:00:01.000000Z",
-    "latency_ms": 1000,
-    "status": "ok",
-    "error": None,
-    "attempts": 1,
-    "raw": {},
-}
-
-
-def test_reads_a_file_written_by_schema_version_1(tmp_path):
-    """Old data stays readable; a row that fails to parse would vanish silently."""
-    target = tmp_path / "responses.jsonl"
-    target.write_text(json.dumps(VERSION_1_ROW) + "\n", encoding="utf-8")
-
-    records = list(read_jsonl(target))
-
-    assert [(r.schema_version, r.message_id) for r in records] == [(1, "m0007")]
 
 
 def test_writes_one_json_object_per_line(tmp_path):
