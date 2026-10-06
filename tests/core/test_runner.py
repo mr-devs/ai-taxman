@@ -343,13 +343,13 @@ async def test_without_a_system_prompt_none_is_sent(project, fake_provider):
 
 
 async def test_the_manifest_records_which_system_prompt_was_sent(project, fake_provider):
-    from ai_taxman.core.messages import hash_message
-
+    """By its path and its text; the text is what a resumed run is checked against."""
     result = await run_audit_async(with_system_prompt(project))
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
 
     assert manifest["system_prompt_path"] == "prompts/neutral.txt"
-    assert manifest["system_prompt_hash"] == hash_message("Be terse.")
+    assert manifest["system_prompt_text"] == "Be terse."
+    assert "system_prompt_hash" not in manifest
 
 
 async def test_the_manifest_keeps_the_system_prompt_text(project, fake_provider):
@@ -367,15 +367,6 @@ async def test_without_a_system_prompt_the_manifest_records_none(project, fake_p
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
 
     assert manifest["system_prompt_text"] is None
-
-
-async def test_every_record_carries_the_system_prompt_hash(project, fake_provider):
-    from ai_taxman.core.messages import hash_message
-
-    result = await run_audit_async(with_system_prompt(project))
-
-    rows = list(read_jsonl(result.output_path))
-    assert {row.system_prompt_hash for row in rows} == {hash_message("Be terse.")}
 
 
 async def test_a_missing_system_prompt_is_reported_before_anything_is_sent(project, fake_provider):

@@ -3,7 +3,6 @@
 import pytest
 
 from ai_taxman.core.errors import ConfigError
-from ai_taxman.core.messages import hash_message
 from ai_taxman.core.prompts import read_system_prompt
 
 
@@ -29,13 +28,6 @@ def test_a_byte_order_mark_is_not_sent(tmp_path):
     path.write_text("\ufeffBe terse.\n", encoding="utf-8")
 
     assert read_system_prompt(path).text == "Be terse."
-
-
-def test_the_hash_is_of_the_text_sent(tmp_path):
-    path = tmp_path / "neutral.txt"
-    path.write_text("Be terse.\n", encoding="utf-8")
-
-    assert read_system_prompt(path).hash == hash_message("Be terse.")
 
 
 def test_a_missing_file_names_the_key_to_fix(tmp_path):

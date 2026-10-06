@@ -49,6 +49,11 @@ def test_a_record_carries_no_message_hash():
     assert "message_hash" not in make_record().to_dict()
 
 
+def test_a_record_does_not_carry_the_system_prompt():
+    """The manifest holds the system prompt; a run can never mix two."""
+    assert "system_prompt_hash" not in make_record().to_dict()
+
+
 def test_serialises_every_schema_field_even_when_empty():
     row = make_record(raw={}).to_dict()
 

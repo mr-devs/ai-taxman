@@ -50,9 +50,6 @@ class ResponseRecord(BaseModel):
     message: str
     repeat: int
 
-    #: The hash of the system prompt sent with the message, or None for none.
-    system_prompt_hash: str | None = None
-
     provider: str
     model: str
 
@@ -100,10 +97,9 @@ class RunManifest(BaseModel):
     messages_path: str
     messages_hash: str
 
-    #: The system prompt file, relative to the project, the hash of its text, and
-    #: the text itself - the file can change after the run; what was sent cannot.
+    #: The system prompt file, relative to the project, and the text itself - the
+    #: file can change after the run; what was sent cannot.
     system_prompt_path: str | None = None
-    system_prompt_hash: str | None = None
     system_prompt_text: str | None = None
     n_messages: int
     repeats: int

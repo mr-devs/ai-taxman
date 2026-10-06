@@ -11,7 +11,6 @@ A message may appear only once: sending one more than once is what
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -95,11 +94,6 @@ def message_id(text: str) -> str:
     across runs and message files without consulting either.
     """
     return str(uuid.uuid5(MESSAGE_ID_NAMESPACE, text))
-
-
-def hash_message(text: str) -> str:
-    """Return the stable content hash recorded alongside every response."""
-    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
 
 
 def _refuse_repeats(path: Path, kept: list[tuple[int, str]]) -> None:

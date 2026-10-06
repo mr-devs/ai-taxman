@@ -128,8 +128,8 @@ Put the text in a file and name it in the audit:
 system_prompt: taxman/prompts/neutral.txt
 ```
 
-Each provider sends it through its own API field. The manifest records the file's path,
-text, and hash; every response row records the hash.
+Each provider sends it through its own API field. The manifest records the file's path
+and text.
 
 ## Collecting
 
@@ -193,7 +193,6 @@ One JSON object per line, the same shape for every provider:
   "message_id": "4b841e8b-62f2-5814-b265-36aeb267e4b0",
   "message": "When is the next US federal election?",
   "repeat": 2,
-  "system_prompt_hash": "sha256:…",
   "provider": "openai",
   "model": "gpt-5",
   "requested_at": "…", "received_at": "…", "latency_ms": 812,

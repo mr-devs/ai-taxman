@@ -36,7 +36,7 @@ from ai_taxman.core.config import (
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
 from ai_taxman.core.logging import get_logger
-from ai_taxman.core.messages import Message, hash_message, read_messages
+from ai_taxman.core.messages import Message, read_messages
 from ai_taxman.core.prompts import SystemPrompt, read_system_prompt
 from ai_taxman.core.records import (
     RESPONSE_SCHEMA_VERSION,
@@ -532,7 +532,6 @@ def _record(
         message_id=request.message.id,
         message=request.message.text,
         repeat=request.repeat,
-        system_prompt_hash=hash_message(request.system_prompt) if request.system_prompt else None,
         provider=config.provider,
         model=model_name,
         requested_at=timestamp(started),
@@ -615,7 +614,6 @@ def _new_manifest(
         system_prompt_path=(
             _project_relative(system_prompt.path, config.project_root) if system_prompt else None
         ),
-        system_prompt_hash=system_prompt.hash if system_prompt else None,
         system_prompt_text=system_prompt.text if system_prompt else None,
         n_messages=len(messages),
         repeats=config.execution.repeats,
