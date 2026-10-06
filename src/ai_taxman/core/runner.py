@@ -83,13 +83,15 @@ def run_audit(
     *,
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
+    new_run: bool = False,
     run_id: str | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit. The synchronous entry point for the Python API and CLI.
 
     Collects the audit's latest run if it is unfinished, sending only what that
-    run is missing, and starts a new run if the audit has none.
+    run is missing, and starts a new run if the audit has none. `new_run=True`
+    starts a new run whatever is on disk.
     """
     config = audit if isinstance(audit, AuditConfig) else load_audit(audit)
     return asyncio.run(
@@ -97,6 +99,7 @@ def run_audit(
             config,
             provider=provider,
             on_record=on_record,
+            new_run=new_run,
             run_id=run_id,
             stop_signals=stop_signals,
         )
@@ -108,6 +111,7 @@ async def run_audit_async(
     *,
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
+    new_run: bool = False,
     run_id: str | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
@@ -135,7 +139,10 @@ async def run_audit_async(
     )
 
     plan = plan_run(
-        config, messages, run_id=validate_run_id(run_id) if run_id is not None else None
+        config,
+        messages,
+        new_run=new_run,
+        run_id=validate_run_id(run_id) if run_id is not None else None,
     )
     run_id = plan.run_id
     limit = config.execution.max_concurrency
@@ -170,6 +177,10 @@ async def run_audit_async(
         await _startup(provider, api_key)
         _write_manifest(manifest, manifest_path)
         on_disk = True
+        if plan.left_unfinished is not None:
+            log.warning(
+                "new run  run_id=%s leaving run_id=%s unfinished", run_id, plan.left_unfinished
+            )
         if plan.resuming:
             log.warning(
                 "resuming  run_id=%s collected=%d expected=%d sending=%d retrying=%d",

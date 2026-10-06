@@ -30,6 +30,13 @@ def collect(
             help="Audit name (or a path to an audit YAML).", autocompletion=complete_audit
         ),
     ],
+    new_run: Annotated[
+        bool,
+        typer.Option(
+            "--new-run",
+            help="Start a new run of the audit, even if its latest run is unfinished.",
+        ),
+    ] = False,
     quiet: Annotated[bool, typer.Option("--quiet", "-q", help="Only print the summary.")] = False,
     log_file: Annotated[
         Path | None,
@@ -61,6 +68,9 @@ def collect(
 ) -> None:
     """Send every message in an audit to its provider and record the responses.
 
+    Collecting an audit again finishes its latest run: only the responses that
+    run is missing, or that failed, are sent. --new-run starts a new run instead.
+
     Progress is logged as the run happens - one line per response - to the
     terminal and to the audit's log folder, as <run_id>.log. --log-file sends it
     to that file alone instead.
@@ -72,8 +82,9 @@ def collect(
     # every Tab press and must not pay for the config parser or the runner.
     from ai_taxman.core.config import load_audit, resolve_log_file
     from ai_taxman.core.logging import describe_level, setup_logging
-    from ai_taxman.core.records import new_run_id, validate_run_id
+    from ai_taxman.core.records import validate_run_id
     from ai_taxman.core.runner import preflight
+    from ai_taxman.core.runs import plan_run
 
     # Before anything else, so a typo in the level is not discovered an hour into
     # a run.
@@ -81,6 +92,9 @@ def collect(
         describe_level(log_level)
     except ValueError as exc:
         fail(str(exc))
+
+    if new_run and run_id is not None:
+        fail("--new-run starts a run of its own; it cannot be combined with --run-id.")
 
     config = load_audit(find_audit(audit))
     provider = get_provider(config.provider)
@@ -90,6 +104,7 @@ def collect(
             audit,
             config=config,
             provider=provider,
+            new_run=new_run,
             run_id=run_id,
             log_file=log_file,
             log_level=log_level,
@@ -99,11 +114,18 @@ def collect(
 
     # Checked before the banner and the log: announcing a run that cannot start
     # reads as if it started. The runner checks again, for the Python API.
-    model = provider.describe_model(preflight(config, provider).model)
+    checked = preflight(config, provider)
+    model = provider.describe_model(checked.model)
 
-    # Picked here rather than by the runner, because the log is named after it
-    # and has to be open before the run's first line.
-    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
+    # Planned here rather than by the runner, because the log is named after the
+    # run and has to be open before the run's first line.
+    plan = plan_run(
+        config,
+        checked.messages,
+        new_run=new_run,
+        run_id=validate_run_id(run_id) if run_id is not None else None,
+    )
+    run_id = plan.run_id
     if log_file is None:
         setup_logging(
             level=log_level,
@@ -119,6 +141,11 @@ def collect(
         typer.echo(
             f"Collecting {config.audit}: {config.provider} "
             f"({model or 'unspecified'}), {expected} repeat(s) per message."
+        )
+    if plan.left_unfinished is not None:
+        typer.secho(
+            f"Leaving run {plan.left_unfinished} unfinished; starting run {run_id}.",
+            fg=typer.colors.YELLOW,
         )
 
     result = _run(config, provider=provider, run_id=run_id, pid_file=pid_file)
@@ -179,6 +206,7 @@ def _start_in_background(
     *,
     config: AuditConfig,
     provider: Provider,
+    new_run: bool,
     run_id: str | None,
     log_file: Path | None,
     log_level: str,
@@ -188,19 +216,27 @@ def _start_in_background(
     from pathlib import Path as _Path
 
     from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
-    from ai_taxman.core.config import resolve_log_file, resolve_output_dir
-    from ai_taxman.core.records import new_run_id, validate_run_id
+    from ai_taxman.core.config import resolve_log_file
+    from ai_taxman.core.records import validate_run_id
     from ai_taxman.core.runner import preflight
+    from ai_taxman.core.runs import plan_run
 
     # Everything checkable without doing the run, checked before the fork: a pid
     # for a run that could never have worked is worse than an error here.
-    model = provider.describe_model(preflight(config, provider).model)
+    checked = preflight(config, provider)
+    model = provider.describe_model(checked.model)
 
-    # The user's id if they named one, so `-b` behaves like the foreground run.
-    # Checked here as well as in the runner: the parent builds the run directory
-    # from it, and that happens before the child is ever started.
-    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
-    directory = resolve_output_dir(config, run_id=run_id)
+    # The parent decides which run the child collects, so it can name the run's
+    # directory and log before the child starts. Checked here as well as in the
+    # runner: a user's id becomes a path before the child ever sees it.
+    plan = plan_run(
+        config,
+        checked.messages,
+        new_run=new_run,
+        run_id=validate_run_id(run_id) if run_id is not None else None,
+    )
+    run_id = plan.run_id
+    directory = plan.directory
     directory.mkdir(parents=True, exist_ok=True)
 
     # The user's --log-file if they gave one, as in the foreground. Made absolute
@@ -235,6 +271,8 @@ def _start_in_background(
         f"({model or 'unspecified'}), {config.execution.repeats} repeat(s) per message.",
         err=True,
     )
+    if plan.left_unfinished is not None:
+        typer.echo(f"Leaving run {plan.left_unfinished} unfinished.", err=True)
     typer.echo("", err=True)
     typer.echo(f"  run id   {run_id}", err=True)
     typer.echo(f"  pid      {pid}", err=True)

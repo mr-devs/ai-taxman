@@ -20,7 +20,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from ai_taxman.core.config import AuditConfig, resolve_output_dir
-from ai_taxman.core.errors import ResponseFileError
+from ai_taxman.core.errors import ConfigError, ResponseFileError
 from ai_taxman.core.messages import Message
 from ai_taxman.core.records import RunManifest, new_run_id
 from ai_taxman.core.writer import read_jsonl, target_path
@@ -87,19 +87,35 @@ class RunPlan:
     failed: frozenset[Pair]
     #: The run's manifest when an existing run is being resumed, else None.
     manifest: RunManifest | None
+    #: An unfinished run a new run was asked for in place of, left as it is.
+    left_unfinished: str | None = None
 
     @property
     def resuming(self) -> bool:
         return self.manifest is not None
 
 
-def plan_run(config: AuditConfig, messages: list[Message], *, run_id: str | None = None) -> RunPlan:
+def plan_run(
+    config: AuditConfig,
+    messages: list[Message],
+    *,
+    new_run: bool = False,
+    run_id: str | None = None,
+) -> RunPlan:
     """Decide which run collecting this audit continues, and what it still has to send.
 
-    With `run_id`, that run: resumed if it is on disk, started if not. Without
-    it, the audit's latest run, or a new run if the audit has none.
+    By default, the audit's latest run, or a new run if the audit has none. With
+    `new_run`, a new run whatever is on disk. With `run_id`, that run: resumed if
+    it is on disk, started if not - how a background parent hands its child the
+    run it chose.
     """
+    if new_run and run_id is not None:
+        raise ValueError("Pass `new_run` or `run_id`, not both.")
+
     pairs = expand(messages, config.execution.repeats)
+
+    if new_run:
+        return _new_run_beside_the_last(config, pairs)
 
     existing: ExistingRun | None
     if run_id is not None:
@@ -138,6 +154,34 @@ def plan_run(config: AuditConfig, messages: list[Message], *, run_id: str | None
         failed=frozenset(failed & expected),
         manifest=existing.manifest,
     )
+
+
+def _new_run_beside_the_last(config: AuditConfig, pairs: list[tuple[Message, int]]) -> RunPlan:
+    if "{run_id}" not in config.output.dir:
+        raise ConfigError(
+            f"`output.dir: {config.output.dir}` in {config.source_path} has no "
+            "`{run_id}`, so it has room for one run, which collecting again "
+            "finishes. Add `{run_id}` to `output.dir` to keep more than one run."
+        )
+
+    last = latest_run(config)
+    run_id = new_run_id()
+    return RunPlan(
+        run_id=run_id,
+        directory=_output_dir(config, run_id),
+        tasks=pairs,
+        expected=len(pairs),
+        answered=frozenset(),
+        failed=frozenset(),
+        manifest=None,
+        left_unfinished=last.run_id if last is not None and _unfinished(last.manifest) else None,
+    )
+
+
+def _unfinished(manifest: RunManifest) -> bool:
+    """Whether a run, by its manifest's own account, is missing any response."""
+    expected = manifest.n_messages * manifest.repeats
+    return manifest.status != "complete" or manifest.n_ok < expected
 
 
 def expand(messages: list[Message], repeats: int) -> list[tuple[Message, int]]:

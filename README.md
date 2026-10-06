@@ -150,6 +150,7 @@ killed run keeps every response already received.
 
 | Option | Effect |
 |---|---|
+| `--new-run` | Start a new run, instead of finishing the latest one |
 | `-q`, `--quiet` | Print only the summary |
 | `--log-file PATH` | Write the log to this file only |
 | `--log-level LEVEL` | `debug`, `info` (default), `warning`, or `error` |

@@ -70,6 +70,29 @@ def test_settings_come_only_from_the_audit_file(invoke, tmp_path, fake_provider,
     assert fake_provider.sent == []
 
 
+def test_new_run_starts_another_run_of_the_audit(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    invoke("collect", "probe")
+
+    result = invoke("collect", "probe", "--new-run")
+
+    assert result.exit_code == 0, result.output
+    assert len(list((tmp_path / "data" / "probe").iterdir())) == 2
+    assert len(fake_provider.sent) == 6
+
+
+def test_new_run_says_when_it_leaves_a_run_unfinished(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    invoke("collect", "probe")
+    (first,) = (tmp_path / "data" / "probe").iterdir()
+
+    result = invoke("collect", "probe", "--new-run")
+
+    assert "unfinished" in result.output
+    assert first.name in result.output
+
+
 def test_accepts_a_path_to_an_audit_file(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 

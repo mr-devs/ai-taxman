@@ -129,3 +129,42 @@ async def test_a_resumed_run_keeps_when_it_started(project, fake_provider):
 
     manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
     assert manifest["started_at"] == started
+
+
+# --- a new run, on request ---------------------------------------------------------
+
+
+async def test_a_new_run_starts_over_beside_the_last_one(project, fake_provider):
+    first = await run_audit_async(audit(project))
+    keep_only(first, (ONE, 0))
+    fake_provider.sent.clear()
+
+    second = await run_audit_async(audit(project), new_run=True)
+
+    assert sent(fake_provider) == sorted([(ONE, 0), (TWO, 0), (THREE, 0)])
+    assert second.run_id != first.run_id
+    assert second.output_path.parent.parent == first.output_path.parent.parent
+    assert second.resumed is False
+
+
+async def test_collecting_after_a_new_run_finishes_the_new_one(project, fake_provider):
+    await run_audit_async(audit(project))
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    second = await run_audit_async(audit(project), new_run=True)
+    fake_provider.sent.clear()
+
+    third = await run_audit_async(audit(project))
+
+    assert third.run_id == second.run_id
+    assert sent(fake_provider) == [(TWO, 0)]
+
+
+async def test_a_new_run_needs_run_id_in_the_output_directory(project, fake_provider):
+    """Without {run_id}, `output.dir` has room for one run, so a second has nowhere to go."""
+    from ai_taxman.core.errors import ConfigError
+
+    single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
+    await run_audit_async(audit(project, single))
+
+    with pytest.raises(ConfigError, match=r"\{run_id\}"):
+        await run_audit_async(audit(project, single), new_run=True)
