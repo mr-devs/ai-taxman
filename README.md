@@ -270,6 +270,8 @@ print(result.n_ok, result.n_error, result.output_path)
 
 A name resolves as on the command line; a path ending in `.yaml` is read directly.
 `run_audit` also accepts an `AuditConfig` from `load_audit()` and an `on_record` callback.
+Like `collect`, it finishes the audit's latest run; `new_run=True` starts another, and
+`result.resumed` and `result.already_complete` say which happened.
 
 ## Tab completion
 

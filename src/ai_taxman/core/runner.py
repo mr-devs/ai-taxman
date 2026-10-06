@@ -178,8 +178,9 @@ async def run_audit_async(
     # often - leaves no directory behind. Everything after that point is written
     # before the first request goes out, so the run is described from the moment
     # it can produce anything at all.
-    # Held from before the manifest is written until after it is finalised, so
-    # no second `collect` can resume this run while it is being collected.
+    #
+    # The lock is held from before the manifest is written until after it is
+    # finalised, so no second `collect` can resume this run while it is collected.
     with contextlib.ExitStack() as lock:
         try:
             _handle_stop_signals(stop_signals, state)
