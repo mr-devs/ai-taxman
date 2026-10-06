@@ -46,7 +46,7 @@ from ai_taxman.core.records import (
 )
 from ai_taxman.core.registry import get_provider
 from ai_taxman.core.runs import MANIFEST_FILENAME, RunPlan, output_file, plan_run
-from ai_taxman.core.writer import JsonlWriter
+from ai_taxman.core.writer import JsonlWriter, repair_tail
 from ai_taxman.providers.base import Provider, Request
 
 #: Never logs a message body or an API key - ids and counts only. A log is a
@@ -183,6 +183,8 @@ async def run_audit_async(
         await _startup(provider, api_key)
         _write_manifest(manifest, manifest_path)
         on_disk = True
+        if plan.resuming and repair_tail(writer.path):
+            log.warning("repaired  dropped the half-written end of %s", writer.path)
         if plan.left_unfinished is not None:
             log.warning(
                 "new run  run_id=%s leaving run_id=%s unfinished", run_id, plan.left_unfinished

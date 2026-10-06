@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import zlib
 from collections.abc import Iterator
 from pathlib import Path
@@ -21,6 +22,9 @@ from ai_taxman.core.errors import ResponseFileError
 from ai_taxman.core.records import ResponseRecord
 
 GZIP_SUFFIX = ".gz"
+
+#: How much of a file is read at a time while repairing it.
+_CHUNK = 1 << 16
 
 
 class JsonlWriter:
@@ -132,3 +136,64 @@ def target_path(path: Path, *, compress: bool) -> Path:
     if compress and path.suffix != GZIP_SUFFIX:
         return path.with_suffix(path.suffix + GZIP_SUFFIX)
     return path
+
+
+def repair_tail(path: str | Path) -> bool:
+    """Make a file a killed run left safe to append to; True if anything changed.
+
+    A run killed mid-write can leave half a line at the end, and a gzipped one
+    always leaves a stream with no end-of-stream marker. Appending after either
+    would bury the break mid-file, where `read_jsonl` refuses it - or, for gzip,
+    stops reading before the new rows. Only the broken tail is dropped: every
+    whole line stays, byte for byte.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return False
+    if path.suffix == GZIP_SUFFIX:
+        return _close_gzip_stream(path)
+    return _drop_partial_line(path)
+
+
+def _drop_partial_line(path: Path) -> bool:
+    with path.open("rb+") as handle:
+        end = handle.seek(0, os.SEEK_END)
+        if end == 0:
+            return False
+        handle.seek(end - 1)
+        if handle.read(1) == b"\n":
+            return False
+        # Walk back to the last newline; everything after it is the broken line.
+        position = end
+        while position > 0:
+            step = min(_CHUNK, position)
+            position -= step
+            handle.seek(position)
+            cut = handle.read(step).rfind(b"\n")
+            if cut != -1:
+                handle.truncate(position + cut + 1)
+                return True
+        handle.truncate(0)
+        return True
+
+
+def _close_gzip_stream(path: Path) -> bool:
+    if _gzip_is_whole(path):
+        return False
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        whole_lines = [line for line in _lines(handle) if line.endswith("\n")]
+    replacement = path.with_name(path.name + ".repair")
+    with gzip.open(replacement, "wt", encoding="utf-8") as handle:
+        handle.writelines(whole_lines)
+    os.replace(replacement, path)
+    return True
+
+
+def _gzip_is_whole(path: Path) -> bool:
+    try:
+        with gzip.open(path, "rb") as handle:
+            while handle.read(_CHUNK):
+                pass
+    except (EOFError, OSError, zlib.error):
+        return False
+    return True

@@ -5,7 +5,7 @@ import pytest
 
 from ai_taxman.core.errors import ResponseFileError
 from ai_taxman.core.records import ResponseRecord
-from ai_taxman.core.writer import JsonlWriter, read_jsonl
+from ai_taxman.core.writer import JsonlWriter, read_jsonl, repair_tail
 
 
 def make_record(message_id="m0000", repeat=0):
@@ -161,3 +161,75 @@ def test_read_jsonl_refuses_a_complete_row_that_is_not_a_record(tmp_path):
 
 def test_read_jsonl_returns_nothing_for_a_missing_file(tmp_path):
     assert list(read_jsonl(tmp_path / "nope.jsonl")) == []
+
+
+# --- repairing what a killed run left, before a resumed run appends to it ----------
+
+
+def killed_gzip(path, records):
+    """The file a compressed run leaves when killed: flushed rows, no end-of-stream marker."""
+    writer = JsonlWriter(path, compress=True)
+    with writer:
+        for record in records:
+            writer.write(record)
+        left_behind = writer.path.read_bytes()
+    writer.path.write_bytes(left_behind)
+    return writer.path
+
+
+def test_repair_drops_a_half_written_last_line(tmp_path):
+    target = tmp_path / "responses.jsonl"
+    with JsonlWriter(target) as writer:
+        writer.write(make_record("m0"))
+    whole = target.read_bytes()
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write('{"partial": ')
+
+    assert repair_tail(target) is True
+    assert target.read_bytes() == whole
+
+
+def test_repair_leaves_a_whole_file_alone(tmp_path):
+    target = tmp_path / "responses.jsonl"
+    with JsonlWriter(target) as writer:
+        writer.write(make_record("m0"))
+    whole = target.read_bytes()
+
+    assert repair_tail(target) is False
+    assert target.read_bytes() == whole
+
+
+def test_repair_of_a_missing_file_does_nothing(tmp_path):
+    assert repair_tail(tmp_path / "responses.jsonl") is False
+
+
+def test_repair_closes_a_gzip_stream_a_kill_left_open(tmp_path):
+    """Otherwise rows appended after it could never be read: reading stops at the break."""
+    path = killed_gzip(tmp_path / "responses.jsonl", [make_record("m0"), make_record("m1")])
+
+    assert repair_tail(path) is True
+    with JsonlWriter(path, compress=True) as writer:
+        writer.write(make_record("m2"))
+
+    assert [r.message_id for r in read_jsonl(path)] == ["m0", "m1", "m2"]
+
+
+def test_repair_keeps_each_gzip_row_exactly_as_written(tmp_path):
+    """Rows already paid for are copied, never parsed and written out again."""
+    path = killed_gzip(tmp_path / "responses.jsonl", [make_record("m0")])
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        before = handle.readline()
+
+    repair_tail(path)
+
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        assert handle.read() == before
+
+
+def test_repair_leaves_a_whole_gzip_file_alone(tmp_path):
+    with JsonlWriter(tmp_path / "responses.jsonl", compress=True) as writer:
+        writer.write(make_record("m0"))
+    whole = writer.path.read_bytes()
+
+    assert repair_tail(writer.path) is False
+    assert writer.path.read_bytes() == whole

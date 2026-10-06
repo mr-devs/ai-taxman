@@ -277,3 +277,38 @@ async def test_a_run_killed_after_its_last_response_is_marked_complete(project, 
     manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
     assert manifest["status"] == "complete"
     assert manifest["n_ok"] == 3
+
+
+# --- what a killed run left behind is made whole before it is added to -------------
+
+
+async def test_a_half_written_last_line_does_not_break_the_resumed_file(project, fake_provider):
+    first = await run_audit_async(audit(project))
+    keep_only(first, (ONE, 0))
+    with first.output_path.open("a", encoding="utf-8") as handle:
+        handle.write('{"partial": ')
+
+    await run_audit_async(audit(project))
+
+    rows = list(read_jsonl(first.output_path))
+    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
+
+
+async def test_a_killed_compressed_run_is_resumed_into_a_readable_file(project, fake_provider):
+    from ai_taxman.core.writer import JsonlWriter
+
+    compressed = "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n  compress: true"
+    first = await run_audit_async(audit(project, compressed))
+    (kept,) = [row for row in read_jsonl(first.output_path) if row.message_id == ONE]
+    # What a kill leaves: the row flushed, the gzip stream never closed.
+    writer = JsonlWriter(first.output_path, compress=True)
+    first.output_path.unlink()
+    with writer:
+        writer.write(kept)
+        left_behind = writer.path.read_bytes()
+    writer.path.write_bytes(left_behind)
+
+    await run_audit_async(audit(project, compressed))
+
+    rows = list(read_jsonl(first.output_path))
+    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])

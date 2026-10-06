@@ -236,7 +236,9 @@ the runner refuses a directory that already claims a different `run_id`. The sam
 Everything on disk is written as it is produced. Responses are flushed per row, so an audit that
 is killed keeps every response already paid for, and `read_jsonl` stops at a truncated tail
 rather than raising — including a gzip stream with no end-of-stream marker. Any other
-unreadable row raises: dropping it quietly would undercount what was collected.
+unreadable row raises: dropping it quietly would undercount what was collected. Resuming a run
+first drops that broken tail with `writer.repair_tail()`, copying every whole line byte for
+byte, so the rows it appends stay readable.
 
 ## Logging and background runs
 
