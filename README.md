@@ -215,6 +215,7 @@ file and every run. An id can be computed from text, but never turned back into 
 
 ```bash
 taxman messages ids taxman/messages/probe.txt   # each message in a file with its id, as CSV
+taxman messages ids -t "Hello" -t "Goodbye"     # the same, for messages typed here
 ```
 
 Outside taxman, an id is `uuid5(uuid5(NAMESPACE_URL, "https://matthewdeverna.com/"), text)`,
@@ -240,6 +241,7 @@ Changes are additive unless listed here.
 | `taxman audits validate <audit-name>` | Check an audit without sending anything |
 | `taxman collect <audit-name>` | Run an audit |
 | `taxman messages ids <file>` | Print each message in a file with its id |
+| `taxman messages ids -t <message>...` | Print the id of each message given |
 | `taxman providers` | List the installed providers |
 | `taxman doctor` | Check `PATH` and tab completion, and offer to fix them |
 

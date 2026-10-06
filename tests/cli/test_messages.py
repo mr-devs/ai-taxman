@@ -43,3 +43,38 @@ def test_ids_works_outside_a_project(invoke, tmp_path, leave_project):
     path = write_messages(tmp_path, "first\n")
 
     assert invoke("messages", "ids", str(path)).exit_code == 0
+
+
+def test_ids_gives_the_ids_of_messages_typed_with_t(invoke):
+    """Trimmed like a line of a file, so each gets the id that line would."""
+    result = invoke("messages", "ids", "-t", "first", "--text", "  second  ")
+
+    assert result.exit_code == 0
+    assert rows(result.stdout) == [
+        ["message_id", "message"],
+        [message_id("first"), "first"],
+        [message_id("second"), "second"],
+    ]
+
+
+def test_ids_refuses_a_file_and_t_together(invoke, tmp_path):
+    path = write_messages(tmp_path, "first\n")
+
+    result = invoke("messages", "ids", str(path), "-t", "second")
+
+    assert result.exit_code != 0
+    assert "not both" in result.output
+
+
+def test_ids_needs_a_file_or_t(invoke):
+    result = invoke("messages", "ids")
+
+    assert result.exit_code != 0
+    assert "-t" in result.output
+
+
+def test_ids_refuses_an_empty_t_message(invoke):
+    result = invoke("messages", "ids", "-t", "   ")
+
+    assert result.exit_code != 0
+    assert "empty" in result.output

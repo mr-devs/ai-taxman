@@ -13,7 +13,7 @@ from typing import Annotated
 
 import typer
 
-from ai_taxman.cli.util import handles_taxman_errors
+from ai_taxman.cli.util import fail, handles_taxman_errors
 
 messages_app = typer.Typer(
     help="Look up the ids taxman gives messages.",
@@ -24,12 +24,31 @@ messages_app = typer.Typer(
 @messages_app.command("ids")
 @handles_taxman_errors
 def ids_command(
-    file: Annotated[Path, typer.Argument(help="A message file, one message per line.")],
+    file: Annotated[
+        Path | None, typer.Argument(help="A message file, one message per line.")
+    ] = None,
+    texts: Annotated[
+        list[str] | None,
+        typer.Option("--text", "-t", help="A message to give the id of. Repeat for more."),
+    ] = None,
 ) -> None:
-    """Print each message in a file with its id, as CSV."""
-    from ai_taxman.core.messages import read_messages
+    """Print each message in a file, or each `-t` message, with its id, as CSV."""
+    from ai_taxman.core.messages import message_id, read_messages
 
-    pairs = [(message.id, message.text) for message in read_messages(file)]
+    if file is not None and texts:
+        fail("Give a message file or `-t` messages, not both.")
+    if file is None and not texts:
+        fail("Give a message file, or messages with `-t`.")
+
+    if file is not None:
+        pairs = [(message.id, message.text) for message in read_messages(file)]
+    else:
+        # Trimmed as a line of a file is, so each gets the id that line would.
+        stripped = [text.strip() for text in texts or []]
+        if not all(stripped):
+            fail("A `-t` message is empty.")
+        pairs = [(message_id(text), text) for text in stripped]
+
     typer.echo(_csv([("message_id", "message"), *pairs]), nl=False)
 
 
