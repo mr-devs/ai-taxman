@@ -47,6 +47,7 @@ from ai_taxman.core.records import (
     validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
+from ai_taxman.core.runs import MANIFEST_FILENAME
 from ai_taxman.core.writer import JsonlWriter
 from ai_taxman.providers.base import Provider, Request
 
@@ -54,7 +55,6 @@ from ai_taxman.providers.base import Provider, Request
 #: file users pipe into issues; the message text is already in the JSONL.
 log = get_logger(__name__)
 
-MANIFEST_FILENAME = "manifest.json"
 DEFAULT_BACKOFF_BASE = 0.5
 MAX_BACKOFF = 30.0
 
