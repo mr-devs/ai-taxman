@@ -31,9 +31,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-#: Written by the child inside its own run directory, holding one integer, so
-#: `kill $(cat data/probe/<run>/collect.pid)` works with no parsing.
-PID_FILENAME = "collect.pid"
+from ai_taxman.core.runs import PID_FILENAME
+
+__all__ = ["PID_FILENAME", "build_child_command", "clear_pid_file", "spawn", "write_pid_file"]
 
 #: Windows' spelling of "do not die with the terminal". POSIX uses its own
 #: session instead; this constant is unused there.

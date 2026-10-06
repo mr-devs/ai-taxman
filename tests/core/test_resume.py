@@ -312,3 +312,49 @@ async def test_a_killed_compressed_run_is_resumed_into_a_readable_file(project, 
 
     rows = list(read_jsonl(first.output_path))
     assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
+
+
+# --- one collector per run at a time ------------------------------------------------
+
+
+async def test_a_run_being_collected_elsewhere_is_not_resumed(project, fake_provider):
+    from ai_taxman.core.errors import RunInProgressError
+    from ai_taxman.core.runs import hold_run
+
+    first = await unfinished_run(project, fake_provider)
+
+    with hold_run(first.output_path.parent), pytest.raises(RunInProgressError) as caught:
+        await run_audit_async(audit(project))
+
+    assert first.run_id in str(caught.value)
+    assert fake_provider.sent == []
+
+
+async def test_the_refusal_names_a_background_runs_pid(project, fake_provider):
+    from ai_taxman.core.errors import RunInProgressError
+    from ai_taxman.core.runs import hold_run
+
+    first = await unfinished_run(project, fake_provider)
+    (first.output_path.parent / "collect.pid").write_text("4242\n", encoding="utf-8")
+
+    with hold_run(first.output_path.parent), pytest.raises(RunInProgressError, match="kill 4242"):
+        await run_audit_async(audit(project))
+
+
+async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider):
+    import asyncio
+
+    from ai_taxman.core.errors import RunInProgressError
+    from ai_taxman.core.runs import hold_run
+
+    fake_provider.delay = 0.2
+    task = asyncio.create_task(run_audit_async(audit(project, "execution:\n  max_concurrency: 1")))
+    await asyncio.sleep(0.1)
+    (directory,) = (project / "data" / "probe").iterdir()
+
+    with pytest.raises(RunInProgressError), hold_run(directory):
+        pass
+
+    await task
+    with hold_run(directory):  # released once the run is over
+        pass

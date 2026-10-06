@@ -13,8 +13,10 @@ and its system prompt text must all be what the run's manifest recorded.
 
 from __future__ import annotations
 
+import contextlib
 import glob
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,12 +24,26 @@ from typing import Any
 from pydantic import ValidationError
 
 from ai_taxman.core.config import AuditConfig, resolve_output_dir
-from ai_taxman.core.errors import AuditChangedError, ConfigError, ResponseFileError
+from ai_taxman.core.errors import (
+    AuditChangedError,
+    ConfigError,
+    ResponseFileError,
+    RunInProgressError,
+)
 from ai_taxman.core.messages import Message
 from ai_taxman.core.records import RunManifest, new_run_id
 from ai_taxman.core.writer import read_jsonl, target_path
 
 MANIFEST_FILENAME = "manifest.json"
+
+#: Held, with `flock`, by the process collecting the run, for as long as it is.
+#: The OS releases it when that process ends, however it ends, so a killed run
+#: never leaves a stale lock behind.
+LOCK_FILENAME = "collect.lock"
+
+#: Written by a background run inside its run directory, holding its pid, so
+#: `kill $(cat data/probe/<run>/collect.pid)` works with no parsing.
+PID_FILENAME = "collect.pid"
 
 #: Stands in for a run id while `output.dir` is turned into a glob pattern. A
 #: private-use character, so no real path contains it and `glob.escape` leaves it be.
@@ -152,6 +168,7 @@ def plan_run(
             manifest=None,
         )
 
+    _check_not_in_progress(existing)
     _check_unchanged(config, messages, system_prompt, existing)
 
     expected = {(message.id, repeat) for message, repeat in pairs}
@@ -166,6 +183,53 @@ def plan_run(
         answered=frozenset(answered & expected),
         failed=frozenset(failed & expected),
         manifest=existing.manifest,
+    )
+
+
+@contextlib.contextmanager
+def hold_run(directory: Path) -> Iterator[None]:
+    """Hold a run's lock while it is collected; raise if another process holds it.
+
+    Where `flock` does not exist (Windows), a run in progress cannot be told
+    from a dead one, so nothing is held and nothing is refused.
+    """
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - the test machines are POSIX
+        yield
+        return
+
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / LOCK_FILENAME).open("a") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise RunInProgressError(_in_progress_message(directory)) from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _check_not_in_progress(existing: ExistingRun) -> None:
+    """Raise if another process is collecting `existing` right now."""
+    if (existing.directory / LOCK_FILENAME).is_file():
+        with hold_run(existing.directory):
+            pass
+
+
+def _in_progress_message(directory: Path) -> str:
+    run = directory.name
+    try:
+        pid = int((directory / PID_FILENAME).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        stop = "or stop the taxman process collecting it"
+    else:
+        stop = f"or stop it with `kill {pid}`"
+    return (
+        f"Run {run} in {directory} is being collected right now, by another taxman "
+        f"process. Wait for that to finish, {stop}; collecting again then picks up "
+        "where it left off."
     )
 
 

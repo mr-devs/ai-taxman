@@ -45,7 +45,7 @@ from ai_taxman.core.records import (
     validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
-from ai_taxman.core.runs import MANIFEST_FILENAME, RunPlan, output_file, plan_run
+from ai_taxman.core.runs import MANIFEST_FILENAME, RunPlan, hold_run, output_file, plan_run
 from ai_taxman.core.writer import JsonlWriter, repair_tail
 from ai_taxman.providers.base import Provider, Request
 
@@ -178,80 +178,84 @@ async def run_audit_async(
     # often - leaves no directory behind. Everything after that point is written
     # before the first request goes out, so the run is described from the moment
     # it can produce anything at all.
-    try:
-        _handle_stop_signals(stop_signals, state)
-        await _startup(provider, api_key)
-        _write_manifest(manifest, manifest_path)
-        on_disk = True
-        if plan.resuming and repair_tail(writer.path):
-            log.warning("repaired  dropped the half-written end of %s", writer.path)
-        if plan.left_unfinished is not None:
-            log.warning(
-                "new run  run_id=%s leaving run_id=%s unfinished", run_id, plan.left_unfinished
-            )
-        if plan.resuming:
-            log.warning(
-                "resuming  run_id=%s collected=%d expected=%d sending=%d retrying=%d",
+    # Held from before the manifest is written until after it is finalised, so
+    # no second `collect` can resume this run while it is being collected.
+    with contextlib.ExitStack() as lock:
+        try:
+            _handle_stop_signals(stop_signals, state)
+            await _startup(provider, api_key)
+            lock.enter_context(hold_run(directory))
+            _write_manifest(manifest, manifest_path)
+            on_disk = True
+            if plan.resuming and repair_tail(writer.path):
+                log.warning("repaired  dropped the half-written end of %s", writer.path)
+            if plan.left_unfinished is not None:
+                log.warning(
+                    "new run  run_id=%s leaving run_id=%s unfinished", run_id, plan.left_unfinished
+                )
+            if plan.resuming:
+                log.warning(
+                    "resuming  run_id=%s collected=%d expected=%d sending=%d retrying=%d",
+                    run_id,
+                    len(plan.answered),
+                    plan.expected,
+                    len(tasks),
+                    len(plan.failed),
+                )
+            log.info(
+                "run starting  run_id=%s audit=%s provider=%s model=%s "
+                "messages=%d repeats=%d expected=%d sending=%d concurrency=%d output=%s",
                 run_id,
-                len(plan.answered),
+                config.audit,
+                provider.name,
+                manifest.model,
+                len(messages),
+                config.execution.repeats,
                 plan.expected,
                 len(tasks),
-                len(plan.failed),
-            )
-        log.info(
-            "run starting  run_id=%s audit=%s provider=%s model=%s "
-            "messages=%d repeats=%d expected=%d sending=%d concurrency=%d output=%s",
-            run_id,
-            config.audit,
-            provider.name,
-            manifest.model,
-            len(messages),
-            config.execution.repeats,
-            plan.expected,
-            len(tasks),
-            limit,
-            writer.path,
-        )
-        with writer:
-            await _dispatch(
-                tasks,
-                provider=provider,
-                config=config,
-                model=model,
-                system_prompt=system_prompt.text if system_prompt else None,
-                run_id=run_id,
-                limit=limit,
-                backoff_base=backoff_base,
-                writer=writer,
-                state=state,
-                on_record=on_record,
-            )
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        manifest.status = "interrupted"
-        raise
-    except BaseException:
-        manifest.status = "failed"
-        raise
-    else:
-        manifest.status = "stopped_early" if state.stop.is_set() else "complete"
-    finally:
-        _release_stop_signals(stop_signals)
-        await _shutdown(provider)
-        if on_disk:
-            manifest.finished_at = timestamp()
-            # Per pair across every session, so a failure later answered is not
-            # counted twice, and one retried in vain is counted once.
-            manifest.n_ok = len(state.answered)
-            manifest.n_error = len(state.failed)
-            _write_manifest(manifest, manifest_path)
-            log.info(
-                "run %s  run_id=%s ok=%d error=%d output=%s",
-                manifest.status,
-                run_id,
-                state.n_ok,
-                state.n_error,
+                limit,
                 writer.path,
             )
+            with writer:
+                await _dispatch(
+                    tasks,
+                    provider=provider,
+                    config=config,
+                    model=model,
+                    system_prompt=system_prompt.text if system_prompt else None,
+                    run_id=run_id,
+                    limit=limit,
+                    backoff_base=backoff_base,
+                    writer=writer,
+                    state=state,
+                    on_record=on_record,
+                )
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            manifest.status = "interrupted"
+            raise
+        except BaseException:
+            manifest.status = "failed"
+            raise
+        else:
+            manifest.status = "stopped_early" if state.stop.is_set() else "complete"
+        finally:
+            _release_stop_signals(stop_signals)
+            await _shutdown(provider)
+            if on_disk:
+                manifest.finished_at = timestamp()
+                # Per pair across every session, so a failure later answered is not
+                # counted twice, and one retried in vain is counted once.
+                manifest.n_ok = len(state.answered)
+                manifest.n_error = len(state.failed)
+                _write_manifest(manifest, manifest_path)
+                log.info(
+                    "run %s  run_id=%s ok=%d error=%d output=%s",
+                    manifest.status,
+                    run_id,
+                    state.n_ok,
+                    state.n_error,
+                    writer.path,
+                )
 
     return RunResult(
         run_id=run_id,

@@ -17,6 +17,10 @@ class AuditChangedError(TaxmanError):
     """An audit no longer matches the run it would resume."""
 
 
+class RunInProgressError(TaxmanError):
+    """Another process is collecting the run this one would resume."""
+
+
 class ResponseFileError(TaxmanError):
     """A file of collected responses holds a row that cannot be read."""
 
