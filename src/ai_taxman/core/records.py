@@ -95,7 +95,10 @@ class RunManifest(BaseModel):
     schema_version: int
 
     messages_path: str
-    messages_hash: str
+
+    #: The id of every message in the file, in file order. A resumed run is checked
+    #: against these rather than the file's bytes, so a comment can be edited.
+    message_ids: list[str]
 
     #: The system prompt file, relative to the project, and the text itself - the
     #: file can change after the run; what was sent cannot.

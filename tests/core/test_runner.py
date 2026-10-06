@@ -257,7 +257,10 @@ async def test_writes_a_manifest_beside_the_jsonl(project, fake_provider):
     assert manifest["n_error"] == 0
     assert manifest["started_at"] and manifest["finished_at"]
     assert manifest["config"]["execution"]["repeats"] == 2
-    assert manifest["messages_hash"].startswith("sha256:")
+    # The messages a resumed run is checked against: ids, not the file's bytes,
+    # so editing a comment does not count as changing the audit.
+    assert manifest["message_ids"] == [ONE, TWO, THREE]
+    assert "messages_hash" not in manifest
 
 
 async def test_output_goes_to_the_configured_directory(project, fake_provider):

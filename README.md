@@ -141,7 +141,7 @@ Each message is sent `repeats` times, concurrently. Every setting comes from the
 there are no command-line overrides. Each run writes to its own directory:
 
 - `responses.jsonl`: one row per response, flushed as it arrives.
-- `manifest.json`: resolved config, tool version, messages-file hash, counts, and timings.
+- `manifest.json`: resolved config, tool version, message ids, counts, and timings.
   It is written before the first request and updated when the run ends.
 
 The manifest's `status` is `running` until the run ends, then `complete`, `stopped_early`,

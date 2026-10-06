@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import hashlib
 import json
 import random
 from collections.abc import Callable
@@ -610,7 +609,7 @@ def _new_manifest(
         taxman_version=__version__,
         schema_version=RESPONSE_SCHEMA_VERSION,
         messages_path=_project_relative(config.messages_path, config.project_root),
-        messages_hash=_file_hash(config.messages_path),
+        message_ids=[message.id for message in messages],
         system_prompt_path=(
             _project_relative(system_prompt.path, config.project_root) if system_prompt else None
         ),
@@ -634,7 +633,3 @@ def _project_relative(path: Path, root: Path) -> str:
         except ValueError:
             continue
     return str(path)
-
-
-def _file_hash(path: Path) -> str:
-    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"

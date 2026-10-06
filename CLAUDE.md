@@ -219,8 +219,8 @@ for reading rows an older build wrote. When a change would break data once taxma
 released, say so to the user in a line, then go ahead without a bump. This rule ends at the
 first public release, and the rules above apply from then on.
 
-Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
-hash, counts, timings, and `status`. Reproducibility is the point of an audit tool.
+Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message
+ids, counts, timings, and `status`. Reproducibility is the point of an audit tool.
 
 It is written **before the first request** and rewritten when the run ends, never only at the
 end. A run killed halfway through still says what it was running, with which settings, and how
