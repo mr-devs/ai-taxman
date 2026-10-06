@@ -15,6 +15,7 @@ from ai_taxman.core.registry import get_provider
 if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runtime
     from ai_taxman.core.config import AuditConfig
     from ai_taxman.core.runner import RunResult
+    from ai_taxman.core.runs import RunPlan
     from ai_taxman.providers.base import Provider
 
 #: Duplicated from `core.logging` as a plain string so that importing this module
@@ -127,6 +128,10 @@ def collect(
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )
     run_id = plan.run_id
+    if plan.complete:
+        _say_complete(config, plan)
+        return
+
     if log_file is None:
         setup_logging(
             level=log_level,
@@ -166,6 +171,22 @@ def collect(
 
     if result.n_ok == 0:
         fail("every message failed; see the error rows in the output for why.")
+
+
+def _say_complete(config: AuditConfig, plan: RunPlan, *, err: bool = False) -> None:
+    """Say there is nothing to collect, and how to collect the audit again."""
+    from ai_taxman.core.runs import output_file
+
+    output = display_path(output_file(config, plan.directory))
+    typer.echo(
+        f"{config.audit} is already complete: run {plan.run_id} has all "
+        f"{plan.expected} responses, in {output}.",
+        err=err,
+    )
+    typer.echo(
+        f"To collect it again, start a new run: taxman collect {config.audit} --new-run",
+        err=err,
+    )
 
 
 def _run(
@@ -238,6 +259,10 @@ def _start_in_background(
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )
     run_id = plan.run_id
+    if plan.complete:
+        _say_complete(config, plan, err=True)
+        return
+
     directory = plan.directory
     directory.mkdir(parents=True, exist_ok=True)
 

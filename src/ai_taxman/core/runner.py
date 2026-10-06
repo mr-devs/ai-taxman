@@ -45,7 +45,7 @@ from ai_taxman.core.records import (
     validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
-from ai_taxman.core.runs import MANIFEST_FILENAME, plan_run
+from ai_taxman.core.runs import MANIFEST_FILENAME, RunPlan, output_file, plan_run
 from ai_taxman.core.writer import JsonlWriter
 from ai_taxman.providers.base import Provider, Request
 
@@ -72,6 +72,8 @@ class RunResult:
     stopped_early: bool = False
     #: True when this call finished an existing run rather than starting one.
     resumed: bool = False
+    #: True when the run already had every response, so nothing was sent.
+    already_complete: bool = False
 
     @property
     def total(self) -> int:
@@ -146,6 +148,9 @@ async def run_audit_async(
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )
     run_id = plan.run_id
+    if plan.complete:
+        return _already_complete(plan, config)
+
     limit = config.execution.max_concurrency
     tasks = list(plan.tasks)
     if config.execution.shuffle:
@@ -254,6 +259,35 @@ async def run_audit_async(
         n_error=state.n_error,
         stopped_early=state.stop.is_set(),
         resumed=plan.resuming,
+    )
+
+
+def _already_complete(plan: RunPlan, config: AuditConfig) -> RunResult:
+    """Send nothing, and make sure the manifest agrees the run is complete.
+
+    A run killed after writing its last response never got to say so.
+    """
+    assert plan.manifest is not None
+    manifest_path = plan.directory / MANIFEST_FILENAME
+    if plan.manifest.status != "complete" or plan.manifest.n_ok != len(plan.answered):
+        _write_manifest(
+            plan.manifest.model_copy(
+                update={
+                    "status": "complete",
+                    "n_ok": len(plan.answered),
+                    "n_error": 0,
+                    "finished_at": plan.manifest.finished_at or timestamp(),
+                }
+            ),
+            manifest_path,
+        )
+    return RunResult(
+        run_id=plan.run_id,
+        output_path=output_file(config, plan.directory),
+        manifest_path=manifest_path,
+        n_ok=0,
+        n_error=0,
+        already_complete=True,
     )
 
 

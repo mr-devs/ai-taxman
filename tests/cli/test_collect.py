@@ -110,6 +110,19 @@ def test_a_changed_audit_is_not_resumed(invoke, tmp_path, fake_provider):
     assert fake_provider.sent == []
 
 
+def test_collecting_a_complete_audit_says_so_and_sends_nothing(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    invoke("collect", "probe")
+    fake_provider.sent.clear()
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code == 0
+    assert "already complete" in result.output
+    assert "--new-run" in result.output
+    assert fake_provider.sent == []
+
+
 def test_accepts_a_path_to_an_audit_file(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 

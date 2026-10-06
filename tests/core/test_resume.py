@@ -250,3 +250,30 @@ async def test_comments_and_line_order_are_not_changes(project, fake_provider):
 
     assert second.run_id == first.run_id
     assert sent(fake_provider) == sorted([(TWO, 0), (THREE, 0)])
+
+
+# --- a complete run is left alone ----------------------------------------------------
+
+
+async def test_a_complete_run_is_not_collected_again(project, fake_provider):
+    first = await run_audit_async(audit(project))
+    fake_provider.sent.clear()
+
+    second = await run_audit_async(audit(project))
+
+    assert fake_provider.sent == []
+    assert second.already_complete is True
+    assert second.run_id == first.run_id
+    assert first.already_complete is False
+
+
+async def test_a_run_killed_after_its_last_response_is_marked_complete(project, fake_provider):
+    """Every response is on disk, so the manifest stops saying otherwise."""
+    first = await run_audit_async(audit(project))
+    keep_only(first, (ONE, 0), (TWO, 0), (THREE, 0))
+
+    await run_audit_async(audit(project))
+
+    manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "complete"
+    assert manifest["n_ok"] == 3

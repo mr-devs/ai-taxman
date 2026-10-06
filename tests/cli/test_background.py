@@ -126,6 +126,20 @@ def test_the_parent_does_not_send_anything_itself(invoke, tmp_path, fake_provide
     assert fake_provider.sent == []
 
 
+def test_a_complete_audit_is_not_started_in_the_background(invoke, tmp_path, fake_provider):
+    """No pid on stdout: there is no run to wait for."""
+    make_project(tmp_path)
+    invoke("collect", "probe")
+
+    result = invoke("collect", "probe", "--background")
+
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    assert "already complete" in result.stderr
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+    assert not (run / PID_FILENAME).exists()
+
+
 def test_a_broken_audit_is_refused_before_a_background_run_is_promised(
     invoke, tmp_path, fake_provider
 ):

@@ -96,6 +96,11 @@ class RunPlan:
     def resuming(self) -> bool:
         return self.manifest is not None
 
+    @property
+    def complete(self) -> bool:
+        """The run already has a successful response for every pair."""
+        return self.resuming and not self.tasks
+
 
 def plan_run(
     config: AuditConfig,
