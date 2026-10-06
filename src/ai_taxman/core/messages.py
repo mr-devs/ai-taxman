@@ -43,8 +43,9 @@ class Message:
 def read_messages(path: str | Path) -> list[Message]:
     """Read `path` and return its messages in file order.
 
-    Raises `MessageFileError` if the file is missing, unreadable, or contains no
-    messages once blanks and comments are removed.
+    Raises `MessageFileError` if the file is missing, unreadable, contains no
+    messages once blanks and comments are removed, or holds the same message on
+    more than one line.
     """
     path = Path(path)
 
