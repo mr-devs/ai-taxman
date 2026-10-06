@@ -118,6 +118,7 @@ before sending anything.
 
 One message per line in a `.txt` file. Blank lines and lines starting with `#` are skipped;
 start a line with `\#` to send a message that begins with `#`.
+Each message may appear only once; to send one more than once, set `execution.repeats`.
 
 ### System prompt
 

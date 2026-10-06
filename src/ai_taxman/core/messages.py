@@ -4,6 +4,9 @@ The file format is deliberately the simplest thing that works: one message per
 line. Blank lines and lines starting with `#` are ignored, so users can annotate
 and group their messages. A line whose first non-whitespace characters are `\\#`
 is an escaped literal `#`, not a comment.
+
+A message may appear only once: sending one more than once is what
+`execution.repeats` is for.
 """
 
 from __future__ import annotations
@@ -69,6 +72,8 @@ def read_messages(path: str | Path) -> list[Message]:
             "(every line is blank or a `#` comment)."
         )
 
+    _refuse_repeats(path, kept)
+
     width = max(MIN_ID_WIDTH, len(str(len(kept) - 1)))
     return [
         Message(
@@ -84,6 +89,38 @@ def read_messages(path: str | Path) -> list[Message]:
 def hash_message(text: str) -> str:
     """Return the stable content hash recorded alongside every response."""
     return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+
+
+def _refuse_repeats(path: Path, kept: list[tuple[int, str]]) -> None:
+    """Raise if any message appears on more than one line.
+
+    A repeated line is almost always a slip, and it would quietly give that
+    message twice the weight of the others. Sending a message more than once is
+    what `execution.repeats` is for.
+    """
+    first_seen: dict[str, int] = {}
+    repeats: list[tuple[int, int]] = []
+    for line_number, text in kept:
+        if text in first_seen:
+            repeats.append((first_seen[text], line_number))
+        else:
+            first_seen[text] = line_number
+
+    if not repeats:
+        return
+
+    first, again = repeats[0]
+    others = len(repeats) - 1
+    more = (
+        f" {others} more {'line repeats' if others == 1 else 'lines repeat'} an earlier one."
+        if others
+        else ""
+    )
+    raise MessageFileError(
+        f"The message file at {path} has the same message on lines {first} and {again}.{more} "
+        "Keep each message on one line; to send a message more than once, set "
+        "`execution.repeats` in the audit."
+    )
 
 
 def _unescape(line: str) -> str:

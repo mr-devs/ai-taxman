@@ -76,13 +76,29 @@ def test_reads_utf8(tmp_path):
     assert read_messages(path)[0].text == "¿qué tal? 🧾"
 
 
-def test_duplicate_messages_are_kept_with_distinct_ids(tmp_path):
-    path = write(tmp_path, "same\nsame\n")
+def test_a_repeated_message_is_refused_naming_both_lines(tmp_path):
+    path = write(tmp_path, "same\nother\n\nsame\n")
 
-    messages = read_messages(path)
+    with pytest.raises(MessageFileError) as exc:
+        read_messages(path)
 
-    assert [m.id for m in messages] == ["m0000", "m0001"]
-    assert messages[0].hash == messages[1].hash
+    message = str(exc.value)
+    assert "lines 1 and 4" in message
+    assert "execution.repeats" in message
+
+
+def test_a_repeated_message_error_counts_the_other_repeats(tmp_path):
+    path = write(tmp_path, "a\nb\na\nb\na\n")
+
+    with pytest.raises(MessageFileError, match="lines 1 and 3. 2 more lines repeat"):
+        read_messages(path)
+
+
+def test_lines_that_differ_only_in_surrounding_whitespace_are_the_same_message(tmp_path):
+    path = write(tmp_path, "same\n   same  \n")
+
+    with pytest.raises(MessageFileError, match="lines 1 and 2"):
+        read_messages(path)
 
 
 def test_missing_file_raises_a_friendly_error(tmp_path):
