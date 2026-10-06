@@ -13,6 +13,10 @@ class MessageFileError(TaxmanError):
     """The `.txt` file of messages is missing, unreadable, or empty."""
 
 
+class ResponseFileError(TaxmanError):
+    """A file of collected responses holds a row that cannot be read."""
+
+
 class NotATaxmanProjectError(TaxmanError):
     """No `taxman.yaml` marker in the working directory or any parent."""
 

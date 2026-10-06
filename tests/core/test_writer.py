@@ -1,6 +1,9 @@
 import gzip
 import json
 
+import pytest
+
+from ai_taxman.core.errors import ResponseFileError
 from ai_taxman.core.records import ResponseRecord
 from ai_taxman.core.writer import JsonlWriter, read_jsonl
 
@@ -130,6 +133,31 @@ def test_read_jsonl_skips_a_truncated_final_line(tmp_path):
         handle.write('{"partial": ')
 
     assert len(list(read_jsonl(target))) == 1
+
+
+def test_read_jsonl_refuses_a_broken_line_with_rows_after_it(tmp_path):
+    """Only a killed run's last line may be cut short; a broken row mid-file is not dropped."""
+    target = tmp_path / "responses.jsonl"
+    target.write_text(
+        json.dumps(make_record().to_dict()) + "\n"
+        '{"partial": \n' + json.dumps(make_record(repeat=1).to_dict()) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResponseFileError, match="Line 2 of"):
+        list(read_jsonl(target))
+
+
+def test_read_jsonl_refuses_a_complete_row_that_is_not_a_record(tmp_path):
+    """A whole JSON object was not cut short by a kill, even on the last line."""
+    target = tmp_path / "responses.jsonl"
+    target.write_text(
+        json.dumps(make_record().to_dict()) + "\n" + json.dumps({"message": "hi"}) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ResponseFileError, match="Line 2 of"):
+        list(read_jsonl(target))
 
 
 def test_read_jsonl_returns_nothing_for_a_missing_file(tmp_path):

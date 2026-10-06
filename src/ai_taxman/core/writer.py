@@ -15,6 +15,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import IO
 
+from pydantic import ValidationError
+
+from ai_taxman.core.errors import ResponseFileError
 from ai_taxman.core.records import ResponseRecord
 
 GZIP_SUFFIX = ".gz"
@@ -67,8 +70,12 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
     """Yield the records in a JSONL file, gzipped or not.
 
     A missing file yields nothing, and a truncated tail — the signature of an
-    interrupted run, whether that is a half-written line or a gzip stream with no
-    end-of-stream marker — ends the iteration rather than raising.
+    interrupted run, whether that is a half-written last line or a gzip stream
+    with no end-of-stream marker — ends the iteration rather than raising.
+
+    Anything else that cannot be read raises `ResponseFileError`: a broken line
+    with rows after it, or a whole JSON object that is not a record. Dropping
+    those quietly would hand back fewer responses than were collected.
     """
     path = Path(path)
     if not path.is_file():
@@ -76,15 +83,30 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
 
     opener = gzip.open if path.suffix == GZIP_SUFFIX else open
     with opener(path, "rt", encoding="utf-8") as handle:
-        for line in _lines(handle):
+        cut_short: int | None = None
+        for number, line in enumerate(_lines(handle), start=1):
             line = line.strip()
             if not line:
                 continue
+            if cut_short is not None:
+                raise ResponseFileError(
+                    f"Line {cut_short} of {path} is not complete JSON, and more rows "
+                    "follow it. Only the last line can be cut short, by a run that was "
+                    "killed while writing it."
+                )
             try:
-                yield ResponseRecord.from_dict(json.loads(line))
-            except (json.JSONDecodeError, ValueError):
-                # A half-written final line from a killed run; everything before it stands.
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                cut_short = number
                 continue
+            try:
+                yield ResponseRecord.from_dict(data)
+            except ValidationError as exc:
+                fields = ", ".join(sorted({str(error["loc"][0]) for error in exc.errors()}))
+                raise ResponseFileError(
+                    f"Line {number} of {path} is not a response record. "
+                    f"These fields are missing or wrong: {fields}."
+                ) from exc
 
 
 def _lines(handle: IO[str]) -> Iterator[str]:
