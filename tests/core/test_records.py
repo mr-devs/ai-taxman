@@ -40,6 +40,13 @@ def test_round_trips_through_json():
     assert restored == record
 
 
+def test_a_row_written_before_message_line_existed_still_reads():
+    row = make_record().to_dict()
+    del row["message_line"]
+
+    assert ResponseRecord.from_dict(row).message_line is None
+
+
 def test_serialises_every_schema_field_even_when_empty():
     row = make_record(raw={}).to_dict()
 

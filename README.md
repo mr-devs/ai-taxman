@@ -194,6 +194,7 @@ One JSON object per line, the same shape for every provider:
   "message_hash": "sha256:…",
   "message": "When is the next US federal election?",
   "repeat": 2,
+  "message_line": 9,
   "system_prompt_hash": "sha256:…",
   "provider": "openai",
   "model": "gpt-5",
