@@ -78,3 +78,22 @@ def test_ids_refuses_an_empty_t_message(invoke):
 
     assert result.exit_code != 0
     assert "empty" in result.output
+
+
+def test_text_prints_only_the_text_of_the_message_with_that_id(invoke, tmp_path):
+    path = write_messages(tmp_path, "first\nsecond\n")
+
+    result = invoke("messages", "text", message_id("second"), str(path))
+
+    assert result.exit_code == 0
+    assert result.stdout == "second\n"
+
+
+def test_text_says_when_no_message_in_the_file_has_that_id(invoke, tmp_path):
+    path = write_messages(tmp_path, "first\n")
+
+    result = invoke("messages", "text", message_id("absent"), str(path))
+
+    assert result.exit_code != 0
+    assert message_id("absent") in result.output
+    assert "probe.txt" in result.output

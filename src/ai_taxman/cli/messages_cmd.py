@@ -1,7 +1,8 @@
 """`taxman messages`: the id taxman gives each message.
 
 An id is a UUID5 of the message's text (see `core.messages.message_id`), so it
-can be computed from text but never turned back into it.
+can be computed from text but never turned back into it. `text` therefore finds
+an id's message by computing the id of every message in a file.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from typing import Annotated
 
 import typer
 
-from ai_taxman.cli.util import fail, handles_taxman_errors
+from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
 
 messages_app = typer.Typer(
     help="Look up the ids taxman gives messages.",
@@ -50,6 +51,23 @@ def ids_command(
         pairs = [(message_id(text), text) for text in stripped]
 
     typer.echo(_csv([("message_id", "message"), *pairs]), nl=False)
+
+
+@messages_app.command("text")
+@handles_taxman_errors
+def text_command(
+    id: Annotated[str, typer.Argument(help="The message id to look up.")],
+    file: Annotated[Path, typer.Argument(help="The message file to look in.")],
+) -> None:
+    """Print the text of the message in a file that has this id."""
+    from ai_taxman.core.messages import read_messages
+
+    wanted = id.strip()
+    for message in read_messages(file):
+        if message.id == wanted:
+            typer.echo(message.text)
+            return
+    fail(f"No message in {display_path(file)} has the id {wanted}.")
 
 
 def _csv(rows: list[tuple[str, str]]) -> str:
