@@ -23,7 +23,7 @@ def test_the_id_is_a_uuid5_of_the_text(tmp_path):
     """Pinned: changing the namespace would change every id ever recorded."""
     path = write(tmp_path, "When is the next US federal election?\n")
 
-    assert read_messages(path)[0].id == "ccc7ca1d-0eea-5dd5-aadd-58c750f7bcd7"
+    assert read_messages(path)[0].id == "4b841e8b-62f2-5814-b265-36aeb267e4b0"
 
 
 def test_message_id_gives_the_id_read_messages_assigns(tmp_path):

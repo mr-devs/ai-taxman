@@ -18,9 +18,10 @@ from pathlib import Path
 
 from ai_taxman.core.errors import MessageFileError
 
-#: The UUID5 namespace every message id is derived in. Changing it changes the id
-#: of every message ever recorded, so it never changes.
-MESSAGE_ID_NAMESPACE = uuid.UUID("861fff4c-1c3d-44e9-ba74-eb311d0565c1")
+#: The UUID5 namespace every message id is derived in, itself derived from the
+#: author's URL. Changing it changes the id of every message ever recorded, so it
+#: never changes.
+MESSAGE_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://matthewdeverna.com/")
 
 COMMENT_PREFIX = "#"
 ESCAPED_COMMENT_PREFIX = "\\#"
