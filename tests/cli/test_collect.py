@@ -93,6 +93,23 @@ def test_new_run_says_when_it_leaves_a_run_unfinished(invoke, tmp_path, fake_pro
     assert first.name in result.output
 
 
+def test_a_changed_audit_is_not_resumed(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    invoke("collect", "probe")
+    audit_file = tmp_path / "audits" / "probe.yaml"
+    audit_file.write_text(
+        audit_file.read_text(encoding="utf-8") + "execution:\n  repeats: 2\n", encoding="utf-8"
+    )
+    fake_provider.sent.clear()
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "execution.repeats: 1 -> 2" in result.output
+    assert fake_provider.sent == []
+
+
 def test_accepts_a_path_to_an_audit_file(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 

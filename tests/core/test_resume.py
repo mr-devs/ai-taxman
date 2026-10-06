@@ -168,3 +168,85 @@ async def test_a_new_run_needs_run_id_in_the_output_directory(project, fake_prov
 
     with pytest.raises(ConfigError, match=r"\{run_id\}"):
         await run_audit_async(audit(project, single), new_run=True)
+
+
+# --- an audit that has changed is never resumed ----------------------------------
+
+
+async def unfinished_run(project, fake_provider, *blocks):
+    """A run of the audit with ONE answered and the rest missing."""
+    first = await run_audit_async(audit(project, *blocks))
+    keep_only(first, (ONE, 0))
+    fake_provider.sent.clear()
+    return first
+
+
+async def test_a_changed_setting_stops_the_run_being_resumed(project, fake_provider):
+    from ai_taxman.core.errors import AuditChangedError
+
+    await unfinished_run(project, fake_provider)
+
+    with pytest.raises(AuditChangedError) as caught:
+        await run_audit_async(audit(project, "execution:\n  max_concurrency: 2"))
+
+    assert "execution.max_concurrency: 8 -> 2" in str(caught.value)
+    assert fake_provider.sent == []
+
+
+async def test_a_changed_model_setting_is_named(project, fake_provider):
+    from ai_taxman.core.errors import AuditChangedError
+
+    await unfinished_run(project, fake_provider)
+    changed = audit(project)
+    changed.model["temperature"] = 0.7
+
+    with pytest.raises(AuditChangedError, match=r"model\.temperature: \(not set\) -> 0\.7"):
+        await run_audit_async(changed)
+
+
+async def test_changed_messages_stop_the_run_being_resumed(project, fake_provider):
+    from ai_taxman.core.errors import AuditChangedError
+
+    await unfinished_run(project, fake_provider)
+    (project / "messages" / "probe.txt").write_text("one\ntwo\nfour\nfive\n", encoding="utf-8")
+
+    with pytest.raises(AuditChangedError, match="messages: 2 added, 1 removed"):
+        await run_audit_async(audit(project))
+
+
+async def test_a_changed_system_prompt_stops_the_run_being_resumed(project, fake_provider):
+    from ai_taxman.core.errors import AuditChangedError
+
+    (project / "prompts").mkdir()
+    prompt = project / "prompts" / "neutral.txt"
+    prompt.write_text("Be terse.", encoding="utf-8")
+    await unfinished_run(project, fake_provider, "system_prompt: prompts/neutral.txt")
+    prompt.write_text("Be thorough.", encoding="utf-8")
+
+    with pytest.raises(AuditChangedError, match="system prompt"):
+        await run_audit_async(audit(project, "system_prompt: prompts/neutral.txt"))
+
+
+async def test_the_refusal_says_how_to_start_over(project, fake_provider):
+    from ai_taxman.core.errors import AuditChangedError
+
+    first = await unfinished_run(project, fake_provider)
+
+    with pytest.raises(AuditChangedError) as caught:
+        await run_audit_async(audit(project, "execution:\n  repeats: 2"))
+
+    assert first.run_id in str(caught.value)
+    assert "--new-run" in str(caught.value)
+
+
+async def test_comments_and_line_order_are_not_changes(project, fake_provider):
+    """What is sent is the same, so the run is the same run."""
+    first = await unfinished_run(project, fake_provider)
+    (project / "messages" / "probe.txt").write_text(
+        "# reordered\nthree\n\ntwo\none\n", encoding="utf-8"
+    )
+
+    second = await run_audit_async(audit(project))
+
+    assert second.run_id == first.run_id
+    assert sent(fake_provider) == sorted([(TWO, 0), (THREE, 0)])

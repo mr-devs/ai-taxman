@@ -7,7 +7,8 @@ their manifests, which say which audit and run they belong to.
 Collecting an audit finishes its latest run rather than starting another: a run
 is the full set of `(message, repeat)` pairs, and collecting again sends only
 the pairs that have no successful response yet - those never sent, and those
-that failed.
+that failed. Only an unchanged audit is resumed: its settings, its message ids
+and its system prompt text must all be what the run's manifest recorded.
 """
 
 from __future__ import annotations
@@ -16,11 +17,12 @@ import glob
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
 from ai_taxman.core.config import AuditConfig, resolve_output_dir
-from ai_taxman.core.errors import ConfigError, ResponseFileError
+from ai_taxman.core.errors import AuditChangedError, ConfigError, ResponseFileError
 from ai_taxman.core.messages import Message
 from ai_taxman.core.records import RunManifest, new_run_id
 from ai_taxman.core.writer import read_jsonl, target_path
@@ -99,6 +101,7 @@ def plan_run(
     config: AuditConfig,
     messages: list[Message],
     *,
+    system_prompt: str | None,
     new_run: bool = False,
     run_id: str | None = None,
 ) -> RunPlan:
@@ -108,6 +111,9 @@ def plan_run(
     `new_run`, a new run whatever is on disk. With `run_id`, that run: resumed if
     it is on disk, started if not - how a background parent hands its child the
     run it chose.
+
+    Raises `AuditChangedError` rather than resume a run the audit no longer
+    describes. `system_prompt` is the text that would be sent, or None.
     """
     if new_run and run_id is not None:
         raise ValueError("Pass `new_run` or `run_id`, not both.")
@@ -141,6 +147,8 @@ def plan_run(
             manifest=None,
         )
 
+    _check_unchanged(config, messages, system_prompt, existing)
+
     expected = {(message.id, repeat) for message, repeat in pairs}
     answered, failed = _responses_so_far(output_file(config, existing.directory))
     return RunPlan(
@@ -154,6 +162,63 @@ def plan_run(
         failed=frozenset(failed & expected),
         manifest=existing.manifest,
     )
+
+
+def _check_unchanged(
+    config: AuditConfig,
+    messages: list[Message],
+    system_prompt: str | None,
+    existing: ExistingRun,
+) -> None:
+    """Raise unless the audit is still the one `existing` was started from.
+
+    Messages are compared by id, not by the file's bytes: reordering lines or
+    editing a comment changes nothing that is sent.
+    """
+    recorded = existing.manifest
+    changes = _setting_changes(recorded.config, config.model_dump(mode="json"))
+
+    before, after = set(recorded.message_ids), {message.id for message in messages}
+    if before != after:
+        changes.append(f"messages: {len(after - before)} added, {len(before - after)} removed")
+    if recorded.system_prompt_text != system_prompt:
+        changes.append("system prompt: the text sent with each message has changed")
+
+    if changes:
+        raise AuditChangedError(
+            f"{config.audit} has changed since its run {existing.run_id} began, so "
+            "that run cannot be finished:\n"
+            + "".join(f"  {change}\n" for change in changes)
+            + "Put the audit back as it was to finish that run, or start a new run "
+            f"with `taxman collect {config.audit} --new-run`."
+        )
+
+
+#: Marks a setting one side of a comparison does not have.
+_NOT_SET = object()
+
+
+def _setting_changes(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """Each setting that differs, as `dotted.key: old -> new`."""
+    old, new = _flatten(before), _flatten(after)
+    return [
+        f"{key}: {_show(old.get(key, _NOT_SET))} -> {_show(new.get(key, _NOT_SET))}"
+        for key in sorted(old.keys() | new.keys())
+        if old.get(key, _NOT_SET) != new.get(key, _NOT_SET)
+    ]
+
+
+def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {prefix: value}
+    flat: dict[str, Any] = {}
+    for key, item in value.items():
+        flat.update(_flatten(item, f"{prefix}.{key}" if prefix else str(key)))
+    return flat
+
+
+def _show(value: Any) -> str:
+    return "(not set)" if value is _NOT_SET else json.dumps(value)
 
 
 def _new_run_beside_the_last(config: AuditConfig, pairs: list[tuple[Message, int]]) -> RunPlan:

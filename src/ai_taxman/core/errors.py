@@ -13,6 +13,10 @@ class MessageFileError(TaxmanError):
     """The `.txt` file of messages is missing, unreadable, or empty."""
 
 
+class AuditChangedError(TaxmanError):
+    """An audit no longer matches the run it would resume."""
+
+
 class ResponseFileError(TaxmanError):
     """A file of collected responses holds a row that cannot be read."""
 

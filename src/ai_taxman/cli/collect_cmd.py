@@ -122,6 +122,7 @@ def collect(
     plan = plan_run(
         config,
         checked.messages,
+        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
         new_run=new_run,
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )
@@ -232,6 +233,7 @@ def _start_in_background(
     plan = plan_run(
         config,
         checked.messages,
+        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
         new_run=new_run,
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )

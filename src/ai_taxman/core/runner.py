@@ -141,6 +141,7 @@ async def run_audit_async(
     plan = plan_run(
         config,
         messages,
+        system_prompt=system_prompt.text if system_prompt else None,
         new_run=new_run,
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )
