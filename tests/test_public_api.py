@@ -41,6 +41,15 @@ def test_read_messages_returns_the_messages(tmp_path):
     assert [m.text for m in messages] == ["one", "two"]
 
 
+def test_message_id_gives_the_id_a_message_is_recorded_under(tmp_path):
+    make_project(tmp_path)
+
+    first = read_messages(tmp_path / "messages" / "probe.txt")[0]
+
+    assert ai_taxman.message_id("one") == first.id
+    assert "message_id" in ai_taxman.__all__
+
+
 def test_load_audit_returns_a_config(tmp_path):
     config = load_audit(make_project(tmp_path))
 

@@ -43,6 +43,7 @@ _EXPORTS = {
     "ProviderNotFoundError": "ai_taxman.core.errors",
     "TaxmanError": "ai_taxman.core.errors",
     "Message": "ai_taxman.core.messages",
+    "message_id": "ai_taxman.core.messages",
     "read_messages": "ai_taxman.core.messages",
     "ResponseRecord": "ai_taxman.core.records",
     "RunManifest": "ai_taxman.core.records",
@@ -63,7 +64,7 @@ if TYPE_CHECKING:  # pragma: no cover - for type checkers and editors only
         ProviderNotFoundError,
         TaxmanError,
     )
-    from ai_taxman.core.messages import Message, read_messages
+    from ai_taxman.core.messages import Message, message_id, read_messages
     from ai_taxman.core.records import ResponseRecord, RunManifest
     from ai_taxman.core.runner import RunResult, run_audit, run_audit_async
 
@@ -92,6 +93,7 @@ __all__ = [
     "run_audit_async",
     "load_audit",
     "read_messages",
+    "message_id",
     # data
     "AuditConfig",
     "Message",

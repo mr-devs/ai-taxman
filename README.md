@@ -219,6 +219,7 @@ taxman messages ids -t "Hello" -t "Goodbye"     # the same, for messages typed h
 taxman messages text <id> taxman/messages/probe.txt   # the message in a file with this id
 ```
 
+In Python, `from ai_taxman import message_id` gives the id of a string.
 Outside taxman, an id is `uuid5(uuid5(NAMESPACE_URL, "https://matthewdeverna.com/"), text)`,
 where `text` is the line with surrounding whitespace removed. The trailing `/` is part of the
 namespace.
