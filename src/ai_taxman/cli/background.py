@@ -10,14 +10,16 @@ So a backgrounded run has to outlive the terminal that started it, say where its
 log is, and leave behind something a script can stop it with.
 
 How it works: the parent does not fork the work, it re-runs taxman as a detached
-child. The parent validates the audit, picks the run id, creates the run
-directory, spawns `python -m ai_taxman collect ... --run-id ...` in a new
-session, prints where everything went, and exits.
+child. The parent validates the audit, decides which run the child collects - the
+latest, resumed, or a new one - creates the run directory, spawns
+`python -m ai_taxman collect ... --child-run-id ...` in a new session, prints
+where everything went, and exits.
 
 Two consequences of that design are deliberate:
 
-- **The parent picks the run id.** Otherwise only the child would know where its
-  own output landed, and there would be nothing to print.
+- **The parent picks the run.** Otherwise only the child would know where its
+  own output landed, and there would be nothing to print. `--child-run-id` is
+  hidden: it is how the parent tells the child, not something a user chooses.
 - **The parent validates first.** Everything that can be checked without doing
   the run - the `model:` block, the API key variable, the message file - is
   checked before the fork. Handing back a pid for a run that was already doomed
@@ -66,7 +68,7 @@ def build_child_command(
         "ai_taxman",
         "collect",
         audit,
-        "--run-id",
+        "--child-run-id",
         run_id,
         "--log-file",
         str(log_file),

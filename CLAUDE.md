@@ -228,10 +228,29 @@ many responses it expected — without that denominator a run cut off at 40% is 
 from a complete run over a shorter message file. `status` is `running` until the run ends, then
 `complete`, `stopped_early`, `interrupted`, or `failed`.
 
-One directory holds exactly one run. `output.dir` is the user's to set, and dropping `{run_id}`
-from it would append two runs into one file under a manifest describing only the later one, so
-the runner refuses a directory that already claims a different `run_id`. The same id is allowed
-— that is what appending to a named run means.
+One directory holds exactly one run. `output.dir` is the user's to set; without `{run_id}` it
+has room for one run, and the runner refuses a directory that already claims a different
+`run_id` rather than append two runs into one file under a manifest describing one.
+
+**Collecting an audit again finishes its latest run; it never starts over by accident.**
+`core/runs.py` finds the audit's runs by their manifests and plans what `collect` does
+(`plan_run()`): resume the latest run, sending only the `(message, repeat)` pairs with no
+successful response yet — never sent, or failed — or say it is complete. `--new-run` is the
+only way to start a second run of an audit. There is no way to choose a run id: an earlier
+`--run-id` did the same job as the audit name, worse, and is gone. Three refusals keep a
+resumed run honest:
+
+- **The audit must be unchanged.** Every setting in the resolved config, the set of message
+  ids, and the system prompt text are compared with the manifest, and any difference raises
+  `AuditChangedError` listing each one. Message ids, not the file's bytes: editing a comment
+  or reordering lines changes nothing that is sent.
+- **One collector per run.** The runner holds an `flock` on `collect.lock` in the run
+  directory while it collects; the OS releases it however the process ends, so a killed run
+  never leaves a stale lock. A run whose lock is held raises `RunInProgressError`.
+- **The broken tail goes first.** See below.
+
+The manifest's `n_ok` and `n_error` count pairs across every session, so a failure later
+answered is counted once, as answered. Its `started_at` is the first session's.
 
 Everything on disk is written as it is produced. Responses are flushed per row, so an audit that
 is killed keeps every response already paid for, and `read_jsonl` stops at a truncated tail
@@ -252,18 +271,17 @@ never stdout, which stays the command's own. `--log-file` sends it to that path 
 only. `tests/core/test_logging.py` asserts both.
 
 `collect --background` re-runs taxman as a detached child (`cli/background.py`): the parent
-validates the audit, picks the `run_id`, spawns `python -m ai_taxman collect ... --run-id ...`
+validates the audit, plans the run, spawns `python -m ai_taxman collect ... --child-run-id ...`
 in a new session, and exits. Three rules:
 
 - **The parent validates first.** A pid handed back for a run that could never work is worse
-  than an error at the prompt.
-- **The parent picks the run id**, because otherwise nothing could name the directory or the
-  log before the child starts. That is what `--run-id` is for; it also makes appending to a
-  named run possible, which the collision guard deliberately allows. A user-supplied id goes
-  through `records.validate_run_id()` first — it is interpolated into `output.dir` and then
-  resolved as a path, so `..` or `/` in one would move the data elsewhere on disk while every
-  record still claimed the id. The runner validates too, so the Python API is held to the same
-  rule.
+  than an error at the prompt. That includes the plan: a changed audit or a run already being
+  collected is refused at the prompt, and a complete audit prints nothing on stdout.
+- **The parent picks the run** — the latest, resumed, or a new one — because otherwise nothing
+  could name the directory or the log before the child starts. The hidden `--child-run-id`
+  carries it to the child; it is plumbing, not a way for a user to choose an id. A run id
+  given to the runner still goes through `records.validate_run_id()`: it is interpolated into
+  `output.dir` and resolved as a path, so `..` or `/` in one would move the data elsewhere.
 - **stdout is the pid and nothing else**, like `docker run -d`. The human block goes to
   stderr. Do not add fields to stdout — `PID=$(taxman collect probe -b)` is the whole point.
 

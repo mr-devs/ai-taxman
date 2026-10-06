@@ -56,7 +56,7 @@ def test_the_child_is_told_which_run_it_is():
     """The parent picks the run id so it can name the directory before the run."""
     argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"))
 
-    assert argv[argv.index("--run-id") + 1] == "r1"
+    assert argv[argv.index("--child-run-id") + 1] == "r1"
 
 
 def test_the_child_writes_its_log_where_the_parent_said():
@@ -411,28 +411,22 @@ def test_a_backgrounded_run_stops_gracefully_when_it_is_killed(echo_project, plu
     assert manifest["n_ok"] < 500  # it stopped, rather than running to the end
 
 
-def test_a_bad_run_id_is_refused_before_a_background_run_is_started(
-    invoke, tmp_path, fake_provider
-):
-    """The parent builds the run directory from the id, so it checks it first."""
-    make_project(tmp_path)
+def test_a_background_run_finishes_the_run_its_parent_resumed(echo_project, plugin_path):
+    """The parent announces which run it is resuming; the child must collect that one."""
+    run_taxman(echo_project, plugin_path)
+    (directory,) = (echo_project / "data" / "probe").iterdir()
+    responses = directory / "responses.jsonl"
+    first_row = responses.read_text(encoding="utf-8").splitlines()[0]
+    responses.write_text(first_row + "\n", encoding="utf-8")
+    manifest_path = directory / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_path.write_text(json.dumps({**manifest, "status": "interrupted"}), encoding="utf-8")
 
-    result = invoke("collect", "probe", "--background", "--run-id", "../../escaped")
+    result = run_taxman(echo_project, plugin_path, "--background")
 
-    assert result.exit_code != 0
-    assert "pid" not in result.output.lower()
-    assert not (tmp_path / "data").exists()
-
-
-def test_a_background_run_uses_the_run_id_it_was_given(echo_project, plugin_path):
-    """--run-id names the run in the foreground; -b must not quietly ignore it."""
-    result = run_taxman(echo_project, plugin_path, "--background", "--run-id", "i-asked-for-this")
-
-    assert "i-asked-for-this" in result.stderr
-    directory = echo_project / "data" / "probe" / "i-asked-for-this"
+    assert f"Resuming run {directory.name}" in result.stderr
     assert wait_for(
-        lambda: (
-            json.loads((directory / "manifest.json").read_text(encoding="utf-8"))["status"]
-            == "complete"
-        )
+        lambda: json.loads(manifest_path.read_text(encoding="utf-8"))["status"] == "complete"
     ), child_log(directory)
+    assert len(responses.read_text(encoding="utf-8").splitlines()) == 3
+    assert [directory] == list((echo_project / "data" / "probe").iterdir())

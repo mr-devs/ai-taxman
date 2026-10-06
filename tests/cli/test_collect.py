@@ -310,12 +310,13 @@ def test_a_foreground_run_still_logs_to_the_terminal(invoke, tmp_path, fake_prov
     assert "run starting" in result.output
 
 
-def test_a_named_run_logs_under_its_name(invoke, tmp_path, fake_provider):
+def test_a_run_logs_under_its_run_id(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 
-    invoke("collect", "probe", "--run-id", "pilot")
+    invoke("collect", "probe")
 
-    assert (tmp_path / "logs" / "probe" / "pilot.log").is_file()
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+    assert (tmp_path / "logs" / "probe" / f"{run.name}.log").is_file()
 
 
 def test_a_log_file_captures_the_run(invoke, tmp_path, fake_provider):
@@ -370,34 +371,14 @@ def test_an_unknown_log_level_is_refused_by_name(invoke, tmp_path, fake_provider
 # --- run ids -------------------------------------------------------------
 
 
-def test_a_named_run_goes_in_a_directory_of_that_name(invoke, tmp_path, fake_provider):
+def test_a_run_id_cannot_be_chosen(invoke, tmp_path, fake_provider):
+    """The audit names the run: collecting it again finishes it, --new-run starts another."""
     make_project(tmp_path)
 
     result = invoke("collect", "probe", "--run-id", "pilot")
 
-    assert result.exit_code == 0
-    assert (tmp_path / "data" / "probe" / "pilot" / "responses.jsonl").is_file()
-
-
-def test_a_run_id_that_would_escape_the_data_directory_is_refused(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", "--run-id", "../../escaped")
-
-    assert result.exit_code != 0
-    assert "escaped" in result.output
-    assert fake_provider.sent == []
-    assert not (tmp_path.parent.parent / "escaped").exists()
-
-
-def test_a_bad_run_id_is_refused_before_anything_is_sent(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", "--run-id", "two words")
-
     assert result.exit_code != 0
     assert fake_provider.sent == []
-    assert not (tmp_path / "data").exists()
 
 
 @pytest.mark.parametrize(

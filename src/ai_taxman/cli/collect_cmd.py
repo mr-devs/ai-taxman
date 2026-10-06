@@ -58,9 +58,11 @@ def collect(
             help="Start the run detached and return. Prints its pid, log, and output path.",
         ),
     ] = False,
-    run_id: Annotated[
+    child_run_id: Annotated[
         str | None,
-        typer.Option("--run-id", help="Run under this id, adding to that run's directory."),
+        typer.Option(
+            "--child-run-id", hidden=True, help="The run a background parent chose for its child."
+        ),
     ] = None,
     pid_file: Annotated[
         Path | None,
@@ -94,9 +96,6 @@ def collect(
     except ValueError as exc:
         fail(str(exc))
 
-    if new_run and run_id is not None:
-        fail("--new-run starts a run of its own; it cannot be combined with --run-id.")
-
     config = load_audit(find_audit(audit))
     provider = get_provider(config.provider)
 
@@ -106,7 +105,6 @@ def collect(
             config=config,
             provider=provider,
             new_run=new_run,
-            run_id=run_id,
             log_file=log_file,
             log_level=log_level,
             quiet=quiet,
@@ -125,7 +123,7 @@ def collect(
         checked.messages,
         system_prompt=checked.system_prompt.text if checked.system_prompt else None,
         new_run=new_run,
-        run_id=validate_run_id(run_id) if run_id is not None else None,
+        run_id=validate_run_id(child_run_id) if child_run_id is not None else None,
     )
     run_id = plan.run_id
     if plan.complete:
@@ -248,7 +246,6 @@ def _start_in_background(
     config: AuditConfig,
     provider: Provider,
     new_run: bool,
-    run_id: str | None,
     log_file: Path | None,
     log_level: str,
     quiet: bool,
@@ -258,7 +255,6 @@ def _start_in_background(
 
     from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
     from ai_taxman.core.config import resolve_log_file
-    from ai_taxman.core.records import validate_run_id
     from ai_taxman.core.runner import preflight
     from ai_taxman.core.runs import plan_run
 
@@ -267,15 +263,13 @@ def _start_in_background(
     checked = preflight(config, provider)
     model = provider.describe_model(checked.model)
 
-    # The parent decides which run the child collects, so it can name the run's
-    # directory and log before the child starts. Checked here as well as in the
-    # runner: a user's id becomes a path before the child ever sees it.
+    # The parent decides which run the child collects - resumed or new - so it
+    # can name the run's directory and log before the child starts.
     plan = plan_run(
         config,
         checked.messages,
         system_prompt=checked.system_prompt.text if checked.system_prompt else None,
         new_run=new_run,
-        run_id=validate_run_id(run_id) if run_id is not None else None,
     )
     run_id = plan.run_id
     if plan.complete:

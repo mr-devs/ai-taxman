@@ -148,6 +148,22 @@ The manifest's `status` is `running` until the run ends, then `complete`, `stopp
 `interrupted`, or `failed`. `n_messages × repeats` is the number of responses expected. A
 killed run keeps every response already received.
 
+### Collecting again
+
+`taxman collect <audit-name>` on an audit already collected finishes its latest run, in the same
+directory. It sends only what that run is missing: responses never received, and responses that
+failed. It says so before it starts.
+
+- **If the run already has every response**, nothing is sent; it says the audit is complete.
+- **If the audit has changed** since the run began, it refuses, and lists what changed. Every
+  setting counts, as do the messages and the system prompt text. Reordering lines or editing
+  `#` comments does not count.
+- **If another `collect` is still collecting the run**, it refuses rather than send the same
+  messages twice.
+
+`--new-run` starts a new run beside the old ones, whatever state the latest is in. That needs
+`{run_id}` in `output.dir`, which `taxman audits new` writes.
+
 | Option | Effect |
 |---|---|
 | `--new-run` | Start a new run, instead of finishing the latest one |
@@ -155,11 +171,6 @@ killed run keeps every response already received.
 | `--log-file PATH` | Write the log to this file only |
 | `--log-level LEVEL` | `debug`, `info` (default), `warning`, or `error` |
 | `-b`, `--background` | Run detached; print the pid |
-| `--run-id ID` | Use this run id; an existing id appends to that run |
-
-A run id may contain letters, digits, `.`, `-`, and `_`, and must start with a letter or
-digit. If you remove `{run_id}` from `output.dir`, a second run into the same directory is
-refused.
 
 ### Logs
 
@@ -170,7 +181,8 @@ summary goes to stdout. Message text and API keys are never logged.
 
 `-b` detaches the run. stdout is the pid and nothing else; the run id, log path, and output
 path go to stderr. The pid is also saved to `collect.pid` in the run directory. The audit is
-validated before the run detaches.
+validated, and the run to collect chosen, before the run detaches: a complete audit prints
+nothing on stdout.
 
 ```bash
 openai=$(taxman collect openai-probe -b)

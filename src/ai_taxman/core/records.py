@@ -160,10 +160,7 @@ def validate_run_id(value: str) -> str:
     cleaned = value.strip()
 
     if not cleaned:
-        raise ConfigError(
-            "The run id is empty. Give one like `--run-id pilot-2`, or leave "
-            "`--run-id` off entirely and taxman will generate a timestamped one."
-        )
+        raise ConfigError("The run id is empty. Leave it out and taxman will generate one.")
 
     if len(cleaned) > MAX_RUN_ID_LENGTH:
         raise ConfigError(
