@@ -15,7 +15,6 @@ def make_record(message_id="m0000", repeat=0):
         message_id=message_id,
         message="hello",
         repeat=repeat,
-        message_line=1,
         provider="fake",
         model="fake-1",
         requested_at="2026-08-30T00:00:00.000000Z",

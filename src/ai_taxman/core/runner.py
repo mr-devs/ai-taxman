@@ -533,7 +533,6 @@ def _record(
         message_id=request.message.id,
         message=request.message.text,
         repeat=request.repeat,
-        message_line=request.message.line_number,
         system_prompt_hash=hash_message(request.system_prompt) if request.system_prompt else None,
         provider=config.provider,
         model=model_name,

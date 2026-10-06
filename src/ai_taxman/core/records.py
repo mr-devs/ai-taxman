@@ -50,10 +50,6 @@ class ResponseRecord(BaseModel):
     message: str
     repeat: int
 
-    #: The line of the message file the message is on, so rows that arrived out
-    #: of order can be put back in file order.
-    message_line: int
-
     #: The hash of the system prompt sent with the message, or None for none.
     system_prompt_hash: str | None = None
 

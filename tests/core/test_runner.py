@@ -124,16 +124,6 @@ async def test_records_carry_the_audit_envelope(project, fake_provider):
     assert record.latency_ms >= 0
 
 
-async def test_records_name_the_line_each_message_came_from(project, fake_provider):
-    """Responses arrive out of order; the line number puts them back in file order."""
-    (project / "messages" / "probe.txt").write_text("# greetings\none\n\ntwo\n", encoding="utf-8")
-
-    result = await run_audit_async(audit(project))
-
-    lines = {r.message: r.message_line for r in read_jsonl(result.output_path)}
-    assert lines == {"one": 2, "two": 4}
-
-
 async def test_records_carry_the_response_verbatim_and_nothing_derived(project, fake_provider):
     """`raw` is the whole response. Nothing is parsed out of it at collection."""
     result = await run_audit_async(audit(project))
