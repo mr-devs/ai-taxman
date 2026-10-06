@@ -36,7 +36,8 @@ def read_system_prompt(path: str | Path) -> SystemPrompt:
     path = Path(path)
 
     try:
-        text = path.read_text(encoding="utf-8").strip()
+        # utf-8-sig drops the byte-order mark some Windows editors write first.
+        text = path.read_text(encoding="utf-8-sig").strip()
     except FileNotFoundError as exc:
         raise ConfigError(
             f"No system prompt file at {path}. Write it, or point the audit's "

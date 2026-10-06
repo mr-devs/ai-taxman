@@ -23,6 +23,14 @@ def test_the_trailing_newline_an_editor_adds_is_not_sent(tmp_path):
     assert read_system_prompt(path).text == "Be terse."
 
 
+def test_a_byte_order_mark_is_not_sent(tmp_path):
+    """Some Windows editors start a UTF-8 file with an invisible U+FEFF."""
+    path = tmp_path / "neutral.txt"
+    path.write_text("\ufeffBe terse.\n", encoding="utf-8")
+
+    assert read_system_prompt(path).text == "Be terse."
+
+
 def test_the_hash_is_of_the_text_sent(tmp_path):
     path = tmp_path / "neutral.txt"
     path.write_text("Be terse.\n", encoding="utf-8")

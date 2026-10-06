@@ -49,7 +49,8 @@ def read_messages(path: str | Path) -> list[Message]:
     path = Path(path)
 
     try:
-        raw = path.read_text(encoding="utf-8")
+        # utf-8-sig drops the byte-order mark some Windows editors write first.
+        raw = path.read_text(encoding="utf-8-sig")
     except FileNotFoundError as exc:
         raise MessageFileError(
             f"No message file at {path}. "

@@ -76,6 +76,22 @@ def test_escaped_hash_is_a_message_not_a_comment(tmp_path):
     assert read_messages(path)[0].text == "# not a comment"
 
 
+def test_a_byte_order_mark_is_not_part_of_the_first_message(tmp_path):
+    """Some Windows editors start a UTF-8 file with an invisible U+FEFF."""
+    path = write(tmp_path, "\ufeffhello\nworld\n")
+
+    first = read_messages(path)[0]
+
+    assert first.text == "hello"
+    assert first.id == message_id("hello")
+
+
+def test_a_byte_order_mark_does_not_hide_a_comment(tmp_path):
+    path = write(tmp_path, "\ufeff# greetings\nhello\n")
+
+    assert [m.text for m in read_messages(path)] == ["hello"]
+
+
 def test_reads_utf8(tmp_path):
     path = write(tmp_path, "¿qué tal? 🧾\n")
 
