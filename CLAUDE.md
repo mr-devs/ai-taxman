@@ -271,15 +271,17 @@ never stdout, which stays the command's own. `--log-file` sends it to that path 
 only. `tests/core/test_logging.py` asserts both.
 
 `collect --background` re-runs taxman as a detached child (`cli/background.py`): the parent
-validates the audit, plans the run, spawns `python -m ai_taxman collect ... --child-run-id ...`
+validates the audit, plans the run, spawns `python -m ai_taxman collect ... --background-run ...`
 in a new session, and exits. Three rules:
 
 - **The parent validates first.** A pid handed back for a run that could never work is worse
   than an error at the prompt. That includes the plan: a changed audit or a run already being
   collected is refused at the prompt, and a complete audit prints nothing on stdout.
 - **The parent picks the run** — the latest, resumed, or a new one — because otherwise nothing
-  could name the directory or the log before the child starts. The hidden `--child-run-id`
-  carries it to the child; it is plumbing, not a way for a user to choose an id. A run id
+  could name the directory or the log before the child starts. The hidden `--background-run`
+  carries it to the child; it is plumbing, not a way for a user to choose an id. Its name
+  is deliberately unlike any option a user types: Click's "did you mean" suggests hidden
+  options too, and `test_a_run_id_cannot_be_chosen` checks none is ever offered. A run id
   given to the runner still goes through `records.validate_run_id()`: it is interpolated into
   `output.dir` and resolved as a path, so `..` or `/` in one would move the data elsewhere.
 - **stdout is the pid and nothing else**, like `docker run -d`. The human block goes to

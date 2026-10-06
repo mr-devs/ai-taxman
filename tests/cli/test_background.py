@@ -56,7 +56,7 @@ def test_the_child_is_told_which_run_it_is():
     """The parent picks the run id so it can name the directory before the run."""
     argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"))
 
-    assert argv[argv.index("--child-run-id") + 1] == "r1"
+    assert argv[argv.index("--background-run") + 1] == "r1"
 
 
 def test_the_child_writes_its_log_where_the_parent_said():

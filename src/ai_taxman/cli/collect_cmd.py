@@ -58,10 +58,10 @@ def collect(
             help="Start the run detached and return. Prints its pid, log, and output path.",
         ),
     ] = False,
-    child_run_id: Annotated[
+    background_run: Annotated[
         str | None,
         typer.Option(
-            "--child-run-id", hidden=True, help="The run a background parent chose for its child."
+            "--background-run", hidden=True, help="The run a background parent chose for its child."
         ),
     ] = None,
     pid_file: Annotated[
@@ -123,7 +123,7 @@ def collect(
         checked.messages,
         system_prompt=checked.system_prompt.text if checked.system_prompt else None,
         new_run=new_run,
-        run_id=validate_run_id(child_run_id) if child_run_id is not None else None,
+        run_id=validate_run_id(background_run) if background_run is not None else None,
     )
     run_id = plan.run_id
     if plan.complete:

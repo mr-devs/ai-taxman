@@ -8,6 +8,16 @@ from ai_taxman.core.messages import message_id
 ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 
 
+def hidden_options(command):
+    """The option names a command keeps out of its help: plumbing, not for users."""
+    from typer.main import get_command
+
+    from ai_taxman.cli import app
+
+    params = get_command(app).commands[command].params  # type: ignore[attr-defined]
+    return [name for param in params if getattr(param, "hidden", False) for name in param.opts]
+
+
 def make_project(tmp_path, body=None, messages="one\ntwo\nthree\n"):
     (tmp_path / "messages").mkdir(exist_ok=True)
     (tmp_path / "messages" / "probe.txt").write_text(messages, encoding="utf-8")
@@ -379,6 +389,8 @@ def test_a_run_id_cannot_be_chosen(invoke, tmp_path, fake_provider):
 
     assert result.exit_code != 0
     assert fake_provider.sent == []
+    # Not even by way of a "did you mean" pointing at a hidden option.
+    assert not any(name in result.output for name in hidden_options("collect"))
 
 
 @pytest.mark.parametrize(
