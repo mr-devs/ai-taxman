@@ -62,9 +62,9 @@ def test_carries_the_schema_version():
     assert make_record().to_dict()["schema_version"] == RESPONSE_SCHEMA_VERSION
 
 
-def test_the_schema_is_version_2():
-    """Bumped only for a break, with a row in the README's "Schema versions" table."""
-    assert RESPONSE_SCHEMA_VERSION == 2
+def test_the_schema_is_version_1():
+    """Held at 1 until the first release; after that, bumped only for a break."""
+    assert RESPONSE_SCHEMA_VERSION == 1
 
 
 def test_defaults_to_one_attempt():

@@ -22,8 +22,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ai_taxman.core.errors import ConfigError
 
-#: Bumped when a field is removed, renamed, or comes to mean something else.
-RESPONSE_SCHEMA_VERSION = 2
+#: Bumped when a field is removed, renamed, or comes to mean something else -
+#: once taxman is released. Until then it stays at 1 (see CLAUDE.md).
+RESPONSE_SCHEMA_VERSION = 1
 
 #: Fields an older schema version wrote that this one no longer has. Version 2
 #: dropped `message_hash` once `message_id` was derived from the text.

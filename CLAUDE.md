@@ -212,6 +212,13 @@ Changes are **additive** — auditors depend on old data staying readable. Remov
 field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
 "Schema versions" table.
 
+**Until the first public release, the schema stays at version 1.** taxman is in development
+and not yet published or shared, so there is no data in the wild to keep readable. Change the
+row in place — breaking changes included — with no version bump, no README row, and no code
+for reading rows an older build wrote. When a change would break data once taxman is
+released, say so to the user in a line, then go ahead without a bump. This rule ends at the
+first public release, and the rules above apply from then on.
+
 Every run also writes `manifest.json` beside the JSONL: resolved config, tool version, message-file
 hash, counts, timings, and `status`. Reproducibility is the point of an audit tool.
 
