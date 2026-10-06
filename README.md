@@ -208,6 +208,19 @@ One JSON object per line, the same shape for every provider:
 `raw` is the provider's response, verbatim. taxman does not parse it; extracting text,
 token counts, or citations is a separate step run on the data afterward.
 
+### Message ids
+
+`message_id` is a UUID5 of the message's text, so the same message has the same id in every
+file and every run. An id can be computed from text, but never turned back into it.
+
+```bash
+taxman messages ids taxman/messages/probe.txt   # each message in a file with its id, as CSV
+```
+
+Outside taxman, an id is `uuid5(uuid5(NAMESPACE_URL, "https://matthewdeverna.com/"), text)`,
+where `text` is the line with surrounding whitespace removed. The trailing `/` is part of the
+namespace.
+
 ### Schema versions
 
 Changes are additive unless listed here.
@@ -226,6 +239,7 @@ Changes are additive unless listed here.
 | `taxman audits show <audit-name>` | Print an audit's resolved settings |
 | `taxman audits validate <audit-name>` | Check an audit without sending anything |
 | `taxman collect <audit-name>` | Run an audit |
+| `taxman messages ids <file>` | Print each message in a file with its id |
 | `taxman providers` | List the installed providers |
 | `taxman doctor` | Check `PATH` and tab completion, and offer to fix them |
 

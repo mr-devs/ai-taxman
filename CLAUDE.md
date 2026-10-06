@@ -340,7 +340,8 @@ only command that does. Nothing else creates a project as a side effect.
 src/ai_taxman/
 ├── __init__.py       # __version__ + public Python API
 ├── __main__.py       # python -m ai_taxman
-├── cli/              # Typer app: init, audits (new/list/show/validate), collect, doctor
+├── cli/              # Typer app: init, audits (new/list/show/validate), collect,
+│                     # messages (ids/text), doctor
 ├── core/             # config, credentials, discovery, messages, records, template,
 │                     # writer, runner, registry, state, environment, errors
 └── providers/

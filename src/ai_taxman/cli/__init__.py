@@ -24,6 +24,7 @@ from ai_taxman.cli.audits_cmd import audits_app
 from ai_taxman.cli.collect_cmd import collect
 from ai_taxman.cli.doctor_cmd import doctor
 from ai_taxman.cli.init_cmd import init
+from ai_taxman.cli.messages_cmd import messages_app
 from ai_taxman.core.registry import available_providers
 
 app = typer.Typer(
@@ -38,6 +39,7 @@ app.command()(doctor)
 app.command()(init)
 app.command()(collect)
 app.add_typer(audits_app, name="audits")
+app.add_typer(messages_app, name="messages")
 
 
 @app.command()
