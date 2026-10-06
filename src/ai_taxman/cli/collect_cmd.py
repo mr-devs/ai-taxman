@@ -153,6 +153,10 @@ def collect(
             f"Leaving run {plan.left_unfinished} unfinished; starting run {run_id}.",
             fg=typer.colors.YELLOW,
         )
+    if plan.resuming:
+        # Even with --quiet: a run that picks up where another left off must
+        # never be mistaken for a fresh one.
+        typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
     result = _run(config, provider=provider, run_id=run_id, pid_file=pid_file)
 
@@ -171,6 +175,21 @@ def collect(
 
     if result.n_ok == 0:
         fail("every message failed; see the error rows in the output for why.")
+
+
+def _resuming(plan: RunPlan) -> str:
+    """Which run is being picked up, how far it got, and what is left to send."""
+    sending, retrying = len(plan.tasks), len(plan.failed)
+    if retrying and retrying == sending:
+        again = ", after it failed before" if sending == 1 else ", all after failing before"
+    elif retrying:
+        again = f", {retrying} of them after failing before"
+    else:
+        again = ""
+    return (
+        f"Resuming run {plan.run_id}: {len(plan.answered)} of {plan.expected} responses "
+        f"already collected; sending {sending}{again}."
+    )
 
 
 def _say_complete(config: AuditConfig, plan: RunPlan, *, err: bool = False) -> None:
@@ -300,6 +319,8 @@ def _start_in_background(
     )
     if plan.left_unfinished is not None:
         typer.echo(f"Leaving run {plan.left_unfinished} unfinished.", err=True)
+    if plan.resuming:
+        typer.echo(_resuming(plan), err=True)
     typer.echo("", err=True)
     typer.echo(f"  run id   {run_id}", err=True)
     typer.echo(f"  pid      {pid}", err=True)

@@ -20,6 +20,7 @@ import pytest
 
 from ai_taxman.cli.background import PID_FILENAME, build_child_command
 from ai_taxman.core.discovery import Layout, write_marker
+from ai_taxman.core.messages import message_id
 
 FLAT = Layout(data="data", audits="audits", messages="messages", prompts="prompts", logs="logs")
 
@@ -138,6 +139,18 @@ def test_a_complete_audit_is_not_started_in_the_background(invoke, tmp_path, fak
     assert "already complete" in result.stderr
     (run,) = (tmp_path / "data" / "probe").iterdir()
     assert not (run / PID_FILENAME).exists()
+
+
+def test_a_background_resume_says_so(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    fake_provider.failures = {message_id("two"): [RuntimeError("nope")]}
+    invoke("collect", "probe")
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+
+    result = invoke("collect", "probe", "--background")
+
+    assert f"Resuming run {run.name}" in result.stderr
+    assert result.stdout.strip().isdigit()
 
 
 def test_a_broken_audit_is_refused_before_a_background_run_is_promised(

@@ -123,6 +123,19 @@ def test_collecting_a_complete_audit_says_so_and_sends_nothing(invoke, tmp_path,
     assert fake_provider.sent == []
 
 
+def test_a_resumed_run_says_so_before_it_starts(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    invoke("collect", "probe")
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+
+    result = invoke("collect", "probe", "--quiet")
+
+    assert f"Resuming run {run.name}" in result.output
+    assert "2 of 3 responses already collected" in result.output
+    assert "sending 1, after it failed before" in result.output
+
+
 def test_accepts_a_path_to_an_audit_file(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 
