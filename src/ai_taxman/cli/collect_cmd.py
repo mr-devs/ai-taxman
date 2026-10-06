@@ -30,14 +30,6 @@ def collect(
             help="Audit name (or a path to an audit YAML).", autocompletion=complete_audit
         ),
     ],
-    repeats: Annotated[
-        int | None,
-        typer.Option("--repeats", "-r", min=1, help="Override execution.repeats."),
-    ] = None,
-    concurrency: Annotated[
-        int | None,
-        typer.Option("--concurrency", "-c", min=1, help="Override execution.max_concurrency."),
-    ] = None,
     quiet: Annotated[bool, typer.Option("--quiet", "-q", help="Only print the summary.")] = False,
     log_file: Annotated[
         Path | None,
@@ -93,11 +85,6 @@ def collect(
     config = load_audit(find_audit(audit))
     provider = get_provider(config.provider)
 
-    if repeats is not None:
-        config.execution.repeats = repeats
-    if concurrency is not None:
-        config.execution.max_concurrency = concurrency
-
     if background:
         _start_in_background(
             audit,
@@ -105,8 +92,6 @@ def collect(
             provider=provider,
             run_id=run_id,
             log_file=log_file,
-            repeats=repeats,
-            concurrency=concurrency,
             log_level=log_level,
             quiet=quiet,
         )
@@ -196,8 +181,6 @@ def _start_in_background(
     provider: Provider,
     run_id: str | None,
     log_file: Path | None,
-    repeats: int | None,
-    concurrency: int | None,
     log_level: str,
     quiet: bool,
 ) -> None:
@@ -231,8 +214,6 @@ def _start_in_background(
         run_id=run_id,
         log_file=log_file,
         pid_file=pid_file,
-        repeats=repeats,
-        concurrency=concurrency,
         log_level=log_level,
         quiet=quiet,
     )

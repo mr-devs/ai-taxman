@@ -137,7 +137,8 @@ text, and hash; every response row records the hash.
 taxman collect <audit-name>
 ```
 
-Each message is sent `repeats` times, concurrently. Each run writes to its own directory:
+Each message is sent `repeats` times, concurrently. Every setting comes from the audit file;
+there are no command-line overrides. Each run writes to its own directory:
 
 - `responses.jsonl`: one row per response, flushed as it arrives.
 - `manifest.json`: resolved config, tool version, messages-file hash, counts, and timings.
@@ -149,8 +150,6 @@ killed run keeps every response already received.
 
 | Option | Effect |
 |---|---|
-| `-r`, `--repeats N` | Override `execution.repeats` |
-| `-c`, `--concurrency N` | Override `execution.max_concurrency` |
 | `-q`, `--quiet` | Print only the summary |
 | `--log-file PATH` | Write the log to this file only |
 | `--log-level LEVEL` | `debug`, `info` (default), `warning`, or `error` |

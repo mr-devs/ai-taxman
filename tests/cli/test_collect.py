@@ -59,21 +59,15 @@ def test_writes_the_jsonl_and_manifest(invoke, tmp_path, fake_provider):
     assert (runs[0] / "manifest.json").is_file()
 
 
-def test_repeats_flag_overrides_the_audit(invoke, tmp_path, fake_provider):
+@pytest.mark.parametrize("flag", ["--repeats", "-r", "--concurrency", "-c"])
+def test_settings_come_only_from_the_audit_file(invoke, tmp_path, fake_provider, flag):
+    """A run is what its audit file says, so a resumed run can be checked against it."""
     make_project(tmp_path)
 
-    invoke("collect", "probe", "--repeats", "2")
+    result = invoke("collect", "probe", flag, "2")
 
-    assert len(fake_provider.sent) == 6
-
-
-def test_concurrency_flag_overrides_the_audit(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-    fake_provider.delay = 0.01
-
-    invoke("collect", "probe", "--concurrency", "1")
-
-    assert fake_provider.peak_concurrency == 1
+    assert result.exit_code != 0
+    assert fake_provider.sent == []
 
 
 def test_accepts_a_path_to_an_audit_file(invoke, tmp_path, fake_provider):

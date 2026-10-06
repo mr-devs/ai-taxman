@@ -97,13 +97,13 @@ async def test_concurrency_is_actually_used(project, fake_provider):
 
 
 async def test_shuffle_changes_the_dispatch_order(project, fake_provider):
-    ordered = audit(project, "execution:\n  repeats: 20")
-    await run_audit_async(ordered, max_concurrency=1)
+    ordered = audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1")
+    await run_audit_async(ordered)
     in_order = [(r.message.id, r.repeat) for r in fake_provider.sent]
 
     fake_provider.sent.clear()
-    shuffled = audit(project, "execution:\n  repeats: 20\n  shuffle: true")
-    await run_audit_async(shuffled, max_concurrency=1, seed=1234)
+    shuffled = audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1\n  shuffle: true")
+    await run_audit_async(shuffled, seed=1234)
     after = [(r.message.id, r.repeat) for r in fake_provider.sent]
 
     assert sorted(after) == sorted(in_order)

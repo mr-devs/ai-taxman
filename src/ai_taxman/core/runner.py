@@ -105,7 +105,6 @@ async def run_audit_async(
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
     run_id: str | None = None,
-    max_concurrency: int | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
     stop_signals: tuple[int, ...] = (),
@@ -132,7 +131,7 @@ async def run_audit_async(
     )
 
     run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
-    limit = max_concurrency or config.execution.max_concurrency
+    limit = config.execution.max_concurrency
     tasks = _expand(messages, config.execution.repeats)
     if config.execution.shuffle:
         random.Random(seed).shuffle(tasks)

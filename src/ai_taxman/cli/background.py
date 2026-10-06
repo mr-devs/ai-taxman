@@ -48,8 +48,6 @@ def build_child_command(
     run_id: str,
     log_file: Path,
     pid_file: Path,
-    repeats: int | None = None,
-    concurrency: int | None = None,
     log_level: str | None = None,
     quiet: bool = False,
 ) -> list[str]:
@@ -75,10 +73,6 @@ def build_child_command(
         "--pid-file",
         str(pid_file),
     ]
-    if repeats is not None:
-        argv += ["--repeats", str(repeats)]
-    if concurrency is not None:
-        argv += ["--concurrency", str(concurrency)]
     if log_level is not None:
         argv += ["--log-level", log_level]
     if quiet:

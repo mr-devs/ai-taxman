@@ -66,27 +66,12 @@ def test_the_child_writes_its_log_where_the_parent_said():
     assert argv[argv.index("--log-file") + 1] == "/tmp/a.log"
 
 
-def test_the_overrides_the_user_typed_are_carried_across():
+def test_the_log_level_the_user_typed_is_carried_across():
     argv = build_child_command(
-        "probe",
-        run_id="r1",
-        log_file=Path("a.log"),
-        pid_file=Path("a.pid"),
-        repeats=5,
-        concurrency=2,
-        log_level="debug",
+        "probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"), log_level="debug"
     )
 
-    assert argv[argv.index("--repeats") + 1] == "5"
-    assert argv[argv.index("--concurrency") + 1] == "2"
     assert argv[argv.index("--log-level") + 1] == "debug"
-
-
-def test_overrides_that_were_not_given_are_not_invented():
-    argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"))
-
-    assert "--repeats" not in argv
-    assert "--concurrency" not in argv
 
 
 # --- what the parent does before letting go -------------------------------
@@ -287,6 +272,15 @@ def echo_project(tmp_path, plugin_path):
     return tmp_path
 
 
+def one_at_a_time(project):
+    """Send one request at a time, so a slow run stays alive long enough to inspect."""
+    audit_file = project / "audits" / "probe.yaml"
+    audit_file.write_text(
+        audit_file.read_text(encoding="utf-8") + "execution:\n  max_concurrency: 1\n",
+        encoding="utf-8",
+    )
+
+
 def test_a_real_background_run_outlives_the_command_that_started_it(echo_project, plugin_path):
     """The whole feature, for real: parent returns, child finishes the work."""
     result = run_taxman(echo_project, plugin_path, "--background")
@@ -344,7 +338,8 @@ def test_the_pid_file_holds_a_pid_a_shell_script_can_kill(echo_project, plugin_p
     slow = "\n".join(f"message {n}" for n in range(200)) + "\n"
     (echo_project / "messages" / "probe.txt").write_text(slow, encoding="utf-8")
 
-    run_taxman(echo_project, plugin_path, "--background", "--concurrency", "1", ECHO_DELAY="0.05")
+    one_at_a_time(echo_project)
+    run_taxman(echo_project, plugin_path, "--background", ECHO_DELAY="0.05")
 
     directory = next((echo_project / "data" / "probe").iterdir())
     pid_file = directory / PID_FILENAME
@@ -360,7 +355,8 @@ def test_a_backgrounded_run_stops_gracefully_when_it_is_killed(echo_project, plu
     many = "\n".join(f"message {n}" for n in range(500)) + "\n"
     (echo_project / "messages" / "probe.txt").write_text(many, encoding="utf-8")
 
-    run_taxman(echo_project, plugin_path, "--background", "--concurrency", "1", ECHO_DELAY="0.05")
+    one_at_a_time(echo_project)
+    run_taxman(echo_project, plugin_path, "--background", ECHO_DELAY="0.05")
 
     directory = next((echo_project / "data" / "probe").iterdir())
     pid_file = directory / PID_FILENAME
