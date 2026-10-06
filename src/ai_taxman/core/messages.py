@@ -12,13 +12,15 @@ A message may appear only once: sending one more than once is what
 from __future__ import annotations
 
 import hashlib
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from ai_taxman.core.errors import MessageFileError
 
-#: Ids are zero padded to at least this width so they sort lexicographically.
-MIN_ID_WIDTH = 4
+#: The UUID5 namespace every message id is derived in. Changing it changes the id
+#: of every message ever recorded, so it never changes.
+MESSAGE_ID_NAMESPACE = uuid.UUID("861fff4c-1c3d-44e9-ba74-eb311d0565c1")
 
 COMMENT_PREFIX = "#"
 ESCAPED_COMMENT_PREFIX = "\\#"
@@ -28,8 +30,8 @@ ESCAPED_COMMENT_PREFIX = "\\#"
 class Message:
     """One message to send to a provider.
 
-    `id` is stable for a given file: it follows the order messages appear, and
-    is unaffected by the blank lines and comments between them.
+    `id` is derived from the text alone, so a message has the same id in every
+    file and every run, wherever it sits.
     """
 
     id: str
@@ -74,16 +76,24 @@ def read_messages(path: str | Path) -> list[Message]:
 
     _refuse_repeats(path, kept)
 
-    width = max(MIN_ID_WIDTH, len(str(len(kept) - 1)))
     return [
         Message(
-            id=f"m{index:0{width}d}",
+            id=message_id(text),
             text=text,
             hash=hash_message(text),
             line_number=line_number,
         )
-        for index, (line_number, text) in enumerate(kept)
+        for line_number, text in kept
     ]
+
+
+def message_id(text: str) -> str:
+    """Return the id of a message: a UUID5 of its text.
+
+    Anyone holding the text can recompute its id, so responses can be matched
+    across runs and message files without consulting either.
+    """
+    return str(uuid.uuid5(MESSAGE_ID_NAMESPACE, text))
 
 
 def hash_message(text: str) -> str:
@@ -94,9 +104,10 @@ def hash_message(text: str) -> str:
 def _refuse_repeats(path: Path, kept: list[tuple[int, str]]) -> None:
     """Raise if any message appears on more than one line.
 
-    A repeated line is almost always a slip, and it would quietly give that
-    message twice the weight of the others. Sending a message more than once is
-    what `execution.repeats` is for.
+    A message's id is derived from its text, so a repeated line would share an
+    id with the first and their responses could not be told apart. It is almost
+    always a slip anyway. Sending a message more than once is what
+    `execution.repeats` is for.
     """
     first_seen: dict[str, int] = {}
     repeats: list[tuple[int, int]] = []

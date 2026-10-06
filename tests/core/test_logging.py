@@ -16,6 +16,10 @@ import pytest
 from ai_taxman.core.config import load_audit
 from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.logging import LOGGER_NAME, describe_level, setup_logging
+from ai_taxman.core.messages import message_id
+
+#: The ids of the three messages each test project starts with.
+ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 
 
 @pytest.fixture(autouse=True)
@@ -201,15 +205,15 @@ async def test_every_response_is_logged_as_it_lands(project, fake_provider, logg
     await run_audit_async(audit(project))
 
     log = read_log(logged)
-    for message_id in ("m0000", "m0001", "m0002"):
-        assert message_id in log
+    for expected in (ONE, TWO, THREE):
+        assert expected in log
 
 
 async def test_a_retry_is_logged_as_a_warning(project, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
     fake_provider.retryable = (TimeoutError,)
-    fake_provider.failures = {"m0001": [TimeoutError("slow")]}
+    fake_provider.failures = {TWO: [TimeoutError("slow")]}
 
     await run_audit_async(audit(project, "execution:\n  max_retries: 2"))
 
@@ -221,13 +225,13 @@ async def test_a_retry_is_logged_as_a_warning(project, fake_provider, logged):
 async def test_a_failed_message_is_logged_as_an_error(project, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
-    fake_provider.failures = {"m0001": [RuntimeError("nope")]}
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
     await run_audit_async(audit(project))
 
     log = read_log(logged)
     assert "ERROR" in log
-    assert "m0001" in log
+    assert TWO in log
 
 
 async def test_the_end_of_the_run_is_logged_with_the_counts(project, fake_provider, logged):

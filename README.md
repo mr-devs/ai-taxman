@@ -188,10 +188,10 @@ One JSON object per line, the same shape for every provider:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "audit": "<audit-name>",
   "run_id": "20260830T142201Z-a1b2c3",
-  "message_id": "m0007",
+  "message_id": "ccc7ca1d-0eea-5dd5-aadd-58c750f7bcd7",
   "message_hash": "sha256:…",
   "message": "When is the next US federal election?",
   "repeat": 2,
@@ -217,6 +217,7 @@ Changes are additive unless listed here.
 | Version | Change |
 |---|---|
 | 1 | Initial schema. |
+| 2 | `message_id` is a UUID5 of the message text, the same in every run and file. It was the message's position in the file, `m0007`. |
 
 ## Commands
 

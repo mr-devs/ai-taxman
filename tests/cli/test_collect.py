@@ -2,6 +2,11 @@ import json
 
 import pytest
 
+from ai_taxman.core.messages import message_id
+
+#: The ids of the three messages `make_project` writes by default.
+ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
+
 
 def make_project(tmp_path, body=None, messages="one\ntwo\nthree\n"):
     (tmp_path / "messages").mkdir(exist_ok=True)
@@ -116,7 +121,7 @@ def test_an_invalid_model_block_is_reported_against_the_file(invoke, tmp_path, f
 
 def test_errors_are_reported_but_the_run_still_finishes(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
-    fake_provider.failures = {"m0001": [RuntimeError("nope")]}
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
     result = invoke("collect", "probe")
 
@@ -127,9 +132,9 @@ def test_errors_are_reported_but_the_run_still_finishes(invoke, tmp_path, fake_p
 def test_a_run_where_everything_fails_exits_nonzero(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
     fake_provider.failures = {
-        "m0000": [RuntimeError("a")],
-        "m0001": [RuntimeError("b")],
-        "m0002": [RuntimeError("c")],
+        ONE: [RuntimeError("a")],
+        TWO: [RuntimeError("b")],
+        THREE: [RuntimeError("c")],
     }
 
     result = invoke("collect", "probe")
@@ -261,7 +266,7 @@ def test_a_log_file_captures_the_run(invoke, tmp_path, fake_provider):
     assert result.exit_code == 0
     log = (tmp_path / "run.log").read_text(encoding="utf-8")
     assert "run starting" in log
-    assert "m0000" in log
+    assert ONE in log
 
 
 def test_the_log_file_can_go_anywhere(invoke, tmp_path, fake_provider):

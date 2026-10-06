@@ -12,8 +12,12 @@ from ai_taxman.core.errors import (
     MissingApiKeyError,
     ProviderError,
 )
+from ai_taxman.core.messages import message_id
 from ai_taxman.core.runner import RunResult, run_audit_async
 from ai_taxman.core.writer import read_jsonl
+
+#: The ids of the three messages each test project starts with.
+ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 
 
 @pytest.fixture
@@ -63,7 +67,7 @@ async def test_every_message_and_repeat_pair_appears_exactly_once(project, fake_
     pairs = [(r.message_id, r.repeat) for r in read_jsonl(result.output_path)]
 
     assert sorted(pairs) == sorted(
-        (message_id, repeat) for message_id in ("m0000", "m0001", "m0002") for repeat in range(3)
+        (message_id, repeat) for message_id in (ONE, TWO, THREE) for repeat in range(3)
     )
 
 
@@ -73,7 +77,7 @@ async def test_repeats_of_one_message_are_sent_together_not_in_passes(project, f
 
     first_three = [(r.message.id, r.repeat) for r in fake_provider.sent[:3]]
 
-    assert first_three == [("m0000", 0), ("m0000", 1), ("m0000", 2)]
+    assert first_three == [(ONE, 0), (ONE, 1), (ONE, 2)]
 
 
 async def test_concurrency_is_capped(project, fake_provider):
@@ -142,7 +146,7 @@ async def test_records_carry_the_response_verbatim_and_nothing_derived(project, 
 
 
 async def test_a_failing_message_does_not_stop_the_others(project, fake_provider):
-    fake_provider.failures = {"m0001": [RuntimeError("nope")]}
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
     result = await run_audit_async(audit(project))
 
@@ -152,36 +156,36 @@ async def test_a_failing_message_does_not_stop_the_others(project, fake_provider
 
 
 async def test_a_failure_is_recorded_as_an_error_row(project, fake_provider):
-    fake_provider.failures = {"m0001": [RuntimeError("nope")]}
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
     result = await run_audit_async(audit(project))
 
     failed = [r for r in read_jsonl(result.output_path) if r.status == "error"]
 
     assert len(failed) == 1
-    assert failed[0].message_id == "m0001"
+    assert failed[0].message_id == TWO
     assert "nope" in failed[0].error
     assert failed[0].raw == {}
 
 
 async def test_retryable_failures_are_retried_then_succeed(project, fake_provider):
     fake_provider.retryable = (TimeoutError,)
-    fake_provider.failures = {"m0000": [TimeoutError("slow"), TimeoutError("slow")]}
+    fake_provider.failures = {ONE: [TimeoutError("slow"), TimeoutError("slow")]}
 
     result = await run_audit_async(audit(project), backoff_base=0)
 
     assert result.n_error == 0
-    record = next(r for r in read_jsonl(result.output_path) if r.message_id == "m0000")
+    record = next(r for r in read_jsonl(result.output_path) if r.message_id == ONE)
     assert record.attempts == 3
 
 
 async def test_retries_stop_at_max_retries(project, fake_provider):
     fake_provider.retryable = (TimeoutError,)
-    fake_provider.failures = {"m0000": [TimeoutError("slow")] * 10}
+    fake_provider.failures = {ONE: [TimeoutError("slow")] * 10}
 
     result = await run_audit_async(audit(project, "execution:\n  max_retries: 2"), backoff_base=0)
 
-    record = next(r for r in read_jsonl(result.output_path) if r.message_id == "m0000")
+    record = next(r for r in read_jsonl(result.output_path) if r.message_id == ONE)
     assert record.status == "error"
     assert record.attempts == 3
     assert result.n_error == 1
@@ -189,17 +193,17 @@ async def test_retries_stop_at_max_retries(project, fake_provider):
 
 async def test_non_retryable_failures_are_not_retried(project, fake_provider):
     fake_provider.retryable = (TimeoutError,)
-    fake_provider.failures = {"m0000": [ValueError("bad request")] * 5}
+    fake_provider.failures = {ONE: [ValueError("bad request")] * 5}
 
     await run_audit_async(audit(project), backoff_base=0)
 
-    attempts = [r for r in fake_provider.sent if r.message.id == "m0000"]
+    attempts = [r for r in fake_provider.sent if r.message.id == ONE]
     assert len(attempts) == 1
 
 
 async def test_on_error_stop_halts_the_run(project, fake_provider):
     fake_provider.delay = 0.01
-    fake_provider.failures = {"m0000": [RuntimeError("nope")]}
+    fake_provider.failures = {ONE: [RuntimeError("nope")]}
 
     result = await run_audit_async(
         audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1\n  on_error: stop"),
@@ -219,7 +223,7 @@ async def test_provider_lifecycle_hooks_run_once(project, fake_provider):
 
 async def test_provider_is_shut_down_even_when_the_run_blows_up(project, fake_provider):
     """Cancellation propagates, but the provider still gets to close its client."""
-    fake_provider.failures = {"m0000": [asyncio.CancelledError()]}
+    fake_provider.failures = {ONE: [asyncio.CancelledError()]}
 
     with pytest.raises(asyncio.CancelledError):
         await run_audit_async(audit(project))

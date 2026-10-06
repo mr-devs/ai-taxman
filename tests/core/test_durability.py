@@ -15,9 +15,13 @@ import pytest
 from ai_taxman.core.config import load_audit
 from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.errors import ConfigError
+from ai_taxman.core.messages import message_id
 from ai_taxman.core.records import RunManifest
 from ai_taxman.core.runner import MANIFEST_FILENAME, run_audit_async
 from ai_taxman.core.writer import read_jsonl
+
+#: The ids of the three messages each test project starts with.
+ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 
 
 @pytest.fixture
@@ -98,7 +102,7 @@ async def test_a_finished_run_is_marked_complete(project, fake_provider):
 
 
 async def test_a_run_stopped_by_an_error_says_so(project, fake_provider):
-    fake_provider.failures = {"m0001": [RuntimeError("nope")]}
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
     result = await run_audit_async(audit(project, "execution:\n  on_error: stop"))
 

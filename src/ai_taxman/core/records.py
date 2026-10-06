@@ -6,8 +6,9 @@ provider's response verbatim in `raw`. Nothing is derived from `raw` — taxman
 collects, and parsing happens downstream from the data on disk.
 
 This schema is a promise to whoever analyses the data later. Changes are
-**additive** — adding a field is fine, removing or renaming one is a break that
-costs a `RESPONSE_SCHEMA_VERSION` bump and a note in the README.
+**additive** — adding a field is fine; removing or renaming one, or changing
+what it means, is a break that costs a `RESPONSE_SCHEMA_VERSION` bump and a
+note in the README.
 """
 
 from __future__ import annotations
@@ -21,8 +22,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ai_taxman.core.errors import ConfigError
 
-#: Bumped when a field is removed or renamed.
-RESPONSE_SCHEMA_VERSION = 1
+#: Bumped when a field is removed, renamed, or comes to mean something else.
+RESPONSE_SCHEMA_VERSION = 2
 
 Status = Literal["ok", "error"]
 

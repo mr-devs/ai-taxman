@@ -1,7 +1,7 @@
 import pytest
 
 from ai_taxman.core.errors import MessageFileError
-from ai_taxman.core.messages import Message, read_messages
+from ai_taxman.core.messages import Message, message_id, read_messages
 
 
 def write(tmp_path, text, name="messages.txt"):
@@ -19,12 +19,17 @@ def test_reads_one_message_per_line(tmp_path):
     assert all(isinstance(m, Message) for m in messages)
 
 
-def test_assigns_stable_zero_padded_ids_in_file_order(tmp_path):
-    path = write(tmp_path, "a\nb\nc\n")
+def test_the_id_is_a_uuid5_of_the_text(tmp_path):
+    """Pinned: changing the namespace would change every id ever recorded."""
+    path = write(tmp_path, "When is the next US federal election?\n")
 
-    messages = read_messages(path)
+    assert read_messages(path)[0].id == "ccc7ca1d-0eea-5dd5-aadd-58c750f7bcd7"
 
-    assert [m.id for m in messages] == ["m0000", "m0001", "m0002"]
+
+def test_message_id_gives_the_id_read_messages_assigns(tmp_path):
+    path = write(tmp_path, "first\nsecond\n")
+
+    assert [m.id for m in read_messages(path)] == [message_id("first"), message_id("second")]
 
 
 def test_ids_are_stable_across_reads(tmp_path):
@@ -33,12 +38,22 @@ def test_ids_are_stable_across_reads(tmp_path):
     assert [m.id for m in read_messages(path)] == [m.id for m in read_messages(path)]
 
 
-def test_skips_blank_lines_and_comments_without_shifting_earlier_ids(tmp_path):
+def test_skips_blank_lines_and_comments(tmp_path):
     path = write(tmp_path, "first\n\n# a comment\n   \nsecond\n")
 
-    messages = read_messages(path)
+    assert [m.text for m in read_messages(path)] == ["first", "second"]
 
-    assert [(m.id, m.text) for m in messages] == [("m0000", "first"), ("m0001", "second")]
+
+def test_an_id_does_not_depend_on_where_the_message_sits(tmp_path):
+    """Adding, removing, or reordering lines leaves every other message's id alone."""
+    before = write(tmp_path, "keep\nother\n", name="before.txt")
+    after = write(tmp_path, "# new header\nadded\nother\n\nkeep\n", name="after.txt")
+
+    ids_before = {m.text: m.id for m in read_messages(before)}
+    ids_after = {m.text: m.id for m in read_messages(after)}
+
+    assert ids_after["keep"] == ids_before["keep"]
+    assert ids_after["other"] == ids_before["other"]
 
 
 def test_records_the_original_line_number(tmp_path):
@@ -115,12 +130,3 @@ def test_file_with_no_usable_messages_raises(tmp_path):
 
     with pytest.raises(MessageFileError, match="no messages"):
         read_messages(path)
-
-
-def test_id_width_grows_past_ten_thousand_messages(tmp_path):
-    path = write(tmp_path, "\n".join(str(i) for i in range(10_001)) + "\n")
-
-    messages = read_messages(path)
-
-    assert messages[0].id == "m00000"
-    assert messages[-1].id == "m10000"
