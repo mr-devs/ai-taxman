@@ -28,7 +28,7 @@ class JsonlWriter:
 
     def __init__(self, path: str | Path, *, compress: bool = False) -> None:
         self.compress = compress
-        self.path = _target_path(Path(path), compress=compress)
+        self.path = target_path(Path(path), compress=compress)
         self.count = 0
         self._handle: IO[str] | None = None
 
@@ -127,7 +127,8 @@ def _lines(handle: IO[str]) -> Iterator[str]:
         yield line
 
 
-def _target_path(path: Path, *, compress: bool) -> Path:
+def target_path(path: Path, *, compress: bool) -> Path:
+    """The file a writer for `path` writes to: `path`, plus `.gz` when compressing."""
     if compress and path.suffix != GZIP_SUFFIX:
         return path.with_suffix(path.suffix + GZIP_SUFFIX)
     return path

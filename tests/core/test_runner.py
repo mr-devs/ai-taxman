@@ -1,5 +1,6 @@
 import asyncio
 import json
+import shutil
 import textwrap
 
 import pytest
@@ -102,6 +103,7 @@ async def test_shuffle_changes_the_dispatch_order(project, fake_provider):
     in_order = [(r.message.id, r.repeat) for r in fake_provider.sent]
 
     fake_provider.sent.clear()
+    shutil.rmtree(project / "data")  # a fresh run, not the first one resumed
     shuffled = audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1\n  shuffle: true")
     await run_audit_async(shuffled, seed=1234)
     after = [(r.message.id, r.repeat) for r in fake_provider.sent]

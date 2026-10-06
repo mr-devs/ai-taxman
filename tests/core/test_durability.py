@@ -189,32 +189,39 @@ async def test_responses_land_as_they_arrive_when_compressed(project, fake_provi
     await task
 
 
-# --- two runs never share a directory ------------------------------------
+# --- one directory, one run -------------------------------------------------
 
 
-async def test_a_second_run_refuses_to_share_a_run_directory(project, fake_provider):
-    """`output.dir` without {run_id} would append to one file and overwrite the
-    manifest, leaving data described by a manifest that accounts for half of it."""
-    config = audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
-    await run_audit_async(config)
+async def test_two_audits_never_share_a_run_directory(project, fake_provider):
+    """An `output.dir` naming neither {audit} nor {run_id} points both at one place,
+    which would leave two runs' data described by a manifest naming only one."""
+    shared = "output:\n  dir: data/shared\n  log_dir: logs/{audit}"
+    await run_audit_async(audit(project, shared))
+    other = project / "audits" / "other.yaml"
+    other.write_text(
+        (project / "audits" / "probe.yaml")
+        .read_text(encoding="utf-8")
+        .replace("audit: probe", "audit: other"),
+        encoding="utf-8",
+    )
 
     with pytest.raises(ConfigError) as caught:
-        await run_audit_async(
-            audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
-        )
+        await run_audit_async(load_audit(other))
 
     message = str(caught.value)
     assert "run_id" in message
     assert "output.dir" in message
 
 
-async def test_resuming_the_same_run_id_is_allowed(project, fake_provider):
-    """Appending to a run you named yourself is the point of --run-id."""
-    config = audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
-    await run_audit_async(config, run_id="fixed-run")
+async def test_an_audit_with_one_run_directory_is_resumed_in_place(project, fake_provider):
+    """Without {run_id} in `output.dir` there is room for one run, and it is finished."""
+    single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    first = await run_audit_async(audit(project, single))
+    fake_provider.sent.clear()
 
-    again = audit(project, "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}")
-    result = await run_audit_async(again, run_id="fixed-run")
+    second = await run_audit_async(audit(project, single))
 
-    assert result.n_ok == 3
-    assert len(list(read_jsonl(result.output_path))) == 6
+    assert [request.message.id for request in fake_provider.sent] == [TWO]
+    assert second.run_id == first.run_id
+    assert len(list(read_jsonl(second.output_path))) == 4

@@ -30,7 +30,6 @@ from ai_taxman.core.config import (
     AuditConfig,
     check_output_paths,
     load_audit,
-    resolve_output_dir,
 )
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
@@ -41,13 +40,12 @@ from ai_taxman.core.records import (
     RESPONSE_SCHEMA_VERSION,
     ResponseRecord,
     RunManifest,
-    new_run_id,
     timestamp,
     utc_now,
     validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
-from ai_taxman.core.runs import MANIFEST_FILENAME
+from ai_taxman.core.runs import MANIFEST_FILENAME, plan_run
 from ai_taxman.core.writer import JsonlWriter
 from ai_taxman.providers.base import Provider, Request
 
@@ -68,9 +66,12 @@ class RunResult:
     run_id: str
     output_path: Path
     manifest_path: Path
+    #: Responses written by this call - on a resumed run, only the ones it sent.
     n_ok: int
     n_error: int
     stopped_early: bool = False
+    #: True when this call finished an existing run rather than starting one.
+    resumed: bool = False
 
     @property
     def total(self) -> int:
@@ -85,7 +86,11 @@ def run_audit(
     run_id: str | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
-    """Run an audit. The synchronous entry point for the Python API and CLI."""
+    """Run an audit. The synchronous entry point for the Python API and CLI.
+
+    Collects the audit's latest run if it is unfinished, sending only what that
+    run is missing, and starts a new run if the audit has none.
+    """
     config = audit if isinstance(audit, AuditConfig) else load_audit(audit)
     return asyncio.run(
         run_audit_async(
@@ -129,19 +134,29 @@ async def run_audit_async(
         checked.api_key,
     )
 
-    run_id = validate_run_id(run_id) if run_id is not None else new_run_id()
+    plan = plan_run(
+        config, messages, run_id=validate_run_id(run_id) if run_id is not None else None
+    )
+    run_id = plan.run_id
     limit = config.execution.max_concurrency
-    tasks = _expand(messages, config.execution.repeats)
+    tasks = list(plan.tasks)
     if config.execution.shuffle:
         random.Random(seed).shuffle(tasks)
 
-    directory = resolve_output_dir(config, run_id=run_id)
-    _guard_run_directory(directory, run_id=run_id)
-
-    manifest = _new_manifest(config, provider, model, messages, run_id, system_prompt)
+    directory = plan.directory
+    if plan.manifest is None:
+        _guard_run_directory(directory, run_id=run_id)
+        manifest = _new_manifest(config, provider, model, messages, run_id, system_prompt)
+    else:
+        # The run as it was first described, reopened: same settings, same start.
+        manifest = plan.manifest.model_copy(update={"status": "running", "finished_at": None})
     manifest_path = directory / MANIFEST_FILENAME
 
-    state = _RunState(on_error=config.execution.on_error)
+    state = _RunState(
+        on_error=config.execution.on_error,
+        answered=set(plan.answered),
+        failed=set(plan.failed),
+    )
     # Constructed here but not opened: nothing touches the disk until the `with`.
     writer = JsonlWriter(directory / config.output.filename, compress=config.output.compress)
     on_disk = False
@@ -155,15 +170,25 @@ async def run_audit_async(
         await _startup(provider, api_key)
         _write_manifest(manifest, manifest_path)
         on_disk = True
+        if plan.resuming:
+            log.warning(
+                "resuming  run_id=%s collected=%d expected=%d sending=%d retrying=%d",
+                run_id,
+                len(plan.answered),
+                plan.expected,
+                len(tasks),
+                len(plan.failed),
+            )
         log.info(
             "run starting  run_id=%s audit=%s provider=%s model=%s "
-            "messages=%d repeats=%d expected=%d concurrency=%d output=%s",
+            "messages=%d repeats=%d expected=%d sending=%d concurrency=%d output=%s",
             run_id,
             config.audit,
             provider.name,
             manifest.model,
             len(messages),
             config.execution.repeats,
+            plan.expected,
             len(tasks),
             limit,
             writer.path,
@@ -195,8 +220,10 @@ async def run_audit_async(
         await _shutdown(provider)
         if on_disk:
             manifest.finished_at = timestamp()
-            manifest.n_ok = state.n_ok
-            manifest.n_error = state.n_error
+            # Per pair across every session, so a failure later answered is not
+            # counted twice, and one retried in vain is counted once.
+            manifest.n_ok = len(state.answered)
+            manifest.n_error = len(state.failed)
             _write_manifest(manifest, manifest_path)
             log.info(
                 "run %s  run_id=%s ok=%d error=%d output=%s",
@@ -214,6 +241,7 @@ async def run_audit_async(
         n_ok=state.n_ok,
         n_error=state.n_error,
         stopped_early=state.stop.is_set(),
+        resumed=plan.resuming,
     )
 
 
@@ -269,14 +297,13 @@ def _write_manifest(manifest: RunManifest, path: Path) -> None:
 
 
 def _guard_run_directory(directory: Path, *, run_id: str) -> None:
-    """Refuse to write a second run into another run's directory.
+    """Refuse to start a run in a directory another run already holds.
 
-    `output.dir` is the user's to set, and dropping `{run_id}` from it points
-    every run at one place. The JSONL is opened in append mode and the manifest
-    is overwritten, so the result is one file holding two runs described by a
-    manifest that accounts for half of it. Appending under the same run id is
-    deliberate - that is what `--run-id` is for - so only a different one is an
-    error.
+    `output.dir` is the user's to set. Without `{run_id}` it has room for one
+    run, which collecting again resumes; without `{audit}` as well, two audits
+    land in one place. The JSONL is opened in append mode and the manifest is
+    overwritten, so writing a second run there would leave one file holding two
+    runs, described by a manifest that accounts for half of it.
     """
     existing = _existing_run_id(directory / MANIFEST_FILENAME)
     if existing is None or existing == run_id:
@@ -285,9 +312,9 @@ def _guard_run_directory(directory: Path, *, run_id: str) -> None:
     raise ConfigError(
         f"{directory} already holds run {existing}, and this run is {run_id}. "
         "Two runs cannot share a directory: the responses would be appended to "
-        "one file and the manifest would describe only the newer run. Keep "
-        "`{run_id}` in the audit's `output.dir`, or pass `--run-id "
-        f"{existing}` to add to that run on purpose."
+        "one file and the manifest would describe only the newer run. Put "
+        "`{audit}` and `{run_id}` in the audit's `output.dir`, so each run has "
+        "its own."
     )
 
 
@@ -359,29 +386,30 @@ async def _shutdown(provider: Provider) -> None:
 
 @dataclass
 class _RunState:
-    """Counters and the stop flag shared by every worker."""
+    """Counters and the stop flag shared by every worker.
+
+    `n_ok` and `n_error` count what this call wrote. `answered` and `failed` are
+    the run's pairs, starting from what earlier sessions left on disk.
+    """
 
     on_error: str
+    answered: set[tuple[str, int]] = dataclass_field(default_factory=set)
+    failed: set[tuple[str, int]] = dataclass_field(default_factory=set)
     n_ok: int = 0
     n_error: int = 0
     stop: asyncio.Event = dataclass_field(default_factory=asyncio.Event)
 
-    def record(self, status: str) -> None:
-        if status == "ok":
+    def record(self, record: ResponseRecord) -> None:
+        pair = (record.message_id, record.repeat)
+        if record.status == "ok":
             self.n_ok += 1
+            self.answered.add(pair)
+            self.failed.discard(pair)
         else:
             self.n_error += 1
+            self.failed.add(pair)
             if self.on_error == "stop":
                 self.stop.set()
-
-
-def _expand(messages: list[Message], repeats: int) -> list[tuple[Message, int]]:
-    """Flatten to `(message, repeat)` pairs, message-major.
-
-    Message-major means all repeats of one message are adjacent, and therefore
-    dispatched together by the pool.
-    """
-    return [(message, repeat) for message in messages for repeat in range(repeats)]
 
 
 async def _dispatch(
@@ -426,7 +454,7 @@ async def _dispatch(
             if record is None:
                 continue
             writer.write(record)
-            state.record(record.status)
+            state.record(record)
             log.info(
                 "%s  message=%s repeat=%d attempts=%d latency_ms=%d",
                 record.status,
