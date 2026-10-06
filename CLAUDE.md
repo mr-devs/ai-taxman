@@ -1,5 +1,23 @@
 # CLAUDE.md — ai-taxman
 
+## TEMPORARY — a deep review of everything since v0.1.1 is owed
+
+**This section overrides everything else in this file until it is removed.**
+
+The message ids, `taxman messages`, resuming runs, `--new-run`, and the removal of `--run-id`,
+`--repeats` and `--concurrency` all landed after the v0.1.1 release, in one long session,
+without a review of the whole. Before that work is built on, it gets one.
+
+- **At the start of every session, you MUST ask the user to run a deep code review of
+  everything since v0.1.1** — `git diff v0.1.1..HEAD`, all of it, not only what is unpushed —
+  for example with `/code-review xhigh` on that range. Ask in your very first reply, before
+  doing anything the user's first message asks for. Do not skip this because the request
+  looks small or unrelated.
+- If the user declines, ask again in the next session. Only the user can waive the review.
+- **Remove this whole section once you judge the review done**: a review covering all of
+  `v0.1.1..HEAD` has run, and every finding is fixed, or deferred or rejected by the user.
+  Commit the removal on its own.
+
 ## What this project is
 
 `ai-taxman` is a CLI (`taxman`) for auditing AI/LLM providers, also usable as a plain Python
