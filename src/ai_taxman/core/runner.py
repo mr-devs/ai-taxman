@@ -531,7 +531,6 @@ def _record(
         audit=config.audit,
         run_id=run_id,
         message_id=request.message.id,
-        message_hash=request.message.hash,
         message=request.message.text,
         repeat=request.repeat,
         message_line=request.message.line_number,

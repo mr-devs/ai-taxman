@@ -15,7 +15,7 @@ BASE = {"name": "gemini-3.8-flash"}
 
 def request_for(block, text="hello", system_prompt=None):
     config = GeminiProvider().validate_model_config(block)
-    message = Message(id="m0000", text=text, hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text=text, line_number=1)
     return build_request(
         Request(message=message, repeat=0, model=config, system_prompt=system_prompt)
     )
@@ -176,7 +176,7 @@ def test_a_request_never_carries_changes_from_the_one_before():
     """Two requests from one audit share its `extra:`; merging must not write back into it."""
     block = {**BASE, "temperature": 0.0, "extra": {"generation_config": {"stop_sequences": ["X"]}}}
     config = GeminiProvider().validate_model_config(block)
-    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text="hello", line_number=1)
     first = build_request(Request(message=message, repeat=0, model=config))
     first["generation_config"]["stop_sequences"].append("changed")
 

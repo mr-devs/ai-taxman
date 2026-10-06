@@ -76,15 +76,6 @@ def test_escaped_hash_is_a_message_not_a_comment(tmp_path):
     assert read_messages(path)[0].text == "# not a comment"
 
 
-def test_hashes_the_message_text(tmp_path):
-    import hashlib
-
-    path = write(tmp_path, "hello\n")
-    expected = hashlib.sha256(b"hello").hexdigest()
-
-    assert read_messages(path)[0].hash == f"sha256:{expected}"
-
-
 def test_reads_utf8(tmp_path):
     path = write(tmp_path, "¿qué tal? 🧾\n")
 

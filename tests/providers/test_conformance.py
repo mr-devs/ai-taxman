@@ -159,7 +159,7 @@ async def test_send_before_startup_never_uses_an_ambient_key(provider, monkeypat
         monkeypatch.setenv(provider.default_api_key_env, "ambient-key-must-not-be-used")
     fresh = type(provider)()
     config = fresh.validate_model_config(template_block(fresh))
-    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text="hello", line_number=1)
 
     with pytest.raises(ProviderError, match="startup"):
         await fresh.send(Request(message=message, repeat=0, model=config), timeout_s=1.0)

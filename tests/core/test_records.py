@@ -17,7 +17,6 @@ def make_record(**overrides):
         audit="my-audit",
         run_id="20260830T142201Z-a1b2c3",
         message_id="m0007",
-        message_hash="sha256:abc",
         message="hello",
         repeat=2,
         provider="openai",
@@ -45,6 +44,11 @@ def test_a_row_written_before_message_line_existed_still_reads():
     del row["message_line"]
 
     assert ResponseRecord.from_dict(row).message_line is None
+
+
+def test_a_record_carries_no_message_hash():
+    """The id is derived from the text, so a hash of it would say the same thing twice."""
+    assert "message_hash" not in make_record().to_dict()
 
 
 def test_serialises_every_schema_field_even_when_empty():

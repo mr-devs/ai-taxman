@@ -61,7 +61,7 @@ def a_request(block=None, system_prompt=None):
     config = AnthropicProvider().validate_model_config(
         block or {"name": "claude-opus-5-5", "max_tokens": 1024}
     )
-    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text="hello", line_number=1)
     return Request(message=message, repeat=0, model=config, system_prompt=system_prompt)
 
 

@@ -18,7 +18,7 @@ BASE = {"name": "claude-opus-5-5", "max_tokens": 1024}
 
 def request_for(block, text="hello", system_prompt=None):
     config = AnthropicProvider().validate_model_config(block)
-    message = Message(id="m0000", text=text, hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text=text, line_number=1)
     return build_request(
         Request(message=message, repeat=0, model=config, system_prompt=system_prompt)
     )
@@ -270,7 +270,7 @@ def test_a_request_never_carries_changes_from_the_one_before():
     """Two requests from one audit share its `extra:`; merging must not write back into it."""
     block = {**BASE, "effort": "low", "extra": {"output_config": {"format": {"type": "x"}}}}
     config = AnthropicProvider().validate_model_config(block)
-    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text="hello", line_number=1)
     first = build_request(Request(message=message, repeat=0, model=config))
     first["output_config"]["format"]["type"] = "changed"
 
@@ -283,7 +283,7 @@ def test_a_request_never_shares_the_audits_search_lists():
     """Every request in a run is built from one config; none may write back into it."""
     search = {"web_search": True, "allowed_domains": ["cdc.gov"], "allowed_callers": ["direct"]}
     config = AnthropicProvider().validate_model_config({**BASE, "search": search})
-    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text="hello", line_number=1)
     first = build_request(Request(message=message, repeat=0, model=config))
     first["tools"][0]["allowed_domains"].append("example.com")
     first["tools"][0]["allowed_callers"].clear()

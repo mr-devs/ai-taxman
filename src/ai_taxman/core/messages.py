@@ -36,7 +36,6 @@ class Message:
 
     id: str
     text: str
-    hash: str
     line_number: int
 
 
@@ -80,7 +79,6 @@ def read_messages(path: str | Path) -> list[Message]:
         Message(
             id=message_id(text),
             text=text,
-            hash=hash_message(text),
             line_number=line_number,
         )
         for line_number, text in kept

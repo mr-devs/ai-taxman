@@ -5,7 +5,7 @@ from ai_taxman.providers.base import Provider, Request
 
 
 def test_request_carries_the_message_repeat_and_model_config():
-    message = Message(id="m0000", text="hello", hash="sha256:x", line_number=1)
+    message = Message(id="m0000", text="hello", line_number=1)
 
     request = Request(message=message, repeat=2, model={"name": "fake-1"})
 
