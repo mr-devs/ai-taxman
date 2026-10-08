@@ -196,11 +196,7 @@ async def run_audit_async(
                     opened = (
                         _new_manifest(config, provider, model, messages, run_id, system_prompt)
                         if plan.manifest is None
-                        # The run as it was first described, reopened: same
-                        # settings, same start.
-                        else plan.manifest.model_copy(
-                            update={"status": "running", "finished_at": None}
-                        )
+                        else _reopened(plan.manifest)
                     )
                     _write_manifest(opened, manifest_path)
                     manifest = opened
@@ -698,7 +694,7 @@ def _new_manifest(
         run_id=run_id,
         provider=provider.name,
         model=provider.describe_model(model),
-        taxman_version=__version__,
+        taxman_versions=[__version__],
         schema_version=RESPONSE_SCHEMA_VERSION,
         messages_path=_project_relative(config.messages_path, config.project_root),
         message_ids=[message.id for message in messages],
@@ -710,6 +706,20 @@ def _new_manifest(
         repeats=config.execution.repeats,
         config=config.model_dump(mode="json"),
         started_at=timestamp(),
+    )
+
+
+def _reopened(manifest: RunManifest) -> RunManifest:
+    """The run as it was first described, running again: same settings, same start."""
+    from ai_taxman import __version__
+
+    versions = manifest.taxman_versions
+    return manifest.model_copy(
+        update={
+            "status": "running",
+            "finished_at": None,
+            "taxman_versions": versions if __version__ in versions else [*versions, __version__],
+        }
     )
 
 

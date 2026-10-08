@@ -142,6 +142,24 @@ async def test_a_resumed_run_keeps_when_it_started(project, fake_provider):
 # --- a new run, on request ---------------------------------------------------------
 
 
+async def test_a_run_records_every_taxman_version_that_collected_it(
+    project, fake_provider, monkeypatch
+):
+    """A newer taxman may have collected the later rows; the manifest must say so."""
+    import ai_taxman
+
+    monkeypatch.setattr(ai_taxman, "__version__", "0.1.0")
+    first = await unfinished_run(project, fake_provider)
+    monkeypatch.setattr(ai_taxman, "__version__", "0.2.0")
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    await run_audit_async(audit(project))
+
+    await run_audit_async(audit(project))
+
+    manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["taxman_versions"] == ["0.1.0", "0.2.0"]
+
+
 async def test_a_new_run_starts_over_beside_the_last_one(project, fake_provider):
     first = await run_audit_async(audit(project))
     keep_only(first, (ONE, 0))

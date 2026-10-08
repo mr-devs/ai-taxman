@@ -91,7 +91,9 @@ class RunManifest(BaseModel):
     provider: str
     model: str
 
-    taxman_version: str
+    #: Every taxman version that collected this run, in the order each first did:
+    #: a run resumed after an upgrade has rows written by more than one.
+    taxman_versions: list[str]
     schema_version: int
 
     messages_path: str

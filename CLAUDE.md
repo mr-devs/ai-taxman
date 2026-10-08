@@ -275,7 +275,8 @@ resumed run honest:
 - **The broken tail goes first.** See below.
 
 The manifest's `n_ok` and `n_error` count pairs across every session, so a failure later
-answered is counted once, as answered. Its `started_at` is the first session's.
+answered is counted once, as answered. Its `started_at` is the first session's, and
+`taxman_versions` lists every version that collected it.
 
 Everything on disk is written as it is produced. Responses are flushed per row, so an audit that
 is killed keeps every response already paid for, and `read_jsonl` stops at a truncated tail
