@@ -109,6 +109,14 @@ async def test_a_resumed_runs_rows_are_added_to_what_was_there(project, fake_pro
     assert statuses[-1] == (TWO, "ok")
 
 
+async def test_the_result_counts_the_session_and_the_run(project, fake_provider):
+    await unfinished_run(project, fake_provider)
+
+    second = await run_audit_async(audit(project))
+
+    assert (second.n_ok, second.run_n_ok) == (2, 3)
+
+
 async def test_the_manifest_counts_each_response_once_across_sessions(project, fake_provider):
     fake_provider.failures = {TWO: [RuntimeError("nope")]}
     first = await run_audit_async(audit(project))

@@ -77,6 +77,9 @@ class RunResult:
     #: Responses written by this call - on a resumed run, only the ones it sent.
     n_ok: int
     n_error: int
+    #: The run's own counts, every session included: what its manifest says.
+    run_n_ok: int = 0
+    run_n_error: int = 0
     stopped_early: bool = False
     #: True when this call finished an existing run rather than starting one.
     resumed: bool = False
@@ -289,6 +292,8 @@ async def run_audit_async(
         manifest_path=manifest_path,
         n_ok=state.n_ok,
         n_error=state.n_error,
+        run_n_ok=len(state.answered),
+        run_n_error=len(state.failed),
         stopped_early=state.stop.is_set(),
         resumed=plan.resuming,
     )
@@ -303,6 +308,7 @@ def _already_complete(plan: RunPlan, config: AuditConfig) -> RunResult:
         manifest_path=plan.directory / MANIFEST_FILENAME,
         n_ok=0,
         n_error=0,
+        run_n_ok=len(plan.answered),
         already_complete=True,
     )
 

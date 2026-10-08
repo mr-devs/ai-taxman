@@ -253,6 +253,49 @@ def test_a_run_where_everything_fails_exits_nonzero(invoke, tmp_path, fake_provi
     assert result.exit_code != 0
 
 
+def test_a_resumed_run_is_judged_on_the_whole_run(invoke, tmp_path, fake_provider):
+    """One message that always fails must not fail every later collect of a run
+    that is otherwise answered."""
+    make_project(tmp_path)
+    fake_provider.failures = {TWO: [RuntimeError("refused")] * 2}
+    assert invoke("collect", "probe").exit_code == 0
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code == 0, result.output
+    assert "0 ok, 1 error" in result.output
+    assert "now has 2 of 3 responses" in result.output
+
+
+def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """The runner plans again before it sends, and may find nothing left to do."""
+    from ai_taxman.core import runner
+    from ai_taxman.core.runner import RunResult
+
+    make_project(tmp_path)
+
+    def finished_elsewhere(config, *, run_id, **kwargs):
+        directory = tmp_path / "data" / "probe" / run_id
+        return RunResult(
+            run_id=run_id,
+            output_path=directory / "responses.jsonl",
+            manifest_path=directory / "manifest.json",
+            n_ok=0,
+            n_error=0,
+            run_n_ok=3,
+            already_complete=True,
+        )
+
+    monkeypatch.setattr(runner, "run_audit", finished_elsewhere)
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code == 0, result.output
+    assert "already complete" in result.output
+
+
 def test_manifest_records_the_run(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 

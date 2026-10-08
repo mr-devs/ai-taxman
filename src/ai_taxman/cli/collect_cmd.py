@@ -154,6 +154,10 @@ def collect(
         typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
     result = _run(config, provider=provider, run_id=run_id, new_run=new_run)
+    if result.already_complete:
+        # Finished by another collect while this one was starting.
+        _say_complete(config, plan)
+        return
 
     typer.echo("")
     typer.secho(f"{result.n_ok} ok", fg=typer.colors.GREEN, nl=False)
@@ -161,6 +165,8 @@ def collect(
         typer.echo(", ", nl=False)
         typer.secho(f"{result.n_error} error", fg=typer.colors.RED, nl=False)
     typer.echo(f"  ->  {display_path(result.output_path)}")
+    if result.resumed:
+        typer.echo(f"Run {run_id} now has {result.run_n_ok} of {plan.expected} responses.")
 
     if result.stopped_early:
         typer.secho(
@@ -168,7 +174,9 @@ def collect(
             fg=typer.colors.YELLOW,
         )
 
-    if result.n_ok == 0:
+    # The whole run, not this session: a resumed run that only retried a message
+    # that keeps failing has still collected everything else.
+    if result.run_n_ok == 0:
         fail("every message failed; see the error rows in the output for why.")
 
 
