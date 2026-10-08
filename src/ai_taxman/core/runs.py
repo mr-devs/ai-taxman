@@ -151,6 +151,7 @@ def plan_run(
     existing: ExistingRun | None
     if run_id is not None:
         directory = _output_dir(config, run_id)
+        _guard_run_directory(directory, run_id=run_id)
         manifest_path = directory / MANIFEST_FILENAME
         existing = (
             ExistingRun(run_id, directory, _read_manifest(manifest_path))
@@ -162,9 +163,11 @@ def plan_run(
 
     if existing is None:
         run_id = run_id or new_run_id()
+        directory = _output_dir(config, run_id)
+        _guard_run_directory(directory, run_id=run_id)
         return RunPlan(
             run_id=run_id,
-            directory=_output_dir(config, run_id),
+            directory=directory,
             tasks=pairs,
             expected=len(pairs),
             answered=frozenset(),
@@ -322,9 +325,11 @@ def _new_run_beside_the_last(config: AuditConfig, pairs: list[tuple[Message, int
 
     last = latest_run(config)
     run_id = new_run_id()
+    directory = _output_dir(config, run_id)
+    _guard_run_directory(directory, run_id=run_id)
     return RunPlan(
         run_id=run_id,
-        directory=_output_dir(config, run_id),
+        directory=directory,
         tasks=pairs,
         expected=len(pairs),
         answered=frozenset(),
@@ -364,6 +369,42 @@ def _responses_so_far(path: Path) -> tuple[set[Pair], set[Pair]]:
         if row.status == "ok":
             answered.add(pair)
     return answered, attempted - answered
+
+
+def _guard_run_directory(directory: Path, *, run_id: str) -> None:
+    """Refuse to start a run in a directory another run already holds.
+
+    `output.dir` is the user's to set. Without `{run_id}` it has room for one
+    run, which collecting again resumes; without `{audit}` as well, two audits
+    land in one place. The JSONL is opened in append mode and the manifest is
+    overwritten, so writing a second run there would leave one file holding two
+    runs, described by a manifest that accounts for half of it.
+    """
+    existing = _existing_run_id(directory / MANIFEST_FILENAME)
+    if existing is None or existing == run_id:
+        return
+
+    raise ConfigError(
+        f"{directory} already holds run {existing}, and this run is {run_id}. "
+        "Two runs cannot share a directory: the responses would be appended to "
+        "one file and the manifest would describe only the newer run. Put "
+        "`{audit}` and `{run_id}` in the audit's `output.dir`, so each run has "
+        "its own."
+    )
+
+
+def _existing_run_id(path: Path) -> str | None:
+    """The run id a directory already claims, or None if it claims none.
+
+    Unreadable is treated as absent: this guard exists to catch a misconfigured
+    `output.dir`, not to police a directory the user has been editing.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    run_id = data.get("run_id") if isinstance(data, dict) else None
+    return run_id if isinstance(run_id, str) else None
 
 
 def _output_dir(config: AuditConfig, run_id: str) -> Path:

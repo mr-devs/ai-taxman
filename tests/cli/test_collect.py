@@ -120,6 +120,25 @@ def test_a_changed_audit_is_not_resumed(invoke, tmp_path, fake_provider):
     assert fake_provider.sent == []
 
 
+def test_two_audits_in_one_directory_are_told_how_to_fix_it(invoke, tmp_path, fake_provider):
+    """Not that the second audit "has changed": it never had a run there."""
+    shared = (
+        "audit: {name}\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/shared\n  log_dir: logs/{{audit}}\nmodel:\n  name: fake-1\n"
+    )
+    make_project(tmp_path, shared.format(name="probe"))
+    (tmp_path / "audits" / "other.yaml").write_text(shared.format(name="other"), encoding="utf-8")
+    assert invoke("collect", "probe").exit_code == 0
+    fake_provider.sent.clear()
+
+    result = invoke("collect", "other")
+
+    assert result.exit_code != 0
+    assert "already holds run" in result.output
+    assert "has changed" not in result.output
+    assert fake_provider.sent == []
+
+
 def test_collecting_a_complete_audit_says_so_and_sends_nothing(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
     invoke("collect", "probe")

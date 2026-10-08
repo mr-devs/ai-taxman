@@ -237,6 +237,18 @@ async def test_two_audits_never_share_a_run_directory(project, fake_provider):
     assert "output.dir" in message
 
 
+async def test_a_run_id_is_never_given_another_runs_directory(project, fake_provider):
+    """Rows labelled with one run id must not land under a manifest naming another."""
+    single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
+    first = await run_audit_async(audit(project, single))
+    fake_provider.sent.clear()
+
+    with pytest.raises(ConfigError, match=f"already holds run {first.run_id}"):
+        await run_audit_async(audit(project, single), run_id="20261008T000000Z-000000")
+
+    assert fake_provider.sent == []
+
+
 async def test_an_audit_with_one_run_directory_is_resumed_in_place(project, fake_provider):
     """Without {run_id} in `output.dir` there is room for one run, and it is finished."""
     single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
