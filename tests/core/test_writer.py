@@ -134,6 +134,26 @@ def test_read_jsonl_skips_a_truncated_final_line(tmp_path):
     assert len(list(read_jsonl(target))) == 1
 
 
+def test_read_jsonl_skips_a_final_line_cut_inside_a_character(tmp_path):
+    """Rows are written unescaped, so a kill can land between the bytes of a ’."""
+    target = tmp_path / "responses.jsonl"
+    with JsonlWriter(target) as writer:
+        writer.write(make_record())
+    with target.open("ab") as handle:
+        handle.write('{"message": "it’s'.encode()[:-3])
+
+    assert len(list(read_jsonl(target))) == 1
+
+
+def test_read_jsonl_refuses_a_line_that_is_not_utf8_with_rows_after_it(tmp_path):
+    target = tmp_path / "responses.jsonl"
+    whole = json.dumps(make_record().to_dict()).encode() + b"\n"
+    target.write_bytes(whole + b'{"message": "\xff"}\n' + whole)
+
+    with pytest.raises(ResponseFileError, match="Line 2 of"):
+        list(read_jsonl(target))
+
+
 def test_read_jsonl_refuses_a_broken_line_with_rows_after_it(tmp_path):
     """Only a killed run's last line may be cut short; a broken row mid-file is not dropped."""
     target = tmp_path / "responses.jsonl"

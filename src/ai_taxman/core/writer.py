@@ -8,6 +8,7 @@ resumed run adds to what is already there rather than replacing it.
 from __future__ import annotations
 
 import gzip
+import io
 import json
 import os
 import zlib
@@ -85,8 +86,10 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
     if not path.is_file():
         return
 
+    # Bytes, decoded a line at a time: a kill can stop the file inside a
+    # character, and only the line it cut may fail to decode.
     opener = gzip.open if path.suffix == GZIP_SUFFIX else open
-    with opener(path, "rt", encoding="utf-8") as handle:
+    with opener(path, "rb") as handle:
         cut_short: int | None = None
         for number, line in enumerate(_lines(handle), start=1):
             line = line.strip()
@@ -99,8 +102,8 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
                     "killed while writing it."
                 )
             try:
-                data = json.loads(line)
-            except json.JSONDecodeError:
+                data = json.loads(line.decode("utf-8"))
+            except ValueError:  # not UTF-8, or not JSON
                 cut_short = number
                 continue
             try:
@@ -113,7 +116,7 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
                 ) from exc
 
 
-def _lines(handle: IO[str]) -> Iterator[str]:
+def _lines(handle: io.BufferedIOBase) -> Iterator[bytes]:
     """Yield lines, stopping where a killed run stopped writing.
 
     A gzip stream from an interrupted run has no end-of-stream marker, and the
@@ -180,10 +183,10 @@ def _drop_partial_line(path: Path) -> bool:
 def _close_gzip_stream(path: Path) -> bool:
     if _gzip_is_whole(path):
         return False
-    with gzip.open(path, "rt", encoding="utf-8") as handle:
-        whole_lines = [line for line in _lines(handle) if line.endswith("\n")]
+    with gzip.open(path, "rb") as handle:
+        whole_lines = [line for line in _lines(handle) if line.endswith(b"\n")]
     replacement = path.with_name(path.name + ".repair")
-    with gzip.open(replacement, "wt", encoding="utf-8") as handle:
+    with gzip.open(replacement, "wb") as handle:
         handle.writelines(whole_lines)
     os.replace(replacement, path)
     return True

@@ -294,6 +294,18 @@ async def test_a_half_written_last_line_does_not_break_the_resumed_file(project,
     assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
 
 
+async def test_a_last_line_cut_inside_a_character_does_not_stop_the_resume(project, fake_provider):
+    first = await run_audit_async(audit(project))
+    keep_only(first, (ONE, 0))
+    with first.output_path.open("ab") as handle:
+        handle.write('{"message": "it’s'.encode()[:-2])  # "s" and the last byte of ’
+
+    await run_audit_async(audit(project))
+
+    rows = list(read_jsonl(first.output_path))
+    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
+
+
 async def test_a_killed_compressed_run_is_resumed_into_a_readable_file(project, fake_provider):
     from ai_taxman.core.writer import JsonlWriter
 
