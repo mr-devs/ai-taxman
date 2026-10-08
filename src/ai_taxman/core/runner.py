@@ -185,8 +185,8 @@ async def run_audit_async(
             await _startup(provider, api_key)
             # Planned again, now that nothing is left to wait for before sending:
             # another collect may have started or finished this run meanwhile.
-            # The audit's lock keeps a third from planning until this one has
-            # claimed the run, so it sees the claim.
+            # Under the audit's lock, no other collect plans until this one has
+            # claimed the run, so the next to plan sees the claim.
             with hold_audit(config):
                 plan = plan_run(
                     config, messages, system_prompt=system_text, new_run=new_run, run_id=run_id
