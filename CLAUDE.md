@@ -264,7 +264,9 @@ resumed run honest:
   or reordering lines changes nothing that is sent.
 - **One collector per run.** The runner holds an `flock` on `collect.lock` in the run
   directory while it collects; the OS releases it however the process ends, so a killed run
-  never leaves a stale lock. A run whose lock is held raises `RunInProgressError`.
+  never leaves a stale lock. A run whose lock is held raises `RunInProgressError`. Only
+  a lock that is taken means that: where the filesystem cannot lock at all (NFS without
+  lockd), the run warns and collects unlocked.
 - **The broken tail goes first.** See below.
 
 The manifest's `n_ok` and `n_error` count pairs across every session, so a failure later

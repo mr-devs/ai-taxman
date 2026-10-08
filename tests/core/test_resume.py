@@ -367,6 +367,29 @@ async def test_the_refusal_names_a_background_runs_pid(project, fake_provider):
         await run_audit_async(audit(project))
 
 
+@pytest.mark.parametrize("error", ["ENOLCK", "ENOTSUP", "EBADF"])
+async def test_a_filesystem_that_cannot_lock_still_collects(
+    project, fake_provider, monkeypatch, caplog, error
+):
+    """NFS without lockd, or an SMB mount: one collector per run cannot be enforced
+    there, which is no reason to refuse every collect, the first included."""
+    import errno
+    import os
+
+    def unsupported(fd, operation):
+        raise OSError(getattr(errno, error), os.strerror(getattr(errno, error)))
+
+    first = await unfinished_run(project, fake_provider)
+    fake_provider.sent.clear()
+    monkeypatch.setattr("fcntl.flock", unsupported)
+
+    second = await run_audit_async(audit(project))
+
+    assert second.run_id == first.run_id
+    assert sent(fake_provider) == sorted([(TWO, 0), (THREE, 0)])
+    assert "cannot be locked" in caplog.text
+
+
 async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider):
     import asyncio
 

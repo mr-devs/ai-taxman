@@ -30,9 +30,13 @@ from ai_taxman.core.errors import (
     ResponseFileError,
     RunInProgressError,
 )
+from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message
 from ai_taxman.core.records import RunManifest, new_run_id
 from ai_taxman.core.writer import read_jsonl, target_path
+
+#: Ids and counts only, like every core logger.
+log = get_logger(__name__)
 
 MANIFEST_FILENAME = "manifest.json"
 
@@ -188,10 +192,18 @@ def plan_run(
 
 @contextlib.contextmanager
 def hold_run(directory: Path) -> Iterator[None]:
-    """Hold a run's lock while it is collected; raise if another process holds it.
+    """Hold a run's lock while it is collected; raise if another process holds it."""
+    with _lock(directory, warn=True):
+        yield
 
-    Where `flock` does not exist (Windows), a run in progress cannot be told
-    from a dead one, so nothing is held and nothing is refused.
+
+@contextlib.contextmanager
+def _lock(directory: Path, *, warn: bool) -> Iterator[None]:
+    """`flock` the run's lock file, or raise `RunInProgressError` if it is taken.
+
+    Where `flock` does not exist (Windows), or the filesystem cannot lock (NFS
+    without lockd, many SMB mounts), a run in progress cannot be told from a
+    dead one, so nothing is held and nothing is refused.
     """
     try:
         import fcntl
@@ -203,8 +215,18 @@ def hold_run(directory: Path) -> Iterator[None]:
     with (directory / LOCK_FILENAME).open("a") as handle:
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
+        except BlockingIOError as exc:
             raise RunInProgressError(_in_progress_message(directory)) from exc
+        except OSError as exc:
+            if warn:
+                log.warning(
+                    "unlocked  %s cannot be locked here (%s), so a second collect of "
+                    "this run at the same time would not be refused",
+                    directory,
+                    exc.strerror or exc,
+                )
+            yield
+            return
         try:
             yield
         finally:
@@ -214,7 +236,7 @@ def hold_run(directory: Path) -> Iterator[None]:
 def _check_not_in_progress(existing: ExistingRun) -> None:
     """Raise if another process is collecting `existing` right now."""
     if (existing.directory / LOCK_FILENAME).is_file():
-        with hold_run(existing.directory):
+        with _lock(existing.directory, warn=False):
             pass
 
 
