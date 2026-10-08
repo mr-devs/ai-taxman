@@ -50,10 +50,15 @@ def build_child_command(
     run_id: str,
     log_file: Path,
     pid_file: Path,
+    new_run: bool = False,
     log_level: str | None = None,
     quiet: bool = False,
 ) -> list[str]:
     """The argv for the detached child.
+
+    `--new-run` goes with the run id when the parent started a new run: the
+    child plans again before it sends anything, and has to arrive at the run
+    its parent chose.
 
     `-m ai_taxman` rather than the `taxman` script: it works the same whether
     taxman was installed with `uv tool install`, run through `uv run`, or is a
@@ -75,6 +80,8 @@ def build_child_command(
         "--pid-file",
         str(pid_file),
     ]
+    if new_run:
+        argv.append("--new-run")
     if log_level is not None:
         argv += ["--log-level", log_level]
     if quiet:

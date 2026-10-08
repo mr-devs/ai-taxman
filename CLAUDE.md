@@ -267,6 +267,11 @@ resumed run honest:
   never leaves a stale lock. A run whose lock is held raises `RunInProgressError`. Only
   a lock that is taken means that: where the filesystem cannot lock at all (NFS without
   lockd), the run warns and collects unlocked.
+- **The plan is made again once nothing is left to wait for.** `collect` plans before the
+  provider starts, so two collects started together could both plan the same work. The
+  runner plans again, held to the run it announced, under an `flock` on the audit file
+  (`runs.hold_audit()`), and keeps that lock until it holds the run's lock and has written
+  the manifest. The second collect then sees the first one's run.
 - **The broken tail goes first.** See below.
 
 The manifest's `n_ok` and `n_error` count pairs across every session, so a failure later
@@ -299,7 +304,7 @@ in a new session, and exits. Three rules:
   collected is refused at the prompt, and a complete audit prints nothing on stdout.
 - **The parent picks the run** — the latest, resumed, or a new one — because otherwise nothing
   could name the directory or the log before the child starts. The hidden `--background-run`
-  carries it to the child; it is plumbing, not a way for a user to choose an id. Its name
+  carries it to the child, with `--new-run` when the run is new; it is plumbing, not a way for a user to choose an id. Its name
   is deliberately unlike any option a user types: Click's "did you mean" suggests hidden
   options too, and `test_a_run_id_cannot_be_chosen` checks none is ever offered. A run id
   given to the runner still goes through `records.validate_run_id()`: it is interpolated into

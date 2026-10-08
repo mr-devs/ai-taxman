@@ -41,6 +41,8 @@ class FakeProvider(Provider):
     delay: float = 0.0
     #: Raised by startup(), standing in for a missing API key.
     startup_error: Exception | None = None
+    #: Seconds startup() takes, so two runs can be caught between plan and start.
+    startup_delay: float = 0.0
     retryable: tuple[type[BaseException], ...] = ()
 
     sent: list[Request] = field(default_factory=list)
@@ -70,6 +72,8 @@ class FakeProvider(Provider):
     async def startup(self, *, api_key: str | None = None) -> None:
         self.started += 1
         self.api_key = api_key
+        if self.startup_delay:
+            await asyncio.sleep(self.startup_delay)
         if self.startup_error is not None:
             raise self.startup_error
 

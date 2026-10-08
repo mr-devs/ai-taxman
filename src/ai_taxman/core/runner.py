@@ -46,7 +46,14 @@ from ai_taxman.core.records import (
     validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
-from ai_taxman.core.runs import MANIFEST_FILENAME, RunPlan, hold_run, output_file, plan_run
+from ai_taxman.core.runs import (
+    MANIFEST_FILENAME,
+    RunPlan,
+    hold_audit,
+    hold_run,
+    output_file,
+    plan_run,
+)
 from ai_taxman.core.writer import JsonlWriter, repair_tail
 from ai_taxman.providers.base import Provider, Request
 
@@ -141,10 +148,11 @@ async def run_audit_async(
         checked.api_key,
     )
 
+    system_text = system_prompt.text if system_prompt else None
     plan = plan_run(
         config,
         messages,
-        system_prompt=system_prompt.text if system_prompt else None,
+        system_prompt=system_text,
         new_run=new_run,
         run_id=validate_run_id(run_id) if run_id is not None else None,
     )
@@ -153,41 +161,53 @@ async def run_audit_async(
         return _already_complete(plan, config)
 
     limit = config.execution.max_concurrency
-    tasks = list(plan.tasks)
-    if config.execution.shuffle:
-        random.Random(seed).shuffle(tasks)
-
     directory = plan.directory
-    if plan.manifest is None:
-        manifest = _new_manifest(config, provider, model, messages, run_id, system_prompt)
-    else:
-        # The run as it was first described, reopened: same settings, same start.
-        manifest = plan.manifest.model_copy(update={"status": "running", "finished_at": None})
     manifest_path = directory / MANIFEST_FILENAME
-
-    state = _RunState(
-        on_error=config.execution.on_error,
-        answered=set(plan.answered),
-        failed=set(plan.failed),
-    )
+    state = _RunState(on_error=config.execution.on_error)
     # Constructed here but not opened: nothing touches the disk until the `with`.
     writer = JsonlWriter(directory / config.output.filename, compress=config.output.compress)
-    on_disk = False
+    #: Set once the run's manifest is on disk.
+    manifest: RunManifest | None = None
 
     # Start the provider first, so a run that cannot begin - a missing SDK, most
     # often - leaves no directory behind. Everything after that point is written
     # before the first request goes out, so the run is described from the moment
     # it can produce anything at all.
     #
-    # The lock is held from before the manifest is written until after it is
-    # finalised, so no second `collect` can resume this run while it is collected.
+    # The run's lock is held from before the manifest is written until after it
+    # is finalised, so no second `collect` can resume this run while it is collected.
     with contextlib.ExitStack() as lock:
         try:
             _handle_stop_signals(stop_signals, state)
             await _startup(provider, api_key)
-            lock.enter_context(hold_run(directory))
-            _write_manifest(manifest, manifest_path)
-            on_disk = True
+            # Planned again, now that nothing is left to wait for before sending:
+            # another collect may have started or finished this run meanwhile.
+            # The audit's lock keeps a third from planning until this one has
+            # claimed the run, so it sees the claim.
+            with hold_audit(config):
+                plan = plan_run(
+                    config, messages, system_prompt=system_text, new_run=new_run, run_id=run_id
+                )
+                if not plan.complete:
+                    lock.enter_context(hold_run(directory))
+                    opened = (
+                        _new_manifest(config, provider, model, messages, run_id, system_prompt)
+                        if plan.manifest is None
+                        # The run as it was first described, reopened: same
+                        # settings, same start.
+                        else plan.manifest.model_copy(
+                            update={"status": "running", "finished_at": None}
+                        )
+                    )
+                    _write_manifest(opened, manifest_path)
+                    manifest = opened
+            if manifest is None:
+                return _already_complete(plan, config)
+
+            state.answered, state.failed = set(plan.answered), set(plan.failed)
+            tasks = list(plan.tasks)
+            if config.execution.shuffle:
+                random.Random(seed).shuffle(tasks)
             if plan.resuming and repair_tail(writer.path):
                 log.warning(
                     "repaired  the end of %s, which a killed run left unfinished", writer.path
@@ -225,7 +245,7 @@ async def run_audit_async(
                     provider=provider,
                     config=config,
                     model=model,
-                    system_prompt=system_prompt.text if system_prompt else None,
+                    system_prompt=system_text,
                     run_id=run_id,
                     limit=limit,
                     backoff_base=backoff_base,
@@ -234,17 +254,20 @@ async def run_audit_async(
                     on_record=on_record,
                 )
         except (KeyboardInterrupt, asyncio.CancelledError):
-            manifest.status = "interrupted"
+            if manifest is not None:
+                manifest.status = "interrupted"
             raise
         except BaseException:
-            manifest.status = "failed"
+            if manifest is not None:
+                manifest.status = "failed"
             raise
         else:
-            manifest.status = "stopped_early" if state.stop.is_set() else "complete"
+            if manifest is not None:
+                manifest.status = "stopped_early" if state.stop.is_set() else "complete"
         finally:
             _release_stop_signals(stop_signals)
             await _shutdown(provider)
-            if on_disk:
+            if manifest is not None:
                 manifest.finished_at = timestamp()
                 # Per pair across every session, so a failure later answered is not
                 # counted twice, and one retried in vain is counted once.

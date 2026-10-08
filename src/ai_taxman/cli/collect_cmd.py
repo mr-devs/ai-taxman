@@ -156,7 +156,7 @@ def collect(
         # never be mistaken for a fresh one.
         typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
-    result = _run(config, provider=provider, run_id=run_id, pid_file=pid_file)
+    result = _run(config, provider=provider, run_id=run_id, new_run=new_run, pid_file=pid_file)
 
     typer.echo("")
     typer.secho(f"{result.n_ok} ok", fg=typer.colors.GREEN, nl=False)
@@ -210,7 +210,8 @@ def _run(
     config: AuditConfig,
     *,
     provider: Provider,
-    run_id: str | None,
+    run_id: str,
+    new_run: bool,
     pid_file: Path | None,
 ) -> RunResult:
     """Run in this process, recording our pid for as long as we are running.
@@ -234,7 +235,9 @@ def _run(
     stop_signals = (signal.SIGTERM,) if hasattr(signal, "SIGTERM") else ()
 
     try:
-        return run_audit(config, provider=provider, run_id=run_id, stop_signals=stop_signals)
+        return run_audit(
+            config, provider=provider, run_id=run_id, new_run=new_run, stop_signals=stop_signals
+        )
     finally:
         if pid_file is not None:
             clear_pid_file(pid_file, pid)
@@ -288,6 +291,7 @@ def _start_in_background(
     argv = build_child_command(
         audit,
         run_id=run_id,
+        new_run=new_run,
         log_file=log_file,
         pid_file=pid_file,
         log_level=log_level,

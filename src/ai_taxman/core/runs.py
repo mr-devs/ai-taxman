@@ -133,48 +133,48 @@ def plan_run(
     """Decide which run collecting this audit continues, and what it still has to send.
 
     By default, the audit's latest run, or a new run if the audit has none. With
-    `new_run`, a new run whatever is on disk. With `run_id`, that run: resumed if
-    it is on disk, started if not - how a background parent hands its child the
-    run it chose.
+    `new_run`, a new run whatever is on disk.
+
+    `run_id` holds the plan to a run an earlier plan chose: how the runner keeps
+    to the run its caller announced when it plans again, and how a background
+    parent hands its child the run it picked. That run is resumed if it is on
+    disk. If not, it is started only the way the earlier plan would have started
+    it - with `new_run`, or while the audit still has no run - so a run another
+    collect started in between is never doubled.
 
     Raises `AuditChangedError` rather than resume a run the audit no longer
     describes. `system_prompt` is the text that would be sent, or None.
     """
-    if new_run and run_id is not None:
-        raise ValueError("Pass `new_run` or `run_id`, not both.")
-
     pairs = expand(messages, config.execution.repeats)
 
-    if new_run:
-        return _new_run_beside_the_last(config, pairs)
+    if run_id is None:
+        if new_run:
+            return _new_plan(config, pairs, new_run_id(), beside_the_last=True)
+        latest = latest_run(config)
+        if latest is None:
+            return _new_plan(config, pairs, new_run_id())
+        return _resume(config, messages, system_prompt, pairs, latest)
 
-    existing: ExistingRun | None
-    if run_id is not None:
-        directory = _output_dir(config, run_id)
-        _guard_run_directory(directory, run_id=run_id)
-        manifest_path = directory / MANIFEST_FILENAME
-        existing = (
-            ExistingRun(run_id, directory, _read_manifest(manifest_path))
-            if manifest_path.is_file()
-            else None
-        )
-    else:
-        existing = latest_run(config)
+    existing = _run_on_disk(config, run_id)
+    if existing is not None:
+        if new_run:
+            raise ConfigError(
+                f"Run {run_id} of {config.audit} is already on disk, so it cannot be "
+                "started as a new run."
+            )
+        return _resume(config, messages, system_prompt, pairs, existing)
+    if not new_run:
+        _refuse_a_second_run(config, run_id)
+    return _new_plan(config, pairs, run_id, beside_the_last=new_run)
 
-    if existing is None:
-        run_id = run_id or new_run_id()
-        directory = _output_dir(config, run_id)
-        _guard_run_directory(directory, run_id=run_id)
-        return RunPlan(
-            run_id=run_id,
-            directory=directory,
-            tasks=pairs,
-            expected=len(pairs),
-            answered=frozenset(),
-            failed=frozenset(),
-            manifest=None,
-        )
 
+def _resume(
+    config: AuditConfig,
+    messages: list[Message],
+    system_prompt: str | None,
+    pairs: list[tuple[Message, int]],
+    existing: ExistingRun,
+) -> RunPlan:
     _check_not_in_progress(existing)
     _check_unchanged(config, messages, system_prompt, existing)
 
@@ -191,6 +191,68 @@ def plan_run(
         failed=frozenset(failed & expected),
         manifest=existing.manifest,
     )
+
+
+def _run_on_disk(config: AuditConfig, run_id: str) -> ExistingRun | None:
+    directory = _output_dir(config, run_id)
+    _guard_run_directory(directory, run_id=run_id)
+    manifest_path = directory / MANIFEST_FILENAME
+    if not manifest_path.is_file():
+        return None
+    return ExistingRun(run_id, directory, _read_manifest(manifest_path))
+
+
+def _refuse_a_second_run(config: AuditConfig, run_id: str) -> None:
+    """Raise if the audit has a run already, so starting `run_id` would double it."""
+    latest = latest_run(config)
+    if latest is None:
+        return
+    _check_not_in_progress(latest)
+    raise RunInProgressError(
+        f"{config.audit} already has run {latest.run_id}, so starting run {run_id} would "
+        f"make a second run of it. Collect again to finish run {latest.run_id}, or start "
+        f"a new run with `taxman collect {config.audit} --new-run`."
+    )
+
+
+@contextlib.contextmanager
+def hold_audit(config: AuditConfig) -> Iterator[None]:
+    """Hold the audit while a collect plans its run and claims it.
+
+    Two collects of one audit started together each plan before either has
+    claimed anything, so both would send the same work. Planned again under this
+    lock, which is kept until the run's own lock is taken and its manifest
+    written, the second sees the run the first claimed.
+
+    An `flock` on the audit file itself, so it leaves nothing behind. It is
+    waited for, not refused: no one holds it for longer than it takes to plan.
+    """
+    path = config.source_path
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - the test machines are POSIX
+        yield
+        return
+    if not path.is_file():  # a config built in code, from no file
+        yield
+        return
+
+    with path.open("rb") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        except OSError as exc:
+            log.warning(
+                "unlocked  %s cannot be locked here (%s), so two collects of it "
+                "started at once could both run",
+                path,
+                exc.strerror or exc,
+            )
+            yield
+            return
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 @contextlib.contextmanager
@@ -315,16 +377,26 @@ def _show(value: Any) -> str:
     return "(not set)" if value is _NOT_SET else json.dumps(value)
 
 
-def _new_run_beside_the_last(config: AuditConfig, pairs: list[tuple[Message, int]]) -> RunPlan:
-    if "{run_id}" not in config.output.dir:
-        raise ConfigError(
-            f"`output.dir: {config.output.dir}` in {config.source_path} has no "
-            "`{run_id}`, so it has room for one run, which collecting again "
-            "finishes. Add `{run_id}` to `output.dir` to keep more than one run."
-        )
+def _new_plan(
+    config: AuditConfig,
+    pairs: list[tuple[Message, int]],
+    run_id: str,
+    *,
+    beside_the_last: bool = False,
+) -> RunPlan:
+    """A run started from nothing; `beside_the_last` when the audit may have runs already."""
+    left_unfinished = None
+    if beside_the_last:
+        if "{run_id}" not in config.output.dir:
+            raise ConfigError(
+                f"`output.dir: {config.output.dir}` in {config.source_path} has no "
+                "`{run_id}`, so it has room for one run, which collecting again "
+                "finishes. Add `{run_id}` to `output.dir` to keep more than one run."
+            )
+        last = latest_run(config)
+        if last is not None and _unfinished(last.manifest):
+            left_unfinished = last.run_id
 
-    last = latest_run(config)
-    run_id = new_run_id()
     directory = _output_dir(config, run_id)
     _guard_run_directory(directory, run_id=run_id)
     return RunPlan(
@@ -335,7 +407,7 @@ def _new_run_beside_the_last(config: AuditConfig, pairs: list[tuple[Message, int
         answered=frozenset(),
         failed=frozenset(),
         manifest=None,
-        left_unfinished=last.run_id if last is not None and _unfinished(last.manifest) else None,
+        left_unfinished=left_unfinished,
     )
 
 

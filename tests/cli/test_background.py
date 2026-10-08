@@ -59,6 +59,16 @@ def test_the_child_is_told_which_run_it_is():
     assert argv[argv.index("--background-run") + 1] == "r1"
 
 
+@pytest.mark.parametrize("new_run", [True, False])
+def test_the_child_is_told_whether_its_run_is_new(new_run):
+    """It plans again before it starts, and has to plan the run its parent chose."""
+    argv = build_child_command(
+        "probe", run_id="r1", new_run=new_run, log_file=Path("a.log"), pid_file=Path("a.pid")
+    )
+
+    assert ("--new-run" in argv) is new_run
+
+
 def test_the_child_writes_its_log_where_the_parent_said():
     argv = build_child_command(
         "probe", run_id="r1", log_file=Path("/tmp/a.log"), pid_file=Path("a.pid")
@@ -409,6 +419,25 @@ def test_a_backgrounded_run_stops_gracefully_when_it_is_killed(echo_project, plu
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["finished_at"] is not None
     assert manifest["n_ok"] < 500  # it stopped, rather than running to the end
+
+
+def test_a_background_new_run_is_collected_beside_the_last(echo_project, plugin_path):
+    run_taxman(echo_project, plugin_path)
+
+    result = run_taxman(echo_project, plugin_path, "--background", "--new-run")
+
+    assert result.returncode == 0, result.stderr
+    runs = list((echo_project / "data" / "probe").iterdir())
+    assert len(runs) == 2
+    assert all(
+        wait_for(
+            lambda run=run: (
+                json.loads((run / "manifest.json").read_text(encoding="utf-8"))["status"]
+                == "complete"
+            )
+        )
+        for run in runs
+    ), [child_log(run) for run in runs]
 
 
 def test_a_background_run_finishes_the_run_its_parent_resumed(echo_project, plugin_path):

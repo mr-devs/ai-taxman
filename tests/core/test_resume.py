@@ -390,6 +390,43 @@ async def test_a_filesystem_that_cannot_lock_still_collects(
     assert "cannot be locked" in caplog.text
 
 
+async def test_two_collects_started_together_send_the_audit_once(project, fake_provider):
+    """Each plans while the other is still starting; only one may claim the work."""
+    import asyncio
+
+    from ai_taxman.core.errors import RunInProgressError
+
+    fake_provider.startup_delay = 0.05
+
+    results = await asyncio.gather(
+        run_audit_async(audit(project)), run_audit_async(audit(project)), return_exceptions=True
+    )
+
+    assert sent(fake_provider) == sorted([(ONE, 0), (TWO, 0), (THREE, 0)])
+    assert [type(result) for result in results].count(RunInProgressError) == 1
+    assert len(list((project / "data" / "probe").iterdir())) == 1
+
+
+async def test_a_collect_that_was_slow_to_start_does_not_resend_what_another_sent(
+    project, fake_provider
+):
+    """Its plan is made again once it holds the run, not trusted from before."""
+    import asyncio
+
+    first = await unfinished_run(project, fake_provider)
+    slow = type(fake_provider)(startup_delay=0.3)
+
+    late, prompt = await asyncio.gather(
+        run_audit_async(audit(project), provider=slow), run_audit_async(audit(project))
+    )
+
+    assert slow.sent == []
+    assert late.already_complete is True
+    assert prompt.n_ok == 2
+    pairs = [(row.message_id, row.repeat) for row in read_jsonl(first.output_path)]
+    assert sorted(pairs) == sorted([(ONE, 0), (TWO, 0), (THREE, 0)])
+
+
 async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider):
     import asyncio
 
