@@ -255,7 +255,7 @@ Changes are additive unless listed here.
 | `taxman audits new <provider> <audit-name>` | Write a new audit file |
 | `taxman audits list` | List the project's audits |
 | `taxman audits show <audit-name>` | Print an audit's resolved settings |
-| `taxman audits validate <audit-name>` | Check an audit without sending anything |
+| `taxman audits validate <audit-name>` | Check an audit, and say what `collect` would do, without sending anything |
 | `taxman collect <audit-name>` | Run an audit |
 | `taxman messages ids <file>` | Print each message in a file with its id |
 | `taxman messages ids -t <message>...` | Print the id of each message given |

@@ -95,6 +95,103 @@ def test_validate_accepts_a_good_audit(invoke, tmp_path, fake_provider):
     assert "2 message(s) x 3 repeat(s) = 6" in result.output
 
 
+# --- validate says what collect would do with the audit's runs ------------------
+
+
+def collected(invoke, tmp_path, fake_provider, *, failing=()):
+    """A project whose `probe` audit has been collected once, with `failing` failed."""
+    from ai_taxman.core.messages import message_id
+
+    make_audit(tmp_path / "audits", "probe")
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\n", encoding="utf-8")
+    fake_provider.failures = {message_id(text): [RuntimeError("no")] * 3 for text in failing}
+    assert invoke("collect", "probe").exit_code == 0
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+    return run
+
+
+def tree(root):
+    return sorted((path.relative_to(root), path.stat().st_mtime_ns) for path in root.rglob("*"))
+
+
+def test_validate_says_an_uncollected_audit_starts_a_run(invoke, tmp_path, fake_provider):
+    make_audit(tmp_path / "audits", "probe")
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\n", encoding="utf-8")
+
+    result = invoke("audits", "validate", "probe")
+
+    assert "Collecting it starts a new run." in result.output
+
+
+def test_validate_says_which_run_collect_would_resume(invoke, tmp_path, fake_provider):
+    run = collected(invoke, tmp_path, fake_provider, failing=["two"])
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code == 0
+    assert f"Collecting it resumes run {run.name}: 3 of 6 responses collected, 3 to send." in (
+        result.output
+    )
+
+
+def test_validate_says_a_complete_run_sends_nothing(invoke, tmp_path, fake_provider):
+    run = collected(invoke, tmp_path, fake_provider)
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code == 0
+    assert f"Run {run.name} is complete, so collecting it sends nothing." in result.output
+
+
+def test_validate_refuses_an_audit_changed_since_its_run_began(invoke, tmp_path, fake_provider):
+    """`collect` would refuse to resume it, so "valid" would be a promise it breaks."""
+    collected(invoke, tmp_path, fake_provider, failing=["two"])
+    audit_file = tmp_path / "audits" / "probe.yaml"
+    audit_file.write_text(
+        audit_file.read_text(encoding="utf-8").replace("repeats: 3", "repeats: 2"),
+        encoding="utf-8",
+    )
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "has changed since its run" in result.output
+    assert "is valid" not in result.output
+
+
+def test_validate_refuses_a_run_being_collected(invoke, tmp_path, fake_provider):
+    from ai_taxman.core.runs import hold_run
+
+    run = collected(invoke, tmp_path, fake_provider, failing=["two"])
+
+    with hold_run(run):
+        result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "being collected right now" in result.output
+
+
+def test_validate_refuses_a_run_it_cannot_read(invoke, tmp_path, fake_provider):
+    run = collected(invoke, tmp_path, fake_provider, failing=["two"])
+    (run / "manifest.json").write_text("{", encoding="utf-8")
+
+    result = invoke("audits", "validate", "probe")
+
+    assert result.exit_code != 0
+    assert "cannot be read" in result.output
+
+
+def test_validate_changes_nothing_on_disk(invoke, tmp_path, fake_provider):
+    collected(invoke, tmp_path, fake_provider, failing=["two"])
+    before = tree(tmp_path / "data")
+
+    invoke("audits", "validate", "probe")
+
+    assert tree(tmp_path / "data") == before
+
+
 def test_validate_reports_a_missing_message_file(invoke, tmp_path, fake_provider):
     make_audit(tmp_path / "audits", "probe")
 

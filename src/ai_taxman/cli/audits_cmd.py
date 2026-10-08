@@ -147,17 +147,34 @@ def show_command(audit: AuditName) -> None:
 @audits_app.command("validate")
 @handles_taxman_errors
 def validate_command(audit: AuditName) -> None:
-    """Check an audit end to end without sending anything."""
+    """Check an audit end to end, and say what collect would do, without sending anything."""
     # Imported here, not at module scope: completion imports this module on every
     # Tab press and must not pay for the config parser.
     from ai_taxman.core.config import load_audit
     from ai_taxman.core.runner import preflight
+    from ai_taxman.core.runs import plan_run
 
     config = load_audit(find_audit(audit))
-    # The same checks `collect` makes, so "valid" here means it will start.
-    messages = preflight(config, get_provider(config.provider)).messages
+    # The same checks `collect` makes, its plan for the audit's runs included, so
+    # "valid" here means it will start. Planning reads the runs and writes nothing.
+    checked = preflight(config, get_provider(config.provider))
+    plan = plan_run(
+        config,
+        checked.messages,
+        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+    )
+    messages = checked.messages
     total = len(messages) * config.execution.repeats
     typer.secho(f"{display_path(config.source_path)} is valid.", fg=typer.colors.GREEN)
     typer.echo(
         f"{len(messages)} message(s) x {config.execution.repeats} repeat(s) = {total} request(s)."
     )
+    if plan.complete:
+        typer.echo(f"Run {plan.run_id} is complete, so collecting it sends nothing.")
+    elif plan.resuming:
+        typer.echo(
+            f"Collecting it resumes run {plan.run_id}: {len(plan.answered)} of "
+            f"{plan.expected} responses collected, {len(plan.tasks)} to send."
+        )
+    else:
+        typer.echo("Collecting it starts a new run.")
