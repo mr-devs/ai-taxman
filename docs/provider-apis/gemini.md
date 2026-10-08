@@ -28,7 +28,7 @@ The authoritative request and response schema is the REST reference. It is large
 | `input` (the message text) | `provider.py` `build_request()` | [Text generation](https://ai.google.dev/gemini-api/docs/text-generation.md.txt) |
 | `model:` `name` | `config.py`, `models.py` | [Models](https://ai.google.dev/gemini-api/docs/models.md.txt) |
 | `system_prompt` (core's, `Request.system_prompt`) → `system_instruction` | `provider.py` | [Text generation](https://ai.google.dev/gemini-api/docs/text-generation.md.txt) |
-| `temperature`, `top_p`, `max_output_tokens` → `generation_config` | `config.py` | [Text generation](https://ai.google.dev/gemini-api/docs/text-generation.md.txt) |
+| `max_output_tokens` → `generation_config` | `config.py` | [Text generation](https://ai.google.dev/gemini-api/docs/text-generation.md.txt) |
 | `thinking_level`, `thinking_summaries` → `generation_config` | `config.py`, `models.py` | [Gemini thinking](https://ai.google.dev/gemini-api/docs/thinking.md.txt) |
 | `store` (always sent, defaults false) | `config.py` | [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview.md.txt), [Logs and datasets](https://ai.google.dev/gemini-api/docs/logs-datasets.md.txt) |
 | `search.web_search` → `tools: [{type: google_search}]` | `provider.py` `build_request()` | [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/google-search.md.txt) |
@@ -84,6 +84,7 @@ and derives nothing from it. With `store: false`, the response carries no `id`, 
 
 | Gap | Documentation |
 |---|---|
+| **`temperature`, `top_p`, `top_k`**: deprecated on 2026-07-30 and not offered. Gemini 3.6 Flash and later ignore them, later models refuse them with a 400, and the Interactions reference does not list them. `extra: {generation_config: {temperature: ...}}` still sends one to an older model | [What's new in Gemini 3.6 Flash](https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.6.md.txt) |
 | **Safety settings**: the Interactions overview says custom safety settings are not supported. The beta reference lists `safety_settings`, so it can be tried through `extra:` | [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview.md.txt) |
 | **Batch mode**: the Batch API serves `generateContent` only | [Batch API](https://ai.google.dev/gemini-api/docs/batch-api.md.txt) |
 | **`thinking_budget`**: the Interactions API has only `thinking_level`, which 2.5 models take as `low`, `medium`, or `high`; a token budget cannot be set | [Gemini thinking](https://ai.google.dev/gemini-api/docs/thinking.md.txt) |

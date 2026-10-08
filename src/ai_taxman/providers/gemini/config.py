@@ -15,15 +15,13 @@ from ai_taxman.providers.settings import SettingsBlock, check_extra
 
 #: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
 #: anything else - a key inside `generation_config` included, so a `seed` can sit
-#: beside the audit's temperature - but never one of these.
+#: beside the audit's max_output_tokens - but never one of these.
 SET_BY_TAXMAN = frozenset(
     {
         "model",
         "input",
         "store",
         "system_instruction",
-        "generation_config.temperature",
-        "generation_config.top_p",
         "generation_config.max_output_tokens",
         "generation_config.thinking_level",
         "generation_config.thinking_summaries",
@@ -39,7 +37,7 @@ THINKING_DOCS = "https://ai.google.dev/gemini-api/docs/thinking"
 INTERACTIONS_DOCS = "https://ai.google.dev/gemini-api/docs/interactions-overview"
 SEARCH_DOCS = "https://ai.google.dev/gemini-api/docs/google-search"
 
-#: What a blank sampling or thinking setting does.
+#: What a blank generation or thinking setting does.
 MODEL_DEFAULT = "model default"
 
 #: Request keys taxman never sends, because `send` could not record the result.
@@ -73,21 +71,9 @@ class GeminiModelConfig(SettingsBlock):
     )
 
     #: Sent in `generation_config`, and only when set, so the model's own
-    #: defaults apply otherwise.
-    temperature: float | None = Field(
-        default=None,
-        ge=0,
-        le=2,
-        description="Sampling randomness, from focused to varied.",
-        json_schema_extra={"blank": MODEL_DEFAULT, "docs": TEXT_DOCS},
-    )
-    top_p: float | None = Field(
-        default=None,
-        ge=0,
-        le=1,
-        description="Nucleus sampling threshold.",
-        json_schema_extra={"blank": MODEL_DEFAULT, "docs": TEXT_DOCS},
-    )
+    #: defaults apply otherwise. There is no temperature, top_p or top_k: Google
+    #: deprecated them, Gemini 3.6 Flash and later ignore them, and later models
+    #: refuse them. `extra:` can still send them to an older model.
     max_output_tokens: int | None = Field(
         default=None,
         ge=1,
@@ -144,8 +130,6 @@ class GeminiModelConfig(SettingsBlock):
 
 #: The `model:` keys sent, under the same names, inside `generation_config`.
 GENERATION_CONFIG_KEYS: tuple[str, ...] = (
-    "temperature",
-    "top_p",
     "max_output_tokens",
     "thinking_level",
     "thinking_summaries",

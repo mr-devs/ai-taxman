@@ -70,26 +70,36 @@ def test_no_system_prompt_sends_no_system_instruction():
 # -- generation config -------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "key, value", [("temperature", 0.2), ("top_p", 0.9), ("max_output_tokens", 256)]
-)
-def test_a_generation_setting_goes_in_generation_config(key, value):
-    assert request_for({**BASE, key: value})["generation_config"] == {key: value}
+def test_max_output_tokens_goes_in_generation_config():
+    assert request_for({**BASE, "max_output_tokens": 256})["generation_config"] == {
+        "max_output_tokens": 256
+    }
 
 
 def test_settings_share_one_generation_config():
-    payload = request_for({**BASE, "temperature": 1.0, "max_output_tokens": 64})
+    payload = request_for({**BASE, "thinking_level": "low", "max_output_tokens": 64})
 
-    assert payload["generation_config"] == {"temperature": 1.0, "max_output_tokens": 64}
+    assert payload["generation_config"] == {"thinking_level": "low", "max_output_tokens": 64}
 
 
-@pytest.mark.parametrize(
-    "block",
-    [{"temperature": 2.1}, {"temperature": -0.1}, {"top_p": 1.1}, {"max_output_tokens": 0}],
-)
-def test_out_of_range_generation_values_are_refused(block):
-    with pytest.raises(ValidationError, match=next(iter(block))):
-        request_for({**BASE, **block})
+def test_max_output_tokens_must_be_positive():
+    with pytest.raises(ValidationError, match="max_output_tokens"):
+        request_for({**BASE, "max_output_tokens": 0})
+
+
+@pytest.mark.parametrize("key", ["temperature", "top_p", "top_k"])
+def test_deprecated_sampling_settings_are_not_offered(key):
+    """Google deprecated them on 2026-07-30: Gemini 3.6 Flash and later ignore them,
+    and later models refuse them with a 400."""
+    with pytest.raises(ValidationError, match=key):
+        request_for({**BASE, key: 0.5})
+
+
+def test_extra_can_still_send_sampling_settings_to_an_older_model():
+    """Gemini 2.5 and models before 3.6 Flash still honour them."""
+    block = {"name": "gemini-2.5-flash", "extra": {"generation_config": {"temperature": 0.2}}}
+
+    assert request_for(block)["generation_config"] == {"temperature": 0.2}
 
 
 # -- thinking ----------------------------------------------------------------
@@ -136,10 +146,10 @@ def test_extra_passes_a_null_through_as_is():
 
 
 def test_extra_can_add_to_generation_config_beside_named_settings():
-    """seed has no key of its own; it must not displace the audit's temperature."""
-    payload = request_for({**BASE, "temperature": 0.0, "extra": {"generation_config": {"seed": 7}}})
+    """seed has no key of its own; it must not displace the audit's max_output_tokens."""
+    block = {**BASE, "max_output_tokens": 64, "extra": {"generation_config": {"seed": 7}}}
 
-    assert payload["generation_config"] == {"temperature": 0.0, "seed": 7}
+    assert request_for(block)["generation_config"] == {"max_output_tokens": 64, "seed": 7}
 
 
 def test_extra_can_fill_a_generation_config_taxman_left_out():
@@ -155,7 +165,7 @@ def test_extra_can_fill_a_generation_config_taxman_left_out():
         {"input": "sneaky"},
         {"store": True},
         {"system_instruction": "sneaky"},
-        {"generation_config": {"temperature": 1.0}},
+        {"generation_config": {"max_output_tokens": 64}},
         {"generation_config": {"thinking_level": "high"}},
         {"generation_config": None},
     ],
@@ -174,7 +184,7 @@ def test_extra_cannot_ask_for_a_response_send_could_not_record(key):
 
 def test_a_request_never_carries_changes_from_the_one_before():
     """Two requests from one audit share its `extra:`; merging must not write back into it."""
-    block = {**BASE, "temperature": 0.0, "extra": {"generation_config": {"stop_sequences": ["X"]}}}
+    block = {**BASE, "extra": {"generation_config": {"stop_sequences": ["X"]}}}
     config = GeminiProvider().validate_model_config(block)
     message = Message(id="m0000", text="hello", line_number=1)
     first = build_request(Request(message=message, repeat=0, model=config))
@@ -191,8 +201,6 @@ def test_every_key_taxman_sends_is_protected_from_extra():
 
     block = {
         **BASE,
-        "temperature": 1.0,
-        "top_p": 0.9,
         "max_output_tokens": 64,
         "thinking_level": "low",
         "thinking_summaries": "auto",

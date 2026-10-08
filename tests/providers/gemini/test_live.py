@@ -77,13 +77,6 @@ async def test_a_system_prompt_is_accepted(tmp_path):
     assert record.raw["status"] == "completed"
 
 
-async def test_sampling_settings_are_accepted(tmp_path):
-    """The API reference leaves these out of GenerationConfig; the guides use them."""
-    record = await collect(tmp_path, f"model:\n  name: {LITE}\n  temperature: 0.2\n  top_p: 0.9\n")
-
-    assert record.raw["status"] == "completed"
-
-
 async def test_thinking_settings_are_accepted(tmp_path):
     record = await collect(
         tmp_path,
