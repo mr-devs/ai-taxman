@@ -179,6 +179,15 @@ def test_read_jsonl_refuses_a_complete_row_that_is_not_a_record(tmp_path):
         list(read_jsonl(target))
 
 
+@pytest.mark.parametrize("row", ["[1, 2]", "42", "null", '"text"'])
+def test_read_jsonl_refuses_json_that_is_not_an_object(tmp_path, row):
+    target = tmp_path / "responses.jsonl"
+    target.write_text(json.dumps(make_record().to_dict()) + "\n" + row + "\n", encoding="utf-8")
+
+    with pytest.raises(ResponseFileError, match="Line 2 of .* not a JSON object"):
+        list(read_jsonl(target))
+
+
 def test_read_jsonl_returns_nothing_for_a_missing_file(tmp_path):
     assert list(read_jsonl(tmp_path / "nope.jsonl")) == []
 

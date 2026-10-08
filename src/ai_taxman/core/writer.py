@@ -106,6 +106,10 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
             except ValueError:
                 cut_short = number
                 continue
+            if not isinstance(data, dict):
+                raise ResponseFileError(
+                    f"Line {number} of {path} is not a response record: it is not a JSON object."
+                )
             try:
                 yield ResponseRecord.from_dict(data)
             except ValidationError as exc:
