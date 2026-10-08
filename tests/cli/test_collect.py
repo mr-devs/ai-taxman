@@ -139,6 +139,28 @@ def test_two_audits_in_one_directory_are_told_how_to_fix_it(invoke, tmp_path, fa
     assert fake_provider.sent == []
 
 
+@pytest.mark.parametrize("background", [False, True])
+def test_a_run_killed_after_its_last_response_is_marked_complete(
+    invoke, tmp_path, fake_provider, background
+):
+    """It never got to say so itself; collecting again sends nothing, and says it for it."""
+    make_project(tmp_path)
+    invoke("collect", "probe")
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+    manifest_path = run / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.update(status="running", n_ok=0, finished_at=None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = invoke("collect", "probe", *(["--background"] if background else []))
+
+    assert "already complete" in result.output
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["status"] == "complete"
+    assert manifest["n_ok"] == 3
+    assert manifest["finished_at"] is not None
+
+
 def test_collecting_a_complete_audit_says_so_and_sends_nothing(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
     invoke("collect", "probe")

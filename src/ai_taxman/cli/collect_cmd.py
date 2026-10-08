@@ -82,7 +82,7 @@ def collect(
     from ai_taxman.core.config import load_audit, resolve_log_file
     from ai_taxman.core.logging import describe_level, setup_logging
     from ai_taxman.core.records import validate_run_id
-    from ai_taxman.core.runner import preflight
+    from ai_taxman.core.runner import preflight, record_complete
     from ai_taxman.core.runs import plan_run
 
     # Before anything else, so a typo in the level is not discovered an hour into
@@ -123,6 +123,7 @@ def collect(
     )
     run_id = plan.run_id
     if plan.complete:
+        record_complete(plan)
         _say_complete(config, plan)
         return
 
@@ -242,7 +243,7 @@ def _start_in_background(
 
     from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
     from ai_taxman.core.config import resolve_log_file
-    from ai_taxman.core.runner import preflight
+    from ai_taxman.core.runner import preflight, record_complete
     from ai_taxman.core.runs import plan_run
 
     # Everything checkable without doing the run, checked before the fork: a pid
@@ -260,6 +261,7 @@ def _start_in_background(
     )
     run_id = plan.run_id
     if plan.complete:
+        record_complete(plan)
         _say_complete(config, plan, err=True)
         return
 

@@ -295,31 +295,37 @@ async def run_audit_async(
 
 
 def _already_complete(plan: RunPlan, config: AuditConfig) -> RunResult:
-    """Send nothing, and make sure the manifest agrees the run is complete.
-
-    A run killed after writing its last response never got to say so.
-    """
-    assert plan.manifest is not None
-    manifest_path = plan.directory / MANIFEST_FILENAME
-    if plan.manifest.status != "complete" or plan.manifest.n_ok != len(plan.answered):
-        _write_manifest(
-            plan.manifest.model_copy(
-                update={
-                    "status": "complete",
-                    "n_ok": len(plan.answered),
-                    "n_error": 0,
-                    "finished_at": plan.manifest.finished_at or timestamp(),
-                }
-            ),
-            manifest_path,
-        )
+    """Send nothing, and make sure the manifest agrees the run is complete."""
+    record_complete(plan)
     return RunResult(
         run_id=plan.run_id,
         output_path=output_file(config, plan.directory),
-        manifest_path=manifest_path,
+        manifest_path=plan.directory / MANIFEST_FILENAME,
         n_ok=0,
         n_error=0,
         already_complete=True,
+    )
+
+
+def record_complete(plan: RunPlan) -> None:
+    """Make the manifest of a run with every response say that it is complete.
+
+    A run killed after writing its last response never got to say so. Public
+    because `collect` finds a run complete before it reaches the runner.
+    """
+    assert plan.complete and plan.manifest is not None
+    if plan.manifest.status == "complete" and plan.manifest.n_ok == len(plan.answered):
+        return
+    _write_manifest(
+        plan.manifest.model_copy(
+            update={
+                "status": "complete",
+                "n_ok": len(plan.answered),
+                "n_error": 0,
+                "finished_at": plan.manifest.finished_at or timestamp(),
+            }
+        ),
+        plan.directory / MANIFEST_FILENAME,
     )
 
 
