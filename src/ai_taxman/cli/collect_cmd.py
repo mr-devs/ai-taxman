@@ -252,7 +252,7 @@ def _start_in_background(
     from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
     from ai_taxman.core.config import resolve_log_file
     from ai_taxman.core.runner import preflight, record_complete
-    from ai_taxman.core.runs import plan_run
+    from ai_taxman.core.runs import output_file, plan_run
 
     # Everything checkable without doing the run, checked before the fork: a pid
     # for a run that could never have worked is worse than an error here.
@@ -297,7 +297,7 @@ def _start_in_background(
         fail(f"could not start a background run: {exc}")
         return
 
-    output = directory / config.output.filename
+    output = output_file(config, directory)
 
     # The block is for the person; stdout is for the script. A bare pid on
     # stdout makes `PID=$(taxman collect probe -b)` work, the way `docker run

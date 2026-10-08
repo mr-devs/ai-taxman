@@ -94,6 +94,18 @@ def test_the_parent_reports_everything_needed_to_follow_or_stop_the_run(
         assert expected in result.output.lower()
 
 
+def test_the_parent_names_the_compressed_file_the_child_writes(invoke, tmp_path, fake_provider):
+    make_project(
+        tmp_path,
+        body=AUDIT.replace("log_dir: logs/{audit}\n", "log_dir: logs/{audit}\n  compress: true\n"),
+    )
+
+    result = invoke("collect", "probe", "--background")
+
+    (output,) = [line for line in result.stderr.splitlines() if line.strip().startswith("output")]
+    assert output.endswith("responses.jsonl.gz")
+
+
 def test_the_pid_is_the_only_thing_on_stdout(echo_project, plugin_path):
     """`PID=$(taxman collect probe -b)` has to be all a script needs."""
     result = run_taxman(echo_project, plugin_path, "--background")
