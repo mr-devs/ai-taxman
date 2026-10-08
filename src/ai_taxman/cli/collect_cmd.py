@@ -197,7 +197,7 @@ def _resuming(plan: RunPlan) -> str:
 
 def _say_complete(config: AuditConfig, plan: RunPlan, *, err: bool = False) -> None:
     """Say there is nothing to collect, and how to collect the audit again."""
-    from ai_taxman.core.runs import output_file
+    from ai_taxman.core.runs import output_file, start_over
 
     output = display_path(output_file(config, plan.directory))
     typer.echo(
@@ -205,10 +205,7 @@ def _say_complete(config: AuditConfig, plan: RunPlan, *, err: bool = False) -> N
         f"{plan.expected} responses, in {output}.",
         err=err,
     )
-    typer.echo(
-        f"To collect it again, start a new run: taxman collect {config.audit} --new-run",
-        err=err,
-    )
+    typer.echo(f"To start a new run, {start_over(config, display_path(plan.directory))}.", err=err)
 
 
 def _run(

@@ -162,7 +162,8 @@ failed. It says so before it starts.
   messages twice.
 
 `--new-run` starts a new run beside the old ones, whatever state the latest is in. That needs
-`{run_id}` in `output.dir`, which `taxman audits new` writes.
+`{run_id}` in `output.dir`, which `taxman audits new` writes. Without it, the folder holds one
+run: move that folder elsewhere and collect again to start over.
 
 | Option | Effect |
 |---|---|

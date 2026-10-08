@@ -369,9 +369,24 @@ def _check_unchanged(
             f"{config.audit} has changed since its run {existing.run_id} began, so "
             "that run cannot be finished:\n"
             + "".join(f"  {change}\n" for change in changes)
-            + "Put the audit back as it was to finish that run, or start a new run "
-            f"with `taxman collect {config.audit} --new-run`."
+            + "Put the audit back as it was to finish that run. To start a new run, "
+            + start_over(config, existing.directory)
+            + "."
         )
+
+
+def start_over(config: AuditConfig, directory: Path | str) -> str:
+    """How to start a new run of the audit, given the run in `directory`.
+
+    `--new-run` needs `{run_id}` in `output.dir`; without it there is room for
+    one run, and the way to a new one is to move the old one out of the way.
+    """
+    if "{run_id}" in config.output.dir:
+        return f"use `taxman collect {config.audit} --new-run`"
+    return (
+        f"move {directory} elsewhere and collect again (`output.dir` has no "
+        "`{run_id}`, so it holds one run)"
+    )
 
 
 #: Marks a setting one side of a comparison does not have.
@@ -409,19 +424,20 @@ def _new_plan(
     beside_the_last: bool = False,
 ) -> RunPlan:
     """A run started from nothing; `beside_the_last` when the audit may have runs already."""
+    directory = _output_dir(config, run_id)
     left_unfinished = None
     if beside_the_last:
         if "{run_id}" not in config.output.dir:
             raise ConfigError(
                 f"`output.dir: {config.output.dir}` in {config.source_path} has no "
                 "`{run_id}`, so it has room for one run, which collecting again "
-                "finishes. Add `{run_id}` to `output.dir` to keep more than one run."
+                f"finishes. To start a new run, move {directory} elsewhere and "
+                "collect again, or add `{run_id}` to `output.dir` to keep more than one."
             )
         last = latest_run(config)
         if last is not None and _unfinished(last.manifest):
             left_unfinished = last.run_id
 
-    directory = _output_dir(config, run_id)
     _guard_run_directory(directory, run_id=run_id)
     return RunPlan(
         run_id=run_id,

@@ -161,6 +161,21 @@ def test_a_run_killed_after_its_last_response_is_marked_complete(
     assert manifest["finished_at"] is not None
 
 
+def test_a_complete_one_run_folder_is_told_to_move_the_run(invoke, tmp_path, fake_provider):
+    make_project(
+        tmp_path,
+        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+        "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}\nmodel:\n  name: fake-1\n",
+    )
+    invoke("collect", "probe")
+
+    result = invoke("collect", "probe")
+
+    assert "already complete" in result.output
+    assert "--new-run" not in result.output
+    assert "move data/probe elsewhere and collect again" in result.output
+
+
 def test_collecting_a_complete_audit_says_so_and_sends_nothing(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
     invoke("collect", "probe")

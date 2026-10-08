@@ -192,8 +192,10 @@ async def test_a_new_run_needs_run_id_in_the_output_directory(project, fake_prov
     single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
     await run_audit_async(audit(project, single))
 
-    with pytest.raises(ConfigError, match=r"\{run_id\}"):
+    with pytest.raises(ConfigError, match=r"\{run_id\}") as caught:
         await run_audit_async(audit(project, single), new_run=True)
+
+    assert f"move {project / 'data' / 'probe'} elsewhere" in str(caught.value)
 
 
 # --- an audit that has changed is never resumed ----------------------------------
@@ -263,6 +265,20 @@ async def test_the_refusal_says_how_to_start_over(project, fake_provider):
 
     assert first.run_id in str(caught.value)
     assert "--new-run" in str(caught.value)
+
+
+async def test_a_one_run_folder_is_told_to_move_the_run_not_to_use_new_run(project, fake_provider):
+    """`--new-run` always refuses where `output.dir` has no {run_id}."""
+    from ai_taxman.core.errors import AuditChangedError
+
+    single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
+    await unfinished_run(project, fake_provider, single)
+
+    with pytest.raises(AuditChangedError) as caught:
+        await run_audit_async(audit(project, single, "execution:\n  repeats: 2"))
+
+    assert "--new-run" not in str(caught.value)
+    assert f"move {project / 'data' / 'probe'} elsewhere and collect again" in str(caught.value)
 
 
 async def test_comments_and_line_order_are_not_changes(project, fake_provider):
