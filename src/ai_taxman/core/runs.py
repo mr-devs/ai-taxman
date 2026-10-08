@@ -137,9 +137,9 @@ def plan_run(
     By default, the audit's latest run, or a new run if the audit has none. With
     `new_run`, a new run whatever is on disk.
 
-    `run_id` holds the plan to a run an earlier plan chose: how the runner keeps
-    to the run its caller announced when it plans again, and how a background
-    parent hands its child the run it picked. That run is resumed if it is on
+    `run_id` holds the plan to a run an earlier plan chose: how the runner, when
+    it plans again before sending, keeps to the run `collect` announced - or a
+    background parent picked for its child. That run is resumed if it is on
     disk. If not, it is started only the way the earlier plan would have started
     it - with `new_run`, or while the audit still has no run - so a run another
     collect started in between is never doubled.

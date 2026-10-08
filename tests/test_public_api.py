@@ -33,6 +33,14 @@ def test_the_public_names_are_importable_from_the_top_level():
         assert name in ai_taxman.__all__
 
 
+def test_a_run_id_cannot_be_chosen_from_python():
+    """Runs are found by audit; their ids are made, never chosen."""
+    import inspect
+
+    for function in (ai_taxman.run_audit, ai_taxman.run_audit_async):
+        assert "run_id" not in inspect.signature(function).parameters
+
+
 def test_read_messages_returns_the_messages(tmp_path):
     make_project(tmp_path)
 

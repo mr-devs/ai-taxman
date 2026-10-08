@@ -17,7 +17,7 @@ from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.errors import ConfigError
 from ai_taxman.core.messages import message_id
 from ai_taxman.core.records import RunManifest
-from ai_taxman.core.runner import MANIFEST_FILENAME, run_audit_async
+from ai_taxman.core.runner import MANIFEST_FILENAME, collect_run_async, preflight, run_audit_async
 from ai_taxman.core.writer import read_jsonl
 
 #: The ids of the three messages each test project starts with.
@@ -243,8 +243,13 @@ async def test_a_run_id_is_never_given_another_runs_directory(project, fake_prov
     first = await run_audit_async(audit(project, single))
     fake_provider.sent.clear()
 
+    config = audit(project, single)
+    checked = preflight(config, fake_provider)
+
     with pytest.raises(ConfigError, match=f"already holds run {first.run_id}"):
-        await run_audit_async(audit(project, single), run_id="20261008T000000Z-000000")
+        await collect_run_async(
+            config, checked, provider=fake_provider, run_id="20261008T000000Z-000000"
+        )
 
     assert fake_provider.sent == []
 

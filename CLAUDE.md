@@ -271,7 +271,9 @@ resumed run honest:
   provider starts, so two collects started together could both plan the same work. The
   runner plans again, held to the run it announced, under an `flock` on the audit file
   (`runs.hold_audit()`), and keeps that lock until it holds the run's lock and has written
-  the manifest. The second collect then sees the first one's run.
+  the manifest. The second collect then sees the first one's run. `collect` hands the run it
+  planned to `runner.collect_run()`, which plans only that once more, so the responses are
+  read twice per collect, not three or four times. The Python API takes no run id at all.
 - **The broken tail goes first.** See below.
 
 The manifest's `n_ok` and `n_error` count pairs across every session, so a failure later

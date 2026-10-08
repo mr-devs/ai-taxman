@@ -516,6 +516,26 @@ async def test_a_collect_that_was_slow_to_start_does_not_resend_what_another_sen
     assert sorted(pairs) == sorted([(ONE, 0), (TWO, 0), (THREE, 0)])
 
 
+@pytest.fixture
+def reads(monkeypatch):
+    """How many times the run's responses are read to plan it."""
+    from ai_taxman.core import runs
+
+    counted = []
+    read = runs._responses_so_far
+    monkeypatch.setattr(runs, "_responses_so_far", lambda path: counted.append(path) or read(path))
+    return counted
+
+
+async def test_a_resumed_run_is_planned_from_disk_twice(project, fake_provider, reads):
+    """Once to decide, once more under the lock: a large run's file is not cheap to read."""
+    await unfinished_run(project, fake_provider)
+
+    await run_audit_async(audit(project))
+
+    assert len(reads) == 2
+
+
 async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider):
     import asyncio
 

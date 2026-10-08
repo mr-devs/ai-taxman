@@ -31,6 +31,7 @@ from ai_taxman.core.config import (
     AuditConfig,
     check_output_paths,
     load_audit,
+    resolve_output_dir,
 )
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
@@ -80,6 +81,8 @@ class RunResult:
     #: The run's own counts, every session included: what its manifest says.
     run_n_ok: int = 0
     run_n_error: int = 0
+    #: How many responses the whole run has: messages times repeats.
+    expected: int = 0
     stopped_early: bool = False
     #: True when this call finished an existing run rather than starting one.
     resumed: bool = False
@@ -97,10 +100,9 @@ def run_audit(
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
     new_run: bool = False,
-    run_id: str | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
-    """Run an audit. The synchronous entry point for the Python API and CLI.
+    """Run an audit. The synchronous entry point for the Python API.
 
     Collects the audit's latest run if it is unfinished, sending only what that
     run is missing, and starts a new run if the audit has none. `new_run=True`
@@ -113,7 +115,6 @@ def run_audit(
             provider=provider,
             on_record=on_record,
             new_run=new_run,
-            run_id=run_id,
             stop_signals=stop_signals,
         )
     )
@@ -125,7 +126,6 @@ async def run_audit_async(
     provider: Provider | None = None,
     on_record: OnRecord | None = None,
     new_run: bool = False,
-    run_id: str | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
     stop_signals: tuple[int, ...] = (),
@@ -144,27 +144,81 @@ async def run_audit_async(
     """
     provider = provider or get_provider(config.provider)
     checked = preflight(config, provider)
+    plan = plan_run(
+        config,
+        checked.messages,
+        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+        new_run=new_run,
+    )
+    if plan.complete:
+        return _already_complete(plan, config)
+    return await collect_run_async(
+        config,
+        checked,
+        provider=provider,
+        run_id=plan.run_id,
+        new_run=new_run,
+        on_record=on_record,
+        backoff_base=backoff_base,
+        seed=seed,
+        stop_signals=stop_signals,
+    )
+
+
+def collect_run(
+    config: AuditConfig,
+    checked: Preflight,
+    *,
+    provider: Provider,
+    run_id: str,
+    new_run: bool = False,
+    stop_signals: tuple[int, ...] = (),
+) -> RunResult:
+    """`collect_run_async`, synchronously."""
+    return asyncio.run(
+        collect_run_async(
+            config,
+            checked,
+            provider=provider,
+            run_id=run_id,
+            new_run=new_run,
+            stop_signals=stop_signals,
+        )
+    )
+
+
+async def collect_run_async(
+    config: AuditConfig,
+    checked: Preflight,
+    *,
+    provider: Provider,
+    run_id: str,
+    new_run: bool = False,
+    on_record: OnRecord | None = None,
+    backoff_base: float = DEFAULT_BACKOFF_BASE,
+    seed: int | None = None,
+    stop_signals: tuple[int, ...] = (),
+) -> RunResult:
+    """Collect the run an earlier plan chose: `run_id`, started anew if `new_run`.
+
+    For `taxman collect`, which plans the run itself, before the runner, so it
+    can announce the run and name its log - and for a background child, whose
+    parent did. The run is planned again here, once, just before sending.
+
+    Not part of the Python API, which never takes a run id: an id is made when a
+    run starts, and only ever carried from one plan to the next.
+    """
+    run_id = validate_run_id(run_id)
     messages, system_prompt, model, api_key = (
         checked.messages,
         checked.system_prompt,
         checked.model,
         checked.api_key,
     )
-
     system_text = system_prompt.text if system_prompt else None
-    plan = plan_run(
-        config,
-        messages,
-        system_prompt=system_text,
-        new_run=new_run,
-        run_id=validate_run_id(run_id) if run_id is not None else None,
-    )
-    run_id = plan.run_id
-    if plan.complete:
-        return _already_complete(plan, config)
 
     limit = config.execution.max_concurrency
-    directory = plan.directory
+    directory = resolve_output_dir(config, run_id=run_id)
     manifest_path = directory / MANIFEST_FILENAME
     state = _RunState(on_error=config.execution.on_error)
     # Constructed here but not opened: nothing touches the disk until the `with`.
@@ -290,6 +344,7 @@ async def run_audit_async(
         n_error=state.n_error,
         run_n_ok=len(state.answered),
         run_n_error=len(state.failed),
+        expected=plan.expected,
         stopped_early=state.stop.is_set(),
         resumed=plan.resuming,
     )
@@ -305,6 +360,7 @@ def _already_complete(plan: RunPlan, config: AuditConfig) -> RunResult:
         n_ok=0,
         n_error=0,
         run_n_ok=len(plan.answered),
+        expected=plan.expected,
         already_complete=True,
     )
 

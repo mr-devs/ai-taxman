@@ -14,7 +14,7 @@ from ai_taxman.core.registry import get_provider
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runtime
     from ai_taxman.core.config import AuditConfig
-    from ai_taxman.core.runner import RunResult
+    from ai_taxman.core.runner import Preflight, RunResult
     from ai_taxman.core.runs import RunPlan
     from ai_taxman.providers.base import Provider
 
@@ -108,24 +108,31 @@ def collect(
         return
 
     # Checked before the banner and the log: announcing a run that cannot start
-    # reads as if it started. The runner checks again, for the Python API.
+    # reads as if it started.
     checked = preflight(config, provider)
     model = provider.describe_model(checked.model)
 
-    # Planned here rather than by the runner, because the log is named after the
-    # run and has to be open before the run's first line.
-    plan = plan_run(
-        config,
-        checked.messages,
-        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
-        new_run=new_run,
-        run_id=validate_run_id(background_run) if background_run is not None else None,
-    )
-    run_id = plan.run_id
-    if plan.complete:
-        record_complete(plan)
-        _say_complete(config, plan)
-        return
+    plan: RunPlan | None = None
+    if background_run is not None:
+        # Planned and announced by the parent. The runner plans it once more
+        # before sending; a plan here as well would only read the run again.
+        run_id = validate_run_id(background_run)
+    else:
+        # Planned here rather than by the runner, because the log is named after
+        # the run and has to be open before the run's first line.
+        plan = plan_run(
+            config,
+            checked.messages,
+            system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+            new_run=new_run,
+        )
+        if plan.complete:
+            record_complete(plan)
+            _say_complete(
+                config, run_id=plan.run_id, expected=plan.expected, directory=plan.directory
+            )
+            return
+        run_id = plan.run_id
 
     if log_file is None:
         setup_logging(
@@ -143,20 +150,25 @@ def collect(
             f"Collecting {config.audit}: {config.provider} "
             f"({model or 'unspecified'}), {expected} repeat(s) per message."
         )
-    if plan.left_unfinished is not None:
+    if plan is not None and plan.left_unfinished is not None:
         typer.secho(
             f"Leaving run {plan.left_unfinished} unfinished; starting run {run_id}.",
             fg=typer.colors.YELLOW,
         )
-    if plan.resuming:
+    if plan is not None and plan.resuming:
         # Even with --quiet: a run that picks up where another left off must
         # never be mistaken for a fresh one.
         typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
-    result = _run(config, provider=provider, run_id=run_id, new_run=new_run)
+    result = _run(config, checked, provider=provider, run_id=run_id, new_run=new_run)
     if result.already_complete:
         # Finished by another collect while this one was starting.
-        _say_complete(config, plan)
+        _say_complete(
+            config,
+            run_id=result.run_id,
+            expected=result.expected,
+            directory=result.manifest_path.parent,
+        )
         return
 
     typer.echo("")
@@ -166,7 +178,7 @@ def collect(
         typer.secho(f"{result.n_error} error", fg=typer.colors.RED, nl=False)
     typer.echo(f"  ->  {display_path(result.output_path)}")
     if result.resumed:
-        typer.echo(f"Run {run_id} now has {result.run_n_ok} of {plan.expected} responses.")
+        typer.echo(f"Run {run_id} now has {result.run_n_ok} of {result.expected} responses.")
 
     if result.stopped_early:
         typer.secho(
@@ -195,21 +207,24 @@ def _resuming(plan: RunPlan) -> str:
     )
 
 
-def _say_complete(config: AuditConfig, plan: RunPlan, *, err: bool = False) -> None:
+def _say_complete(
+    config: AuditConfig, *, run_id: str, expected: int, directory: Path, err: bool = False
+) -> None:
     """Say there is nothing to collect, and how to collect the audit again."""
     from ai_taxman.core.runs import output_file, start_over
 
-    output = display_path(output_file(config, plan.directory))
+    output = display_path(output_file(config, directory))
     typer.echo(
-        f"{config.audit} is already complete: run {plan.run_id} has all "
-        f"{plan.expected} responses, in {output}.",
+        f"{config.audit} is already complete: run {run_id} has all "
+        f"{expected} responses, in {output}.",
         err=err,
     )
-    typer.echo(f"To start a new run, {start_over(config, display_path(plan.directory))}.", err=err)
+    typer.echo(f"To start a new run, {start_over(config, display_path(directory))}.", err=err)
 
 
 def _run(
     config: AuditConfig,
+    checked: Preflight,
     *,
     provider: Provider,
     run_id: str,
@@ -221,15 +236,20 @@ def _run(
     """
     import signal
 
-    from ai_taxman.core.runner import run_audit
+    from ai_taxman.core.runner import collect_run
 
     # SIGTERM is what `kill <pid>` sends, and what stops a background run. It
     # winds the run down rather than killing it mid-write, so the responses
     # already paid for are kept and the manifest is finalised.
     stop_signals = (signal.SIGTERM,) if hasattr(signal, "SIGTERM") else ()
 
-    return run_audit(
-        config, provider=provider, run_id=run_id, new_run=new_run, stop_signals=stop_signals
+    return collect_run(
+        config,
+        checked,
+        provider=provider,
+        run_id=run_id,
+        new_run=new_run,
+        stop_signals=stop_signals,
     )
 
 
@@ -267,7 +287,9 @@ def _start_in_background(
     run_id = plan.run_id
     if plan.complete:
         record_complete(plan)
-        _say_complete(config, plan, err=True)
+        _say_complete(
+            config, run_id=plan.run_id, expected=plan.expected, directory=plan.directory, err=True
+        )
         return
 
     directory = plan.directory

@@ -291,7 +291,7 @@ def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
 
     make_project(tmp_path)
 
-    def finished_elsewhere(config, *, run_id, **kwargs):
+    def finished_elsewhere(config, checked, *, run_id, **kwargs):
         directory = tmp_path / "data" / "probe" / run_id
         return RunResult(
             run_id=run_id,
@@ -300,15 +300,59 @@ def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
             n_ok=0,
             n_error=0,
             run_n_ok=3,
+            expected=3,
             already_complete=True,
         )
 
-    monkeypatch.setattr(runner, "run_audit", finished_elsewhere)
+    monkeypatch.setattr(runner, "collect_run", finished_elsewhere)
 
     result = invoke("collect", "probe")
 
     assert result.exit_code == 0, result.output
     assert "already complete" in result.output
+
+
+@pytest.fixture
+def reads(monkeypatch):
+    """How many times the run's responses are read to plan it."""
+    from ai_taxman.core import runs
+
+    counted = []
+    read = runs._responses_so_far
+    monkeypatch.setattr(runs, "_responses_so_far", lambda path: counted.append(path) or read(path))
+    return counted
+
+
+def unfinished(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    invoke("collect", "probe")
+    (run,) = (tmp_path / "data" / "probe").iterdir()
+    return run
+
+
+def test_collect_reads_a_resumed_run_twice(invoke, tmp_path, fake_provider, reads):
+    """Once to announce the run, once to claim it; the runner does not plan it a third time."""
+    unfinished(invoke, tmp_path, fake_provider)
+    reads.clear()
+
+    invoke("collect", "probe")
+
+    assert len(reads) == 2
+
+
+def test_a_background_child_reads_its_run_once(invoke, tmp_path, fake_provider, reads):
+    """Its parent planned the run already; the child only claims it."""
+    run = unfinished(invoke, tmp_path, fake_provider)
+    reads.clear()
+
+    result = invoke(
+        "collect", "probe", "--background-run", run.name, "--log-file", str(tmp_path / "c.log")
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(reads) == 1
+    assert fake_provider.sent[-1].message.id == TWO
 
 
 def test_manifest_records_the_run(invoke, tmp_path, fake_provider):
