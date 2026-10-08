@@ -192,6 +192,30 @@ async def test_responses_land_as_they_arrive_when_compressed(project, fake_provi
 # --- one directory, one run -------------------------------------------------
 
 
+async def test_a_manifest_write_cut_short_leaves_the_last_one_whole(
+    project, fake_provider, monkeypatch
+):
+    """A manifest that cannot be read stops every later collect of the audit, so a
+    crash while one is written must leave the one before it, not half of each."""
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    first = await run_audit_async(audit(project))
+    before = first.manifest_path.read_bytes()
+
+    def crash(*args, **kwargs):
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr("os.replace", crash)
+    with pytest.raises(OSError, match="No space"):
+        await run_audit_async(audit(project))
+
+    assert first.manifest_path.read_bytes() == before
+    assert sorted(path.name for path in first.manifest_path.parent.iterdir()) == [
+        "collect.lock",
+        MANIFEST_FILENAME,
+        "responses.jsonl",
+    ]
+
+
 async def test_two_audits_never_share_a_run_directory(project, fake_provider):
     """An `output.dir` naming neither {audit} nor {run_id} points both at one place,
     which would leave two runs' data described by a manifest naming only one."""

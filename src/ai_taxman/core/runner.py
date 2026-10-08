@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -343,12 +344,22 @@ def _write_manifest(manifest: RunManifest, path: Path) -> None:
     directory describes itself from the moment it exists. A run killed in
     between leaves `status: running`, which is how a partial audit is told from
     a complete one.
+
+    Written beside it and renamed over it, so a crash mid-write - or a reader
+    looking at that moment - never meets half a manifest. One that cannot be
+    read stops every later collect of the audit.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    partial = path.with_name(f".{path.name}.{os.getpid()}.partial")
+    try:
+        with partial.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(partial, path)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
 
 
 def _guard_run_directory(directory: Path, *, run_id: str) -> None:
