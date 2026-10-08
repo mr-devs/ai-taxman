@@ -327,7 +327,10 @@ def _check_not_in_progress(existing: ExistingRun) -> None:
 
 
 def _in_progress_message(directory: Path) -> str:
-    run = directory.name
+    # The run's own id, from its manifest: the folder is named after it only
+    # when `output.dir` has `{run_id}` in it.
+    run_id = _existing_run_id(directory / MANIFEST_FILENAME)
+    run = f"Run {run_id}" if run_id is not None else "The run"
     try:
         pid = int((directory / PID_FILENAME).read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
@@ -335,7 +338,7 @@ def _in_progress_message(directory: Path) -> str:
     else:
         stop = f"or stop it with `kill {pid}`"
     return (
-        f"Run {run} in {directory} is being collected right now, by another taxman "
+        f"{run} in {directory} is being collected right now, by another taxman "
         f"process. Wait for that to finish, {stop}; collecting again then picks up "
         "where it left off."
     )

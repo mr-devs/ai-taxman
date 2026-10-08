@@ -356,6 +356,20 @@ async def test_a_run_being_collected_elsewhere_is_not_resumed(project, fake_prov
     assert fake_provider.sent == []
 
 
+async def test_the_refusal_names_the_run_not_its_folder(project, fake_provider):
+    """Without {run_id} in `output.dir`, the folder is named after the audit."""
+    from ai_taxman.core.errors import RunInProgressError
+    from ai_taxman.core.runs import hold_run
+
+    single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
+    first = await unfinished_run(project, fake_provider, single)
+
+    with hold_run(first.output_path.parent), pytest.raises(RunInProgressError) as caught:
+        await run_audit_async(audit(project, single))
+
+    assert str(caught.value).startswith(f"Run {first.run_id} in ")
+
+
 async def test_the_refusal_names_the_process_collecting_the_run(project, fake_provider):
     """Whichever process it is, foreground or background - never a stale pid a
     killed run left behind, which the OS may since have given to anything."""
