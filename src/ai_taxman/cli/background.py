@@ -35,7 +35,7 @@ from pathlib import Path
 
 from ai_taxman.core.runs import PID_FILENAME
 
-__all__ = ["PID_FILENAME", "build_child_command", "clear_pid_file", "spawn", "write_pid_file"]
+__all__ = ["PID_FILENAME", "build_child_command", "spawn"]
 
 #: Windows' spelling of "do not die with the terminal". POSIX uses its own
 #: session instead; this constant is unused there.
@@ -49,7 +49,6 @@ def build_child_command(
     *,
     run_id: str,
     log_file: Path,
-    pid_file: Path,
     new_run: bool = False,
     log_level: str | None = None,
     quiet: bool = False,
@@ -77,8 +76,6 @@ def build_child_command(
         run_id,
         "--log-file",
         str(log_file),
-        "--pid-file",
-        str(pid_file),
     ]
     if new_run:
         argv.append("--new-run")
@@ -122,23 +119,3 @@ def spawn(argv: list[str], *, log_file: Path, cwd: Path) -> int:
         # The child holds its own duplicate of the descriptor from here on.
         handle.close()
     return int(process.pid)
-
-
-def write_pid_file(path: Path, pid: int) -> None:
-    """Record the running process, as one integer and nothing else."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{pid}\n", encoding="utf-8")
-
-
-def clear_pid_file(path: Path, pid: int) -> None:
-    """Remove the pid file, but only if it is still ours.
-
-    A run that is killed with `kill -9` leaves its pid file behind; the manifest
-    still saying `running` is the honest record of that. Never delete a file
-    another run has since claimed.
-    """
-    try:
-        if path.read_text(encoding="utf-8").strip() == str(pid):
-            path.unlink()
-    except (OSError, ValueError):
-        return

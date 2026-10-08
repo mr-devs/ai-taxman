@@ -356,15 +356,48 @@ async def test_a_run_being_collected_elsewhere_is_not_resumed(project, fake_prov
     assert fake_provider.sent == []
 
 
-async def test_the_refusal_names_a_background_runs_pid(project, fake_provider):
+async def test_the_refusal_names_the_process_collecting_the_run(project, fake_provider):
+    """Whichever process it is, foreground or background - never a stale pid a
+    killed run left behind, which the OS may since have given to anything."""
+    import os
+
     from ai_taxman.core.errors import RunInProgressError
     from ai_taxman.core.runs import hold_run
 
     first = await unfinished_run(project, fake_provider)
     (first.output_path.parent / "collect.pid").write_text("4242\n", encoding="utf-8")
 
-    with hold_run(first.output_path.parent), pytest.raises(RunInProgressError, match="kill 4242"):
+    with (
+        hold_run(first.output_path.parent),
+        pytest.raises(RunInProgressError, match=f"kill {os.getpid()}`"),
+    ):
         await run_audit_async(audit(project))
+
+
+def test_a_refused_collect_leaves_the_collectors_pid_file_alone(project):
+    """It never held the run, so the pid file is not its to write, or to remove."""
+    import fcntl
+
+    from ai_taxman.core.errors import RunInProgressError
+    from ai_taxman.core.runs import hold_run
+
+    directory = project / "data" / "probe" / "run"
+    directory.mkdir(parents=True)
+    pid_file = directory / "collect.pid"
+    with (directory / "collect.lock").open("a") as held:
+        fcntl.flock(held.fileno(), fcntl.LOCK_EX)
+        pid_file.write_text("4242\n", encoding="utf-8")
+
+        with pytest.raises(RunInProgressError, match="kill 4242"), hold_run(directory):
+            pass
+
+    assert pid_file.read_text(encoding="utf-8") == "4242\n"
+
+
+async def test_a_finished_run_leaves_no_pid_file(project, fake_provider):
+    result = await run_audit_async(audit(project))
+
+    assert not (result.output_path.parent / "collect.pid").exists()
 
 
 @pytest.mark.parametrize("error", ["ENOLCK", "ENOTSUP", "EBADF"])

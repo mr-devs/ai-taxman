@@ -64,10 +64,6 @@ def collect(
             "--background-run", hidden=True, help="The run a background parent chose for its child."
         ),
     ] = None,
-    pid_file: Annotated[
-        Path | None,
-        typer.Option("--pid-file", hidden=True, help="Where a background run records its pid."),
-    ] = None,
 ) -> None:
     """Send every message in an audit to its provider and record the responses.
 
@@ -156,7 +152,7 @@ def collect(
         # never be mistaken for a fresh one.
         typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
-    result = _run(config, provider=provider, run_id=run_id, new_run=new_run, pid_file=pid_file)
+    result = _run(config, provider=provider, run_id=run_id, new_run=new_run)
 
     typer.echo("")
     typer.secho(f"{result.n_ok} ok", fg=typer.colors.GREEN, nl=False)
@@ -212,35 +208,23 @@ def _run(
     provider: Provider,
     run_id: str,
     new_run: bool,
-    pid_file: Path | None,
 ) -> RunResult:
-    """Run in this process, recording our pid for as long as we are running.
+    """Run in this process, stopping gracefully on SIGTERM.
 
-    Only a backgrounded child is given a --pid-file: a foreground run is already
-    in front of the person who started it.
+    The runner records our pid in the run directory while it holds the run.
     """
-    import os
     import signal
 
-    from ai_taxman.cli.background import clear_pid_file, write_pid_file
     from ai_taxman.core.runner import run_audit
-
-    pid = os.getpid()
-    if pid_file is not None:
-        write_pid_file(pid_file, pid)
 
     # SIGTERM is what `kill <pid>` sends, and what stops a background run. It
     # winds the run down rather than killing it mid-write, so the responses
     # already paid for are kept and the manifest is finalised.
     stop_signals = (signal.SIGTERM,) if hasattr(signal, "SIGTERM") else ()
 
-    try:
-        return run_audit(
-            config, provider=provider, run_id=run_id, new_run=new_run, stop_signals=stop_signals
-        )
-    finally:
-        if pid_file is not None:
-            clear_pid_file(pid_file, pid)
+    return run_audit(
+        config, provider=provider, run_id=run_id, new_run=new_run, stop_signals=stop_signals
+    )
 
 
 def _start_in_background(
@@ -293,7 +277,6 @@ def _start_in_background(
         run_id=run_id,
         new_run=new_run,
         log_file=log_file,
-        pid_file=pid_file,
         log_level=log_level,
         quiet=quiet,
     )

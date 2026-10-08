@@ -180,9 +180,12 @@ summary goes to stdout. Message text and API keys are never logged.
 ### Background runs
 
 `-b` detaches the run. stdout is the pid and nothing else; the run id, log path, and output
-path go to stderr. The pid is also saved to `collect.pid` in the run directory. The audit is
-validated, and the run to collect chosen, before the run detaches: a complete audit prints
-nothing on stdout.
+path go to stderr. The audit is validated, and the run to collect chosen, before the run
+detaches: a complete audit prints nothing on stdout.
+
+Every run, in the background or not, keeps the pid of the process collecting it in
+`collect.pid` in the run directory while it runs, so `kill $(cat <run dir>/collect.pid)`
+stops it.
 
 ```bash
 openai=$(taxman collect openai-probe -b)

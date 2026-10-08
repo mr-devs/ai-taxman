@@ -44,7 +44,7 @@ def make_project(tmp_path, body=AUDIT, messages="one\ntwo\nthree\n"):
 
 def test_the_child_runs_the_same_audit_without_backgrounding_again():
     """A child that re-backgrounded itself would fork forever."""
-    argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"))
+    argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"))
 
     assert "--background" not in argv
     assert "-b" not in argv
@@ -54,7 +54,7 @@ def test_the_child_runs_the_same_audit_without_backgrounding_again():
 
 def test_the_child_is_told_which_run_it_is():
     """The parent picks the run id so it can name the directory before the run."""
-    argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"))
+    argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"))
 
     assert argv[argv.index("--background-run") + 1] == "r1"
 
@@ -62,25 +62,19 @@ def test_the_child_is_told_which_run_it_is():
 @pytest.mark.parametrize("new_run", [True, False])
 def test_the_child_is_told_whether_its_run_is_new(new_run):
     """It plans again before it starts, and has to plan the run its parent chose."""
-    argv = build_child_command(
-        "probe", run_id="r1", new_run=new_run, log_file=Path("a.log"), pid_file=Path("a.pid")
-    )
+    argv = build_child_command("probe", run_id="r1", new_run=new_run, log_file=Path("a.log"))
 
     assert ("--new-run" in argv) is new_run
 
 
 def test_the_child_writes_its_log_where_the_parent_said():
-    argv = build_child_command(
-        "probe", run_id="r1", log_file=Path("/tmp/a.log"), pid_file=Path("a.pid")
-    )
+    argv = build_child_command("probe", run_id="r1", log_file=Path("/tmp/a.log"))
 
     assert argv[argv.index("--log-file") + 1] == "/tmp/a.log"
 
 
 def test_the_log_level_the_user_typed_is_carried_across():
-    argv = build_child_command(
-        "probe", run_id="r1", log_file=Path("a.log"), pid_file=Path("a.pid"), log_level="debug"
-    )
+    argv = build_child_command("probe", run_id="r1", log_file=Path("a.log"), log_level="debug")
 
     assert argv[argv.index("--log-level") + 1] == "debug"
 

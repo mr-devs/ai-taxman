@@ -16,6 +16,7 @@ from __future__ import annotations
 import contextlib
 import glob
 import json
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,8 +46,9 @@ MANIFEST_FILENAME = "manifest.json"
 #: never leaves a stale lock behind.
 LOCK_FILENAME = "collect.lock"
 
-#: Written by a background run inside its run directory, holding its pid, so
-#: `kill $(cat data/probe/<run>/collect.pid)` works with no parsing.
+#: The pid of the process collecting the run, written once it holds the lock and
+#: removed when it lets go, so `kill $(cat data/probe/<run>/collect.pid)` stops
+#: the collector, whichever process that is, with no parsing.
 PID_FILENAME = "collect.pid"
 
 #: Stands in for a run id while `output.dir` is turned into a glob pattern. A
@@ -257,9 +259,28 @@ def hold_audit(config: AuditConfig) -> Iterator[None]:
 
 @contextlib.contextmanager
 def hold_run(directory: Path) -> Iterator[None]:
-    """Hold a run's lock while it is collected; raise if another process holds it."""
+    """Hold a run's lock while it is collected; raise if another process holds it.
+
+    The pid file is written only once the lock is held, so it always names the
+    process collecting the run: a collect that is refused never touches it.
+    """
     with _lock(directory, warn=True):
-        yield
+        pid_file = directory / PID_FILENAME
+        pid = os.getpid()
+        pid_file.write_text(f"{pid}\n", encoding="utf-8")
+        try:
+            yield
+        finally:
+            _clear_pid_file(pid_file, pid)
+
+
+def _clear_pid_file(path: Path, pid: int) -> None:
+    """Remove the pid file if it is still this process's."""
+    try:
+        if path.read_text(encoding="utf-8").strip() == str(pid):
+            path.unlink()
+    except OSError:
+        return
 
 
 @contextlib.contextmanager
