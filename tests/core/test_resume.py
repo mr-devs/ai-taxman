@@ -294,6 +294,20 @@ async def test_a_half_written_last_line_does_not_break_the_resumed_file(project,
     assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
 
 
+async def test_a_whole_last_row_that_lost_its_newline_is_kept(project, fake_provider):
+    """It was counted as answered, so it is not sent again - and must not be dropped."""
+    first = await run_audit_async(audit(project))
+    keep_only(first, (ONE, 0), (TWO, 0))
+    first.output_path.write_bytes(first.output_path.read_bytes()[:-1])
+    fake_provider.sent.clear()
+
+    await run_audit_async(audit(project))
+
+    assert sent(fake_provider) == [(THREE, 0)]
+    rows = list(read_jsonl(first.output_path))
+    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
+
+
 async def test_a_last_line_cut_inside_a_character_does_not_stop_the_resume(project, fake_provider):
     first = await run_audit_async(audit(project))
     keep_only(first, (ONE, 0))

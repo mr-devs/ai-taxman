@@ -189,7 +189,9 @@ async def run_audit_async(
             _write_manifest(manifest, manifest_path)
             on_disk = True
             if plan.resuming and repair_tail(writer.path):
-                log.warning("repaired  dropped the half-written end of %s", writer.path)
+                log.warning(
+                    "repaired  the end of %s, which a killed run left unfinished", writer.path
+                )
             if plan.left_unfinished is not None:
                 log.warning(
                     "new run  run_id=%s leaving run_id=%s unfinished", run_id, plan.left_unfinished

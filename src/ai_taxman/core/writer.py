@@ -15,7 +15,7 @@ import zlib
 from collections.abc import Iterator
 from pathlib import Path
 from types import TracebackType
-from typing import IO
+from typing import IO, Any
 
 from pydantic import ValidationError
 
@@ -102,8 +102,8 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
                     "killed while writing it."
                 )
             try:
-                data = json.loads(line.decode("utf-8"))
-            except ValueError:  # not UTF-8, or not JSON
+                data = _parse(line)
+            except ValueError:
                 cut_short = number
                 continue
             try:
@@ -114,6 +114,11 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
                     f"Line {number} of {path} is not a response record. "
                     f"These fields are missing or wrong: {fields}."
                 ) from exc
+
+
+def _parse(line: bytes) -> Any:
+    """One line's JSON; `ValueError` if it is not UTF-8, or not whole JSON."""
+    return json.loads(line.decode("utf-8"))
 
 
 def _lines(handle: io.BufferedIOBase) -> Iterator[bytes]:
@@ -149,16 +154,20 @@ def repair_tail(path: str | Path) -> bool:
     would bury the break mid-file, where `read_jsonl` refuses it - or, for gzip,
     stops reading before the new rows. Only the broken tail is dropped: every
     whole line stays, byte for byte.
+
+    A last row that is whole JSON but lost its newline is not broken: `read_jsonl`
+    counts it, so the resumed run will not send it again. It is kept, and given
+    the newline it is missing.
     """
     path = Path(path)
     if not path.is_file():
         return False
     if path.suffix == GZIP_SUFFIX:
         return _close_gzip_stream(path)
-    return _drop_partial_line(path)
+    return _end_with_a_whole_line(path)
 
 
-def _drop_partial_line(path: Path) -> bool:
+def _end_with_a_whole_line(path: Path) -> bool:
     with path.open("rb+") as handle:
         end = handle.seek(0, os.SEEK_END)
         if end == 0:
@@ -166,37 +175,59 @@ def _drop_partial_line(path: Path) -> bool:
         handle.seek(end - 1)
         if handle.read(1) == b"\n":
             return False
-        # Walk back to the last newline; everything after it is the broken line.
-        position = end
-        while position > 0:
-            step = min(_CHUNK, position)
-            position -= step
-            handle.seek(position)
-            cut = handle.read(step).rfind(b"\n")
-            if cut != -1:
-                handle.truncate(position + cut + 1)
-                return True
-        handle.truncate(0)
+        start = _start_of_last_line(handle, end)
+        handle.seek(start)
+        if _is_whole(handle.read(end - start)):
+            handle.write(b"\n")
+        else:
+            handle.truncate(start)
         return True
 
 
-def _close_gzip_stream(path: Path) -> bool:
-    if _gzip_is_whole(path):
+def _start_of_last_line(handle: IO[bytes], end: int) -> int:
+    """Walk back from `end` to the byte after the last newline."""
+    position = end
+    while position > 0:
+        step = min(_CHUNK, position)
+        position -= step
+        handle.seek(position)
+        cut = handle.read(step).rfind(b"\n")
+        if cut != -1:
+            return position + cut + 1
+    return 0
+
+
+def _is_whole(line: bytes) -> bool:
+    """Whether `read_jsonl` reads this last line as a row rather than a cut-short one."""
+    try:
+        _parse(line)
+    except ValueError:
         return False
-    with gzip.open(path, "rb") as handle:
-        whole_lines = [line for line in _lines(handle) if line.endswith(b"\n")]
+    return True
+
+
+def _close_gzip_stream(path: Path) -> bool:
+    if _gzip_ends_cleanly(path):
+        return False
     replacement = path.with_name(path.name + ".repair")
-    with gzip.open(replacement, "wb") as handle:
-        handle.writelines(whole_lines)
+    with gzip.open(path, "rb") as source, gzip.open(replacement, "wb") as target:
+        for line in _lines(source):
+            # Only the last line can lack its newline.
+            if line.endswith(b"\n"):
+                target.write(line)
+            elif _is_whole(line):
+                target.write(line + b"\n")
     os.replace(replacement, path)
     return True
 
 
-def _gzip_is_whole(path: Path) -> bool:
+def _gzip_ends_cleanly(path: Path) -> bool:
+    """A closed stream, empty or ending in a newline: safe to append to as it is."""
+    last = b"\n"
     try:
         with gzip.open(path, "rb") as handle:
-            while handle.read(_CHUNK):
-                pass
+            while chunk := handle.read(_CHUNK):
+                last = chunk[-1:]
     except (EOFError, OSError, zlib.error):
         return False
-    return True
+    return last == b"\n"

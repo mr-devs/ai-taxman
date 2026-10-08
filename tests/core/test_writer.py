@@ -209,6 +209,19 @@ def test_repair_drops_a_half_written_last_line(tmp_path):
     assert target.read_bytes() == whole
 
 
+def test_repair_keeps_a_whole_last_row_that_lost_its_newline(tmp_path):
+    """read_jsonl counts that row, so a resumed run will not send it again."""
+    target = tmp_path / "responses.jsonl"
+    with JsonlWriter(target) as writer:
+        writer.write(make_record("m0"))
+        writer.write(make_record("m1"))
+    whole = target.read_bytes()
+    target.write_bytes(whole[:-1])
+
+    assert repair_tail(target) is True
+    assert target.read_bytes() == whole
+
+
 def test_repair_leaves_a_whole_file_alone(tmp_path):
     target = tmp_path / "responses.jsonl"
     with JsonlWriter(target) as writer:
@@ -244,6 +257,39 @@ def test_repair_keeps_each_gzip_row_exactly_as_written(tmp_path):
 
     with gzip.open(path, "rt", encoding="utf-8") as handle:
         assert handle.read() == before
+
+
+def unfinished_gzip(path, data):
+    """A gzip stream holding `data`, never closed."""
+    with gzip.open(path, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        left_behind = path.read_bytes()
+    path.write_bytes(left_behind)
+    return path
+
+
+@pytest.mark.parametrize("closed", [False, True])
+def test_repair_of_a_gzip_row_that_lost_its_newline_keeps_what_was_counted(tmp_path, closed):
+    """Exactly the rows read_jsonl counted survive, so none is lost and none sent twice.
+
+    A closed stream gives up its last row; an unclosed one never does, so that row
+    was not counted and is sent again.
+    """
+    rows = b"".join(json.dumps(make_record(m).to_dict()).encode() + b"\n" for m in ("m0", "m1"))
+    path = tmp_path / "responses.jsonl.gz"
+    if closed:
+        path.write_bytes(gzip.compress(rows[:-1]))
+    else:
+        unfinished_gzip(path, rows[:-1])
+    counted = [row.message_id for row in read_jsonl(path)]
+
+    assert repair_tail(path) is True
+    with JsonlWriter(path, compress=True) as writer:
+        writer.write(make_record("m2"))
+
+    assert [row.message_id for row in read_jsonl(path)] == [*counted, "m2"]
+    assert counted == (["m0", "m1"] if closed else ["m0"])
 
 
 def test_repair_leaves_a_whole_gzip_file_alone(tmp_path):
