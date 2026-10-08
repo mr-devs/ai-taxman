@@ -118,6 +118,12 @@ def test_an_undocumented_thinking_level_is_refused():
         request_for({**BASE, "thinking_level": "max"})
 
 
+def test_there_is_no_thinking_budget():
+    """Google is retiring it: upcoming models refuse it with a 400 rather than map it to a level."""
+    with pytest.raises(ValidationError, match="thinking_budget"):
+        request_for({**BASE, "thinking_budget": 1024})
+
+
 @pytest.mark.parametrize("summaries", ["auto", "none"])
 def test_thinking_summaries_go_in_generation_config(summaries):
     assert request_for({**BASE, "thinking_summaries": summaries})["generation_config"] == {
