@@ -21,3 +21,8 @@ data/
 # ai-taxman generally wants its audits committed - the file is the record of
 # what was run - but in this repo they are only ever throwaway.
 audits/
+
+# Coverage and mutation testing output
+.coverage
+mutants/
+.mutmut-cache
