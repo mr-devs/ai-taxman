@@ -197,7 +197,20 @@ def collect(
     # The whole run, not this session: a resumed run that only retried a message
     # that keeps failing has still collected everything else.
     if result.run_n_ok == 0:
-        fail("every message failed; see the error rows in the output for why.")
+        fail(_nothing_collected(result))
+
+
+def _nothing_collected(result: RunResult) -> str:
+    """Why a run has no response at all: failures, a stop, or both."""
+    failed = result.run_n_error
+    if not failed:
+        return "nothing was collected: the run stopped before any response came back."
+    if failed < result.expected:
+        return (
+            f"no response was collected: {failed} of {result.expected} failed, and the run "
+            "stopped before sending the rest. See the error rows in the output for why."
+        )
+    return "every message failed; see the error rows in the output for why."
 
 
 def _resuming(plan: RunPlan) -> str:

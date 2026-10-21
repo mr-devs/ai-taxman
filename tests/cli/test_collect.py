@@ -312,8 +312,8 @@ def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
     assert "already complete" in result.output
 
 
-def stopped(tmp_path, monkeypatch, **counts):
-    """Stand in for a run that a signal stopped, with these counts."""
+def stopped(tmp_path, monkeypatch, *, by_signal=True, **counts):
+    """Stand in for a run stopped early, by SIGTERM or by an error, with these counts."""
     import signal
 
     from ai_taxman.core import runner
@@ -327,7 +327,7 @@ def stopped(tmp_path, monkeypatch, **counts):
             manifest_path=directory / "manifest.json",
             expected=3,
             stopped_early=True,
-            stop_signal=signal.SIGTERM,
+            stop_signal=signal.SIGTERM if by_signal else None,
             **counts,
         )
 
@@ -343,6 +343,44 @@ def test_a_run_stopped_by_kill_says_so(invoke, tmp_path, fake_provider, monkeypa
     assert result.exit_code == 0, result.output
     assert "Run stopped on SIGTERM; collect again to finish it." in result.output
     assert "on_error" not in result.output
+
+
+def test_a_run_killed_before_any_response_does_not_say_they_failed(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """Nothing failed: nothing came back. It still exits non-zero, having collected nothing."""
+    make_project(tmp_path)
+    stopped(tmp_path, monkeypatch, n_ok=0, n_error=0, run_n_ok=0)
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "the run stopped before any response came back" in result.output
+    assert "failed" not in result.output
+
+
+def test_a_run_stopped_by_its_first_error_does_not_say_every_message_failed(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """`on_error: stop` after one failure: the others were never sent."""
+    make_project(tmp_path)
+    stopped(tmp_path, monkeypatch, by_signal=False, n_ok=0, n_error=1, run_n_ok=0, run_n_error=1)
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "every message failed" not in result.output
+    assert "1 of 3 failed, and the run stopped before sending the rest" in result.output
+
+
+def test_a_run_whose_every_message_failed_says_so(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+    fake_provider.failures = {key: [RuntimeError("nope")] for key in (ONE, TWO, THREE)}
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code != 0
+    assert "every message failed" in result.output
 
 
 @pytest.fixture
