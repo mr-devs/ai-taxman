@@ -67,11 +67,6 @@ def test_settings_share_one_generation_config():
     assert payload["generation_config"] == {"thinking_level": "low", "max_output_tokens": 64}
 
 
-def test_max_output_tokens_must_be_positive():
-    with pytest.raises(ValidationError, match="max_output_tokens"):
-        request_for({**BASE, "max_output_tokens": 0})
-
-
 @pytest.mark.parametrize("key", ["temperature", "top_p", "top_k"])
 def test_deprecated_sampling_settings_are_not_offered(key):
     """Google deprecated them on 2026-07-21: Gemini 3.6 Flash, 3.5 Flash-Lite and
@@ -98,11 +93,6 @@ def test_every_documented_thinking_level_goes_in_generation_config(level):
     }
 
 
-def test_an_undocumented_thinking_level_is_refused():
-    with pytest.raises(ValidationError, match="thinking_level"):
-        request_for({**BASE, "thinking_level": "max"})
-
-
 def test_there_is_no_thinking_budget():
     """Google is retiring it: upcoming models refuse it with a 400 rather than map it to a level."""
     with pytest.raises(ValidationError, match="thinking_budget"):
@@ -116,9 +106,18 @@ def test_thinking_summaries_go_in_generation_config(summaries):
     }
 
 
-def test_thinking_summaries_are_auto_or_none():
-    with pytest.raises(ValidationError, match="thinking_summaries"):
-        request_for({**BASE, "thinking_summaries": "full"})
+@pytest.mark.parametrize(
+    "block, match",
+    [
+        ({"max_output_tokens": 0}, "max_output_tokens"),
+        ({"thinking_level": "max"}, "thinking_level"),
+        ({"thinking_summaries": "full"}, "thinking_summaries"),
+    ],
+)
+def test_a_value_the_field_does_not_take_is_refused(block, match):
+    """One row for each bound and each fixed set of values a field takes."""
+    with pytest.raises(ValidationError, match=match):
+        request_for({**BASE, **block})
 
 
 # -- extra -------------------------------------------------------------------

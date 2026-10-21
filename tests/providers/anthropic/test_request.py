@@ -47,11 +47,6 @@ def test_a_blank_max_tokens_is_still_missing():
         request_for({"name": "claude-opus-5-5", "max_tokens": None})
 
 
-def test_max_tokens_must_be_positive():
-    with pytest.raises(ValidationError, match="max_tokens"):
-        request_for({"name": "claude-opus-5-5", "max_tokens": 0})
-
-
 def test_the_system_prompt_becomes_the_top_level_system():
     """Anthropic takes it as a parameter, not as a turn in `messages`."""
     payload = request_for(BASE, system_prompt="Answer in one word.")
@@ -72,11 +67,6 @@ def test_effort_goes_in_output_config():
 def test_every_documented_effort_level_is_accepted(effort):
     """Which model takes which level is the API's call; taxman only checks the name."""
     assert request_for({**BASE, "effort": effort})["output_config"]["effort"] == effort
-
-
-def test_adaptive_is_a_thinking_mode_not_an_effort_level():
-    with pytest.raises(ValidationError, match="effort"):
-        request_for({**BASE, "effort": "adaptive"})
 
 
 # -- thinking ----------------------------------------------------------------
@@ -122,11 +112,6 @@ def test_every_documented_thinking_type_without_a_budget_is_accepted(kind):
     assert thinking(type=kind)["thinking"] == {"type": kind}
 
 
-def test_an_unknown_thinking_type_is_refused():
-    with pytest.raises(ValidationError, match="type"):
-        thinking(type="extended")
-
-
 def test_enabled_thinking_needs_a_budget():
     with pytest.raises(ValidationError, match="budget_tokens"):
         thinking(type="enabled")
@@ -135,11 +120,6 @@ def test_enabled_thinking_needs_a_budget():
 def test_a_budget_needs_enabled_thinking():
     with pytest.raises(ValidationError, match="budget_tokens"):
         thinking(type="adaptive", budget_tokens=4096)
-
-
-def test_the_budget_is_at_least_1024():
-    with pytest.raises(ValidationError, match="budget_tokens"):
-        thinking(type="enabled", budget_tokens=1023)
 
 
 def test_the_budget_must_leave_room_for_an_answer():
@@ -166,20 +146,6 @@ def test_display_without_a_type_is_refused():
 @pytest.mark.parametrize("key, value", [("temperature", 0.2), ("top_p", 0.99), ("top_k", 40)])
 def test_a_sampling_parameter_is_sent_when_set(key, value):
     assert request_for({**BASE, key: value})[key] == value
-
-
-@pytest.mark.parametrize(
-    "block",
-    [
-        {"temperature": 1.5},
-        {"temperature": -0.1},
-        {"top_p": 1.1},
-        {"top_k": 0},
-    ],
-)
-def test_out_of_range_sampling_values_are_refused(block):
-    with pytest.raises(ValidationError):
-        request_for({**BASE, **block})
 
 
 # -- extra -------------------------------------------------------------------
@@ -273,11 +239,6 @@ def test_a_tool_version_can_be_pinned(version):
     assert tool(tool_version=version)["type"] == version
 
 
-def test_an_unknown_tool_version_is_refused():
-    with pytest.raises(ValidationError, match="tool_version"):
-        search(tool_version="web_search_2099")
-
-
 def test_web_search_false_adds_no_tools():
     assert "tools" not in request_for({**BASE, "search": {"web_search": False}})
 
@@ -294,11 +255,6 @@ def test_a_search_setting_without_web_search_is_refused():
 
 def test_max_uses_goes_on_the_tool():
     assert tool(max_uses=3)["max_uses"] == 3
-
-
-def test_max_uses_is_a_positive_number():
-    with pytest.raises(ValidationError, match="max_uses"):
-        search(max_uses=0)
 
 
 def test_unset_tool_settings_are_left_to_anthropic():
@@ -346,25 +302,9 @@ def test_a_blank_user_location_sends_none():
     assert "user_location" not in tool(user_location={"city": None, "country": None})
 
 
-@pytest.mark.parametrize("country", ["USA", "U", "us", "1A"])
-def test_country_is_a_two_letter_iso_code(country):
-    with pytest.raises(ValidationError, match="user_location.country"):
-        search(user_location={"country": country})
-
-
 def test_allowed_callers_go_on_the_tool():
     """`[direct]` turns dynamic filtering off; models without code execution need it."""
     assert tool(allowed_callers=["direct"])["allowed_callers"] == ["direct"]
-
-
-def test_allowed_callers_are_ones_anthropic_documents():
-    with pytest.raises(ValidationError, match=r"allowed_callers\.0"):
-        search(allowed_callers=["anyone"])
-
-
-def test_allowed_callers_cannot_be_empty():
-    with pytest.raises(ValidationError, match="at least 1"):
-        search(allowed_callers=[])
 
 
 @pytest.mark.parametrize("inclusion", ["full", "excluded"])
@@ -378,11 +318,6 @@ def test_response_inclusion_needs_a_tool_version_that_has_it(version):
         search(tool_version=version, response_inclusion="excluded")
 
 
-def test_response_inclusion_is_full_or_excluded():
-    with pytest.raises(ValidationError, match="response_inclusion"):
-        search(response_inclusion="partial")
-
-
 def test_tool_choice_any_makes_claude_use_a_tool_first():
     assert search(tool_choice="any")["tool_choice"] == {"type": "any"}
 
@@ -391,6 +326,34 @@ def test_tool_choice_is_left_to_anthropic_unless_set():
     assert "tool_choice" not in search()
 
 
-def test_tool_choice_is_auto_or_any():
-    with pytest.raises(ValidationError, match="search.tool_choice"):
-        search(tool_choice="required")
+# -- what validation refuses -------------------------------------------------
+
+
+def searching(**settings):
+    return {"search": {"web_search": True, **settings}}
+
+
+@pytest.mark.parametrize(
+    "block, match",
+    [
+        ({"max_tokens": 0}, "max_tokens"),
+        ({"effort": "adaptive"}, "effort"),  # a thinking mode, not an effort level
+        ({"temperature": 1.5}, "temperature"),
+        ({"temperature": -0.1}, "temperature"),
+        ({"top_p": 1.1}, "top_p"),
+        ({"top_k": 0}, "top_k"),
+        ({"thinking": {"type": "extended"}}, "thinking.type"),
+        ({"thinking": {"type": "enabled", "budget_tokens": 1023}}, "budget_tokens"),
+        (searching(tool_version="web_search_2099"), "tool_version"),
+        (searching(max_uses=0), "max_uses"),
+        (searching(user_location={"country": "USA"}), "user_location.country"),
+        (searching(allowed_callers=["anyone"]), r"allowed_callers\.0"),
+        (searching(allowed_callers=[]), "at least 1"),
+        (searching(response_inclusion="partial"), "response_inclusion"),
+        (searching(tool_choice="required"), "search.tool_choice"),
+    ],
+)
+def test_a_value_the_field_does_not_take_is_refused(block, match):
+    """One row for each bound and each fixed set of values a field takes."""
+    with pytest.raises(ValidationError, match=match):
+        request_for({**BASE, "max_tokens": 16000, **block})

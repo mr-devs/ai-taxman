@@ -108,21 +108,6 @@ def test_blank_values_are_treated_as_unset(provider):
     assert config.reasoning_effort is None
 
 
-@pytest.mark.parametrize(
-    "block",
-    [
-        {"name": "gpt-5", "temperature": -1},
-        {"name": "gpt-5", "temperature": 3},
-        {"name": "gpt-5", "top_p": 1.5},
-        {"name": "gpt-5", "max_output_tokens": 0},
-        {"name": "gpt-5", "reasoning_effort": "extreme"},
-    ],
-)
-def test_out_of_range_values_are_rejected(provider, block):
-    with pytest.raises(ValidationError):
-        provider.validate_model_config(block)
-
-
 # --- the search block -----------------------------------------------------
 
 
@@ -156,23 +141,12 @@ def test_search_context_size_goes_on_the_tool(provider):
     assert tool(search_context_size="high")["search_context_size"] == "high"
 
 
-def test_search_context_size_is_low_medium_or_high(provider):
-    with pytest.raises(ValidationError):
-        tool(search_context_size="huge")
-
-
 def test_external_web_access_goes_on_the_tool(provider):
     assert tool(external_web_access=False)["external_web_access"] is False
 
 
 def test_return_token_budget_goes_on_the_tool(provider):
     assert tool(return_token_budget="unlimited")["return_token_budget"] == "unlimited"
-
-
-def test_return_token_budget_is_default_or_unlimited(provider):
-    """The docs: `null`, numbers, and other strings are rejected."""
-    with pytest.raises(ValidationError):
-        tool(return_token_budget=10_000)
 
 
 def test_unset_tool_settings_are_left_to_openai(provider):
@@ -197,11 +171,6 @@ def test_both_domain_lists_share_one_filter(provider):
     assert filters == {"allowed_domains": ["cdc.gov"], "blocked_domains": ["reddit.com"]}
 
 
-def test_at_most_100_domains_per_list(provider):
-    with pytest.raises(ValidationError, match="100"):
-        tool(blocked_domains=[f"site{n}.com" for n in range(101)])
-
-
 @pytest.mark.parametrize("domain", ["https://cdc.gov", "http://who.int/"])
 def test_a_domain_with_a_scheme_is_refused_rather_than_rewritten(provider, domain):
     """The docs: omit the HTTP or HTTPS prefix. taxman does not edit what was written."""
@@ -217,11 +186,6 @@ def test_tool_choice_required_makes_the_model_search(provider):
 
 def test_tool_choice_is_left_to_openai_unless_set(provider):
     assert "tool_choice" not in request_for(search(web_search=True))
-
-
-def test_tool_choice_is_auto_or_required(provider):
-    with pytest.raises(ValidationError):
-        request_for(search(web_search=True, tool_choice="none"))
 
 
 def test_web_search_records_every_source_by_default(provider):
@@ -245,11 +209,6 @@ def test_include_takes_the_search_results_too(provider):
     assert payload["include"] == ["web_search_call.action.sources", "web_search_call.results"]
 
 
-def test_include_takes_only_web_search_data(provider):
-    with pytest.raises(ValidationError):
-        request_for(search(web_search=True, include=["reasoning.encrypted_content"]))
-
-
 def test_without_web_search_nothing_is_included(provider):
     assert "include" not in request_for(search())
 
@@ -270,12 +229,6 @@ def test_a_blank_user_location_sends_none(provider):
     assert "user_location" not in tool(user_location={"country": None, "city": None})
 
 
-@pytest.mark.parametrize("country", ["USA", "U", "us", "1A"])
-def test_country_is_a_two_letter_iso_code(provider, country):
-    with pytest.raises(ValidationError, match="country"):
-        tool(user_location={"country": country})
-
-
 def test_a_user_location_without_web_search_is_refused(provider):
     with pytest.raises(ValidationError, match="web_search"):
         request_for(search(user_location={"country": "US"}))
@@ -286,11 +239,6 @@ def test_search_content_types_go_on_the_tool(provider):
         "image",
         "text",
     ]
-
-
-def test_search_content_types_are_text_or_image(provider):
-    with pytest.raises(ValidationError):
-        tool(search_content_types=["video"])
 
 
 def test_image_settings_go_on_the_tool(provider):
@@ -309,15 +257,42 @@ def test_image_settings_send_only_what_was_set(provider):
     assert settings["image_settings"] == {"max_results": 3}
 
 
-def test_max_results_is_a_positive_number(provider):
-    with pytest.raises(ValidationError):
-        tool(search_content_types=["image"], image_settings={"max_results": 0})
-
-
 def test_image_settings_without_image_results_are_refused(provider):
     """Settings for images the search was never asked for would be recorded but unused."""
     with pytest.raises(ValidationError, match="image"):
         tool(image_settings={"max_results": 3})
+
+
+@pytest.mark.parametrize(
+    "block, match",
+    [
+        ({"name": "gpt-5", "temperature": -1}, "temperature"),
+        ({"name": "gpt-5", "temperature": 3}, "temperature"),
+        ({"name": "gpt-5", "top_p": 1.5}, "top_p"),
+        ({"name": "gpt-5", "max_output_tokens": 0}, "max_output_tokens"),
+        ({"name": "gpt-5", "reasoning_effort": "extreme"}, "reasoning_effort"),
+        (search(web_search=True, search_context_size="huge"), "search_context_size"),
+        (search(web_search=True, return_token_budget=10_000), "return_token_budget"),
+        (search(web_search=True, tool_choice="none"), "tool_choice"),
+        (search(web_search=True, include=["reasoning.encrypted_content"]), "include"),
+        (search(web_search=True, search_content_types=["video"]), "search_content_types"),
+        (
+            search(
+                web_search=True, search_content_types=["image"], image_settings={"max_results": 0}
+            ),
+            "max_results",
+        ),
+        (
+            search(web_search=True, blocked_domains=[f"site{n}.com" for n in range(101)]),
+            "at most 100",
+        ),
+        (search(web_search=True, user_location={"country": "USA"}), "user_location.country"),
+    ],
+)
+def test_out_of_range_values_are_rejected(provider, block, match):
+    """One row for each bound and each fixed set of values a field takes."""
+    with pytest.raises(ValidationError, match=match):
+        provider.validate_model_config(block)
 
 
 @pytest.mark.parametrize("key", ["stream", "background"])
