@@ -89,14 +89,14 @@ def test_max_output_tokens_must_be_positive():
 
 @pytest.mark.parametrize("key", ["temperature", "top_p", "top_k"])
 def test_deprecated_sampling_settings_are_not_offered(key):
-    """Google deprecated them on 2026-07-30: Gemini 3.6 Flash and later ignore them,
-    and later models refuse them with a 400."""
+    """Google deprecated them on 2026-07-21: Gemini 3.6 Flash, 3.5 Flash-Lite and
+    later models ignore them, and future models will refuse them with a 400."""
     with pytest.raises(ValidationError, match=key):
         request_for({**BASE, key: 0.5})
 
 
 def test_extra_can_still_send_sampling_settings_to_an_older_model():
-    """Gemini 2.5 and models before 3.6 Flash still honour them."""
+    """Gemini 2.5, and the models before 3.6 Flash and 3.5 Flash-Lite, still honour them."""
     block = {"name": "gemini-2.5-flash", "extra": {"generation_config": {"temperature": 0.2}}}
 
     assert request_for(block)["generation_config"] == {"temperature": 0.2}

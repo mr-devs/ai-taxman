@@ -72,8 +72,9 @@ class GeminiModelConfig(SettingsBlock):
 
     #: Sent in `generation_config`, and only when set, so the model's own
     #: defaults apply otherwise. There is no temperature, top_p or top_k: Google
-    #: deprecated them, Gemini 3.6 Flash and later ignore them, and later models
-    #: refuse them. `extra:` can still send them to an older model.
+    #: deprecated them on 2026-07-21, Gemini 3.6 Flash, 3.5 Flash-Lite and later
+    #: models ignore them, and future models will refuse them. `extra:` can still
+    #: send them to an older model.
     max_output_tokens: int | None = Field(
         default=None,
         ge=1,
