@@ -20,7 +20,7 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from pydantic import ValidationError
 
@@ -35,6 +35,11 @@ from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message
 from ai_taxman.core.records import RunManifest, new_run_id
 from ai_taxman.core.writer import read_jsonl, target_path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - the test machines are POSIX
+    fcntl = None  # type: ignore[assignment]
 
 #: Ids and counts only, like every core logger.
 log = get_logger(__name__)
@@ -230,31 +235,18 @@ def hold_audit(config: AuditConfig) -> Iterator[None]:
     waited for, not refused: no one holds it for longer than it takes to plan.
     """
     path = config.source_path
-    try:
-        import fcntl
-    except ImportError:  # pragma: no cover - the test machines are POSIX
-        yield
-        return
     if not path.is_file():  # a config built in code, from no file
         yield
         return
 
     with path.open("rb") as handle:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        except OSError as exc:
-            log.warning(
-                "unlocked  %s cannot be locked here (%s), so two collects of it "
-                "started at once could both run",
-                path,
-                exc.strerror or exc,
-            )
-            yield
-            return
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        _flock(
+            handle,
+            wait=True,
+            about=path,
+            unlocked="two collects of it started at once could both run",
+        )
+        yield
 
 
 @contextlib.contextmanager
@@ -285,38 +277,40 @@ def _clear_pid_file(path: Path, pid: int) -> None:
 
 @contextlib.contextmanager
 def _lock(directory: Path, *, warn: bool) -> Iterator[None]:
-    """`flock` the run's lock file, or raise `RunInProgressError` if it is taken.
-
-    Where `flock` does not exist (Windows), or the filesystem cannot lock (NFS
-    without lockd, many SMB mounts), a run in progress cannot be told from a
-    dead one, so nothing is held and nothing is refused.
-    """
-    try:
-        import fcntl
-    except ImportError:  # pragma: no cover - the test machines are POSIX
-        yield
-        return
-
+    """`flock` the run's lock file, or raise `RunInProgressError` if it is taken."""
     directory.mkdir(parents=True, exist_ok=True)
+    unlocked = "a second collect of this run at the same time would not be refused"
     with (directory / LOCK_FILENAME).open("a") as handle:
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _flock(handle, wait=False, about=directory, unlocked=unlocked if warn else None)
         except BlockingIOError as exc:
             raise RunInProgressError(_in_progress_message(directory)) from exc
-        except OSError as exc:
-            if warn:
-                log.warning(
-                    "unlocked  %s cannot be locked here (%s), so a second collect of "
-                    "this run at the same time would not be refused",
-                    directory,
-                    exc.strerror or exc,
-                )
-            yield
-            return
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        yield
+
+
+def _flock(handle: IO[Any], *, wait: bool, about: Path, unlocked: str | None) -> None:
+    """Take an exclusive `flock` on `handle`, held until the handle is closed.
+
+    Without `wait`, a lock someone else holds raises `BlockingIOError`. Where
+    `flock` does not exist (Windows), or the filesystem cannot lock (NFS without
+    lockd, many SMB mounts), nothing is held, and `unlocked` - what that puts at
+    risk - is logged if given. Returning, rather than going on inside the
+    `except`, keeps that error out of the traceback of anything raised later.
+    """
+    if fcntl is None:  # pragma: no cover - the test machines are POSIX
+        return
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise
+    except OSError as exc:
+        if unlocked is not None:
+            log.warning(
+                "unlocked  %s cannot be locked here (%s), so %s",
+                about,
+                exc.strerror or exc,
+                unlocked,
+            )
 
 
 def _check_not_in_progress(existing: ExistingRun) -> None:

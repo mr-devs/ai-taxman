@@ -479,6 +479,27 @@ async def test_a_filesystem_that_cannot_lock_still_collects(
     assert "cannot be locked" in caplog.text
 
 
+@pytest.mark.parametrize("held", ["run", "audit"])
+def test_an_error_while_unlocked_is_not_blamed_on_the_lock(project, monkeypatch, held):
+    """The collect goes on unlocked, and a crash later in it is its own: a
+    traceback that opens with the lock's error sends the user after the lock."""
+    import errno
+    import os
+
+    from ai_taxman.core.runs import hold_audit, hold_run
+
+    def unsupported(fd, operation):
+        raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+
+    monkeypatch.setattr("fcntl.flock", unsupported)
+    hold = hold_run(project / "data" / "run") if held == "run" else hold_audit(audit(project))
+
+    with pytest.raises(RuntimeError) as caught, hold:
+        raise RuntimeError("the provider fell over")
+
+    assert caught.value.__context__ is None
+
+
 async def test_two_collects_started_together_send_the_audit_once(project, fake_provider):
     """Each plans while the other is still starting; only one may claim the work."""
     import asyncio
