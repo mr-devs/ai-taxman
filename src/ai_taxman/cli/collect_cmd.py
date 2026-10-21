@@ -287,7 +287,7 @@ def _start_in_background(
     """Validate, spawn a detached child, and say how to follow or stop it."""
     from pathlib import Path as _Path
 
-    from ai_taxman.cli.background import PID_FILENAME, build_child_command, spawn
+    from ai_taxman.cli.background import build_child_command, spawn
     from ai_taxman.core.config import resolve_log_file
     from ai_taxman.core.runner import preflight, record_complete
     from ai_taxman.core.runs import output_file, plan_run
@@ -321,7 +321,6 @@ def _start_in_background(
     log_file = (
         log_file.resolve() if log_file is not None else resolve_log_file(config, run_id=run_id)
     )
-    pid_file = directory / PID_FILENAME
     argv = build_child_command(
         audit,
         run_id=run_id,
@@ -357,5 +356,7 @@ def _start_in_background(
     typer.echo(f"  pid      {pid}", err=True)
     typer.echo(f"  log      {log_file}", err=True)
     typer.echo(f"  output   {output}", err=True)
-    typer.echo(f"  stop     kill {pid}   (or: kill $(cat {pid_file}))", err=True)
+    # Not `kill $(cat collect.pid)`: the child writes that only once it holds the
+    # run, and until then it can still name a session that `kill -9` ended.
+    typer.echo(f"  stop     kill {pid}", err=True)
     typer.echo(pid)

@@ -186,7 +186,8 @@ detaches: a complete audit prints nothing on stdout.
 
 Every run, in the background or not, keeps the pid of the process collecting it in
 `collect.pid` in the run directory while it runs, so `kill $(cat <run dir>/collect.pid)`
-stops it.
+stops it. A run ended by `kill -9` cannot remove its `collect.pid`, so the file names a
+dead process until the run is collected again.
 
 ```bash
 openai=$(taxman collect openai-probe -b)

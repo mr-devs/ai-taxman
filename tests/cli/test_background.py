@@ -94,6 +94,18 @@ def test_the_parent_reports_everything_needed_to_follow_or_stop_the_run(
         assert expected in result.output.lower()
 
 
+def test_the_parent_says_to_stop_the_run_by_the_pid_it_printed(invoke, tmp_path, fake_provider):
+    """Not by `collect.pid`: the child writes that only once it holds the run, and
+    until then it may name a session `kill -9` ended, whose pid the OS can reuse."""
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", "--background")
+
+    (stop,) = [line for line in result.stderr.splitlines() if line.strip().startswith("stop")]
+    pid = result.stdout.strip().splitlines()[-1]
+    assert stop.split() == ["stop", "kill", pid]
+
+
 def test_the_parent_names_the_compressed_file_the_child_writes(invoke, tmp_path, fake_provider):
     make_project(
         tmp_path,
