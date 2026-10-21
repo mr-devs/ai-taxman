@@ -660,10 +660,16 @@ async def test_a_collect_that_starts_after_another_finished_the_audit_says_it_is
     """Rather than refuse to start a second run no one asked for."""
     import asyncio
 
-    slow = type(fake_provider)(startup_delay=0.3)
+    finished = asyncio.Event()
+    slow = type(fake_provider)(startup_gate=finished)
+
+    async def collect_then_let_the_slow_one_start():
+        result = await run_audit_async(audit(project))
+        finished.set()
+        return result
 
     late, prompt = await asyncio.gather(
-        run_audit_async(audit(project), provider=slow), run_audit_async(audit(project))
+        run_audit_async(audit(project), provider=slow), collect_then_let_the_slow_one_start()
     )
 
     assert slow.sent == []
@@ -679,10 +685,16 @@ async def test_a_collect_that_was_slow_to_start_does_not_resend_what_another_sen
     import asyncio
 
     first = await unfinished_run(project, fake_provider)
-    slow = type(fake_provider)(startup_delay=0.3)
+    finished = asyncio.Event()
+    slow = type(fake_provider)(startup_gate=finished)
+
+    async def collect_then_let_the_slow_one_start():
+        result = await run_audit_async(audit(project))
+        finished.set()
+        return result
 
     late, prompt = await asyncio.gather(
-        run_audit_async(audit(project), provider=slow), run_audit_async(audit(project))
+        run_audit_async(audit(project), provider=slow), collect_then_let_the_slow_one_start()
     )
 
     assert slow.sent == []

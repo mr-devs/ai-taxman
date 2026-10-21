@@ -44,6 +44,9 @@ class FakeProvider(Provider):
     startup_error: Exception | None = None
     #: Seconds startup() takes, so two runs can be caught between plan and start.
     startup_delay: float = 0.0
+    #: startup() waits for this, when a test sets it: a collect held back until
+    #: another has done whatever the test needs done first.
+    startup_gate: asyncio.Event | None = None
     #: Every send waits for this, when a test sets it: the run stays going, with
     #: nothing answered, for exactly as long as the test needs to look at it.
     gate: asyncio.Event | None = None
@@ -78,6 +81,8 @@ class FakeProvider(Provider):
         self.api_key = api_key
         if self.startup_delay:
             await asyncio.sleep(self.startup_delay)
+        if self.startup_gate is not None:
+            await self.startup_gate.wait()
         if self.startup_error is not None:
             raise self.startup_error
 
