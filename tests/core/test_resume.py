@@ -456,7 +456,7 @@ async def test_a_finished_run_leaves_no_pid_file(project, fake_provider):
     assert not (result.output_path.parent / "collect.pid").exists()
 
 
-@pytest.mark.parametrize("error", ["ENOLCK", "ENOTSUP", "EBADF"])
+@pytest.mark.parametrize("error", ["ENOLCK", "ENOTSUP"])
 async def test_a_filesystem_that_cannot_lock_still_collects(
     project, fake_provider, monkeypatch, caplog, error
 ):
@@ -477,6 +477,64 @@ async def test_a_filesystem_that_cannot_lock_still_collects(
     assert second.run_id == first.run_id
     assert sent(fake_provider) == sorted([(TWO, 0), (THREE, 0)])
     assert "cannot be locked" in caplog.text
+
+
+@pytest.fixture
+def nfs_locks(monkeypatch):
+    """`flock` as Linux emulates it on NFS, with byte-range locks: an exclusive
+    lock needs the file open for writing, and a shared one open for reading."""
+    import errno
+    import fcntl
+    import os
+
+    real = fcntl.flock
+
+    def flock(fd, operation):
+        mode = fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE
+        needs = os.O_RDONLY if operation & fcntl.LOCK_EX else os.O_WRONLY
+        if mode == needs:
+            raise OSError(errno.EBADF, os.strerror(errno.EBADF))
+        return real(fd, operation)
+
+    monkeypatch.setattr("fcntl.flock", flock)
+
+
+async def test_an_nfs_mount_locks_the_audit_and_its_run(project, fake_provider, nfs_locks, caplog):
+    await unfinished_run(project, fake_provider)
+
+    await run_audit_async(audit(project))
+
+    assert "cannot be locked" not in caplog.text
+
+
+def test_the_audit_lock_holds_on_nfs(project, nfs_locks):
+    import fcntl
+
+    from ai_taxman.core.runs import hold_audit
+
+    config = audit(project)
+    with (
+        hold_audit(config),
+        config.source_path.open("a") as other,
+        pytest.raises(BlockingIOError),
+    ):
+        fcntl.flock(other.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def test_an_audit_that_cannot_be_written_is_still_locked(project):
+    """A read-only checkout: a local filesystem locks a file opened only to read."""
+    import fcntl
+
+    from ai_taxman.core.runs import hold_audit
+
+    config = audit(project)
+    config.source_path.chmod(0o444)
+    with (
+        hold_audit(config),
+        config.source_path.open("rb") as other,
+        pytest.raises(BlockingIOError),
+    ):
+        fcntl.flock(other.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 @pytest.mark.parametrize("held", ["run", "audit"])

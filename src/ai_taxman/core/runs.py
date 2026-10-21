@@ -239,7 +239,7 @@ def hold_audit(config: AuditConfig) -> Iterator[None]:
         yield
         return
 
-    with path.open("rb") as handle:
+    with _open_to_lock(path) as handle:
         _flock(
             handle,
             wait=True,
@@ -247,6 +247,20 @@ def hold_audit(config: AuditConfig) -> Iterator[None]:
             unlocked="two collects of it started at once could both run",
         )
         yield
+
+
+def _open_to_lock(path: Path) -> IO[bytes]:
+    """`path`, opened to be locked but never written to.
+
+    Opened to append where it can be: NFS emulates `flock` with byte-range
+    locks, and an exclusive one needs a file open for writing. Opened to read
+    where it cannot, as in a read-only checkout; a local filesystem locks that
+    just as well.
+    """
+    try:
+        return path.open("ab")
+    except OSError:
+        return path.open("rb")
 
 
 @contextlib.contextmanager
