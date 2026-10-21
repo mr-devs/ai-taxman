@@ -290,7 +290,7 @@ def _clear_pid_file(path: Path, pid: int) -> None:
     try:
         if path.read_text(encoding="utf-8").strip() == str(pid):
             path.unlink()
-    except OSError:
+    except (OSError, ValueError):  # gone, or overwritten with what is not text
         return
 
 

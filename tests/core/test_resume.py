@@ -470,6 +470,18 @@ def test_a_check_as_a_run_is_claimed_does_not_refuse_it(project):
         pass
 
 
+def test_a_pid_file_that_is_not_text_does_not_break_the_end_of_a_run(project):
+    """Overwritten by something else; it is not this run's, so it is left alone,
+    and whatever ended the run is not masked by an error in tidying up."""
+    from ai_taxman.core.runs import hold_run
+
+    directory = project / "data" / "probe" / "run"
+    with hold_run(directory):
+        (directory / "collect.pid").write_bytes(b"\xff\xfe")
+
+    assert (directory / "collect.pid").read_bytes() == b"\xff\xfe"
+
+
 async def test_a_finished_run_leaves_no_pid_file(project, fake_provider):
     result = await run_audit_async(audit(project))
 
