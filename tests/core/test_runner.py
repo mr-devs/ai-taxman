@@ -207,6 +207,21 @@ async def test_on_error_stop_halts_the_run(project, fake_provider):
     assert result.n_ok + result.n_error < 60
 
 
+async def test_on_error_stop_sends_nothing_after_the_failure(project, fake_provider):
+    """One request at a time, so the one that failed is the last one sent: the
+    slot it frees must not go to the next message before the stop is seen."""
+    fake_provider.failures = {ONE: [RuntimeError("nope")]}
+
+    result = await run_audit_async(
+        audit(project, "execution:\n  max_concurrency: 1\n  on_error: stop"),
+        backoff_base=0,
+    )
+
+    assert [request.message.id for request in fake_provider.sent] == [ONE]
+    assert result.stopped_early is True
+    assert (result.n_ok, result.n_error) == (0, 1)
+
+
 async def test_a_run_stopped_by_a_signal_says_which(project, fake_provider):
     """`kill <pid>` is not `on_error: stop`, and the user is told which it was."""
     import os

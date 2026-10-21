@@ -542,8 +542,6 @@ class _RunState:
         else:
             self.n_error += 1
             self.failed.add(pair)
-            if self.on_error == "stop":
-                self.stop.set()
 
 
 async def _dispatch(
@@ -573,13 +571,18 @@ async def _dispatch(
         async with semaphore:
             if state.stop.is_set():
                 return None
-            return await _attempt(
+            record = await _attempt(
                 Request(message=message, repeat=repeat, model=model, system_prompt=system_prompt),
                 provider=provider,
                 config=config,
                 run_id=run_id,
                 backoff_base=backoff_base,
             )
+            # Here, before the slot is given up, and not when the record is
+            # written: by then the next task has the slot and has sent its request.
+            if record.status != "ok" and state.on_error == "stop":
+                state.stop.set()
+            return record
 
     pending = [asyncio.create_task(one(message, repeat)) for message, repeat in tasks]
     try:
