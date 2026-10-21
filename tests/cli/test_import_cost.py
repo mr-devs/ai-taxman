@@ -14,8 +14,6 @@ from __future__ import annotations
 import subprocess
 import sys
 
-import pytest
-
 #: Heavy, and needed by a command that is doing work - never by a completion.
 DEFERRED = [
     "questionary",
@@ -34,15 +32,13 @@ def modules_after(statement: str) -> set[str]:
     return set(result.stdout.split())
 
 
-@pytest.mark.parametrize("module", DEFERRED)
-def test_importing_the_cli_does_not_import(module):
-    assert module not in modules_after("import ai_taxman.cli")
+def test_importing_the_cli_does_not_import_what_only_a_command_needs():
+    assert not set(DEFERRED) & modules_after("import ai_taxman.cli")
 
 
-@pytest.mark.parametrize("module", DEFERRED)
-def test_importing_the_package_does_not_import(module):
+def test_importing_the_package_does_not_import_what_only_a_command_needs():
     """`from ai_taxman import __version__` must not drag the whole API in."""
-    assert module not in modules_after("import ai_taxman")
+    assert not set(DEFERRED) & modules_after("import ai_taxman")
 
 
 def test_asking_without_a_terminal_does_not_import_the_prompt_library():
