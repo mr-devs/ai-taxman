@@ -51,43 +51,47 @@ def manifest_at(path):
     return RunManifest.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
+def manifests(project):
+    return list((project / "data" / "probe").glob(f"*/{MANIFEST_FILENAME}"))
+
+
 # --- the manifest describes a run that has not finished -------------------
 
 
-async def test_the_manifest_is_on_disk_before_the_first_response_lands(project, fake_provider):
+async def test_the_manifest_is_on_disk_before_the_first_response_lands(
+    project, fake_provider, until
+):
     """A killed run still says what it was running, and with what."""
-    fake_provider.delay = 0.2
-    config = audit(project)
+    fake_provider.gate = asyncio.Event()
+    task = asyncio.create_task(run_audit_async(audit(project)))
+    await until(lambda: manifests(project))
 
-    task = asyncio.create_task(run_audit_async(config))
-    await asyncio.sleep(0.05)
+    (path,) = manifests(project)
+    manifest = manifest_at(path)
 
-    written = list((project / "data" / "probe").iterdir())
-    assert len(written) == 1
-    manifest = manifest_at(written[0] / MANIFEST_FILENAME)
-
+    assert list(read_jsonl(path.parent / "responses.jsonl")) == []
     assert manifest.status == "running"
     assert manifest.started_at is not None
     assert manifest.finished_at is None
     assert manifest.n_messages == 3
     assert manifest.config  # the settings this run actually used, frozen
 
+    fake_provider.gate.set()
     await task
 
 
-async def test_the_manifest_says_how_many_responses_to_expect(project, fake_provider):
+async def test_the_manifest_says_how_many_responses_to_expect(project, fake_provider, until):
     """Without the denominator, a truncated run looks like a complete short one."""
-    fake_provider.delay = 0.2
-    config = audit(project, "execution:\n  repeats: 4")
+    fake_provider.gate = asyncio.Event()
+    task = asyncio.create_task(run_audit_async(audit(project, "execution:\n  repeats: 4")))
+    await until(lambda: manifests(project))
 
-    task = asyncio.create_task(run_audit_async(config))
-    await asyncio.sleep(0.05)
-
-    directory = next((project / "data" / "probe").iterdir())
-    manifest = manifest_at(directory / MANIFEST_FILENAME)
+    (path,) = manifests(project)
+    manifest = manifest_at(path)
 
     assert manifest.n_messages * manifest.repeats == 12
 
+    fake_provider.gate.set()
     await task
 
 
@@ -135,58 +139,49 @@ async def test_a_run_that_raises_still_finalises_its_manifest(project, fake_prov
     assert manifest.finished_at is not None
 
 
-async def test_a_cancelled_run_leaves_a_manifest_that_is_not_complete(project, fake_provider):
-    fake_provider.delay = 0.5
+async def test_a_cancelled_run_leaves_a_manifest_that_is_not_complete(
+    project, fake_provider, until
+):
+    fake_provider.gate = asyncio.Event()  # never set: cancelled with everything in flight
     task = asyncio.create_task(run_audit_async(audit(project)))
-    await asyncio.sleep(0.05)
+    await until(lambda: manifests(project))
 
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    directory = next((project / "data" / "probe").iterdir())
-    manifest = manifest_at(directory / MANIFEST_FILENAME)
-
-    assert manifest.status != "complete"
+    (path,) = manifests(project)
+    assert manifest_at(path).status == "interrupted"
 
 
 # --- responses land as they arrive ---------------------------------------
 
 
-async def test_responses_are_readable_while_the_run_is_still_going(project, fake_provider):
-    """Not buffered in memory and flushed at the end - written as they land."""
-    fake_provider.delay = 0.15
-    config = audit(project, "execution:\n  max_concurrency: 1")
-
-    task = asyncio.create_task(run_audit_async(config))
-    await asyncio.sleep(0.25)
-
-    directory = next((project / "data" / "probe").iterdir())
-    landed = list(read_jsonl(directory / "responses.jsonl"))
-
-    assert 0 < len(landed) < 3
-
-    await task
-
-
-async def test_responses_land_as_they_arrive_when_compressed(project, fake_provider):
-    """A gzip stream is flushed too, so a killed run is not an unreadable file."""
-    fake_provider.delay = 0.15
+@pytest.mark.parametrize(
+    ("compress", "filename"),
+    [(False, "responses.jsonl"), (True, "responses.jsonl.gz")],
+)
+async def test_each_response_is_on_disk_as_soon_as_it_is_recorded(
+    project, fake_provider, compress, filename
+):
+    """Not buffered in memory and flushed at the end - written as they land, a gzip
+    stream included, so a killed run is not an unreadable file. Read from disk as
+    each response is handed back, while the run is still writing."""
     config = audit(
         project,
-        "execution:\n  max_concurrency: 1",
-        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n  compress: true",
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        f"  compress: {compress}",
     )
+    on_disk = []
 
-    task = asyncio.create_task(run_audit_async(config))
-    await asyncio.sleep(0.25)
+    def read_back(record):
+        (path,) = manifests(project)
+        landed = [row.message_id for row in read_jsonl(path.parent / filename)]
+        on_disk.append((record.message_id in landed, len(landed)))
 
-    directory = next((project / "data" / "probe").iterdir())
-    landed = list(read_jsonl(directory / "responses.jsonl.gz"))
+    await run_audit_async(config, on_record=read_back)
 
-    assert 0 < len(landed) < 3
-
-    await task
+    assert on_disk == [(True, 1), (True, 2), (True, 3)]
 
 
 # --- one directory, one run -------------------------------------------------

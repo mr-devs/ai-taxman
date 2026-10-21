@@ -7,6 +7,7 @@ network, an API key, or any provider SDK installed.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,6 +44,9 @@ class FakeProvider(Provider):
     startup_error: Exception | None = None
     #: Seconds startup() takes, so two runs can be caught between plan and start.
     startup_delay: float = 0.0
+    #: Every send waits for this, when a test sets it: the run stays going, with
+    #: nothing answered, for exactly as long as the test needs to look at it.
+    gate: asyncio.Event | None = None
     retryable: tuple[type[BaseException], ...] = ()
 
     sent: list[Request] = field(default_factory=list)
@@ -88,6 +92,8 @@ class FakeProvider(Provider):
         self.peak_concurrency = max(self.peak_concurrency, self._in_flight)
         try:
             self.sent.append(request)
+            if self.gate is not None:
+                await self.gate.wait()
             if self.delay:
                 await asyncio.sleep(self.delay)
             queued = self.failures.get(request.message.id)
@@ -111,3 +117,22 @@ def fake_provider():
         yield provider
     finally:
         registry.unregister_provider(provider.name)
+
+
+@pytest.fixture
+def until():
+    """Wait, in an async test, for something a run is about to do.
+
+    A fixed sleep is a guess at how long the run takes to get there, which a busy
+    machine proves wrong. This waits for the thing itself, and fails the test if
+    it never happens.
+    """
+
+    async def wait(condition, timeout=10.0):
+        deadline = time.monotonic() + timeout
+        while not condition():
+            if time.monotonic() > deadline:
+                pytest.fail(f"gave up after {timeout}s waiting for the run")
+            await asyncio.sleep(0.01)
+
+    return wait

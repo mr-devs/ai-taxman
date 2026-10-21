@@ -693,20 +693,22 @@ async def test_a_plan_reads_again_what_was_written_since_the_last(project, fake_
     assert (TWO, 0) in again.answered
 
 
-async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider):
+async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider, until):
     import asyncio
 
     from ai_taxman.core.errors import RunInProgressError
     from ai_taxman.core.runs import hold_run
 
-    fake_provider.delay = 0.2
-    task = asyncio.create_task(run_audit_async(audit(project, "execution:\n  max_concurrency: 1")))
-    await asyncio.sleep(0.1)
+    fake_provider.gate = asyncio.Event()
+    task = asyncio.create_task(run_audit_async(audit(project)))
+    # Written once the run holds its lock.
+    await until(lambda: list((project / "data" / "probe").glob("*/manifest.json")))
     (directory,) = (project / "data" / "probe").iterdir()
 
     with pytest.raises(RunInProgressError), hold_run(directory):
         pass
 
+    fake_provider.gate.set()
     await task
     with hold_run(directory):  # released once the run is over
         pass
