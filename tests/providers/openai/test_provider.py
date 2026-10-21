@@ -1,13 +1,10 @@
 import asyncio
 
 import pytest
-import yaml
 
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderError
 from ai_taxman.providers.base import Provider
-from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
-from ai_taxman.providers.openai.models import DEFAULT_MODEL
 from ai_taxman.providers.openai.provider import PROVIDER, OpenAIProvider
 
 
@@ -23,27 +20,8 @@ def test_is_named_openai():
     assert PROVIDER.name == "openai"
 
 
-def test_lists_known_models():
-    models = PROVIDER.known_models()
-
-    assert models
-    assert any(name.startswith("gpt-5") for name in models)
-
-
 def test_does_not_claim_batch_support_yet():
     assert PROVIDER.supports_batch is False
-
-
-def test_template_is_valid_yaml_with_a_model_block():
-    parsed = yaml.safe_load(PROVIDER.render_template())
-
-    assert parsed["model"]["name"] == DEFAULT_MODEL
-
-
-def test_template_names_a_model_this_provider_knows():
-    parsed = yaml.safe_load(PROVIDER.render_template())
-
-    assert parsed["model"]["name"] in PROVIDER.known_models()
 
 
 def comment_above(key, text=None):
@@ -56,25 +34,6 @@ def comment_above(key, text=None):
             break
         above.insert(0, line.strip().removeprefix("#").strip())
     return above
-
-
-def test_template_leaves_every_other_parameter_blank_as_documentation():
-    """The scaffolded file is the documentation; the user fills in the blanks."""
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    for key in set(OpenAIModelConfig.model_fields) - {"name", "extra", "search"}:
-        assert key in parsed, f"{key} is missing from the template"
-        assert parsed[key] is None, f"{key} should be blank"
-
-
-def test_every_search_setting_is_in_the_template():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]["search"]
-
-    assert set(parsed) == set(OpenAISearchConfig.model_fields)
-
-
-def test_the_extra_escape_hatch_stays_out_of_the_template():
-    assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
 
 
 def test_max_output_tokens_says_what_it_counts():
@@ -102,28 +61,10 @@ def test_store_is_off_unless_the_user_turns_it_on():
     assert "Default:  false" in comment_above("store")
 
 
-def test_web_search_is_set_in_a_search_block_inside_the_model_block():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    assert "web_search" not in parsed
-    assert parsed["search"]["web_search"] is None
-
-
 def test_the_search_block_says_its_settings_need_web_search():
     above = " ".join(comment_above("search"))
 
     assert "web_search must be true to use any other setting in this block" in above
-
-
-def test_template_takes_no_arguments():
-    with pytest.raises(TypeError):
-        PROVIDER.render_template({"name": "gpt-4o"})
-
-
-def test_template_output_validates_against_the_config_model():
-    parsed = yaml.safe_load(PROVIDER.render_template())
-
-    PROVIDER.validate_model_config(parsed["model"])
 
 
 @pytest.mark.parametrize(

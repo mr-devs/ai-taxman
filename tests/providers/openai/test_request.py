@@ -121,11 +121,6 @@ def test_extra_body_passes_through_unknown_api_parameters(provider):
     assert payload["service_tier"] == "flex"
 
 
-def test_model_name_is_required(provider):
-    with pytest.raises(ValidationError, match="name"):
-        provider.validate_model_config({})
-
-
 def test_unknown_model_keys_are_rejected(provider):
     with pytest.raises(ValidationError, match="temprature"):
         provider.validate_model_config({"name": "gpt-5", "temprature": 1.5})

@@ -42,16 +42,6 @@ def test_omits_parameters_the_user_left_blank():
     assert set(request_for(BASE)) == {"model", "max_tokens", "messages"}
 
 
-def test_model_name_is_required():
-    with pytest.raises(ValidationError, match="name"):
-        request_for({"max_tokens": 1024})
-
-
-def test_max_tokens_is_required_because_anthropic_has_no_default():
-    with pytest.raises(ValidationError, match="max_tokens"):
-        request_for({"name": "claude-opus-5-5"})
-
-
 def test_a_blank_max_tokens_is_still_missing():
     with pytest.raises(ValidationError, match="max_tokens"):
         request_for({"name": "claude-opus-5-5", "max_tokens": None})

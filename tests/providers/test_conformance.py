@@ -6,9 +6,11 @@ provider's own tests cover what its API does; these cover what core relies on.
 """
 
 import inspect
+from typing import get_args
 
 import pytest
 import yaml
+from pydantic import BaseModel
 
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderError
@@ -66,7 +68,48 @@ def test_template_validates_as_written(provider):
     """`audits new` output must run as-is, before the user edits a thing."""
     config = provider.validate_model_config(template_block(provider))
 
-    assert provider.describe_model(config) in provider.known_models()
+    assert provider.describe_model(config) == provider.known_models()[0]
+
+
+def nested_block(annotation):
+    """The settings model a field holds, if it is a nested block rather than a value."""
+    for candidate in (annotation, *get_args(annotation)):
+        if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+            return candidate
+    return None
+
+
+def settings_tree(model):
+    """What the template must show for `model`: every setting, filled in only if required."""
+    tree = {}
+    for key, field in model.model_fields.items():
+        extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
+        if extra.get("template", True) is False:
+            continue
+        block = nested_block(field.annotation)
+        if block is not None:
+            tree[key] = settings_tree(block)
+        else:
+            tree[key] = "filled in" if field.is_required() else "blank"
+    return tree
+
+
+def template_tree(block):
+    """What a parsed template shows: each setting blank, filled in, or a nested block."""
+    return {
+        key: template_tree(value)
+        if isinstance(value, dict)
+        else ("blank" if value is None else "filled in")
+        for key, value in block.items()
+    }
+
+
+def test_the_template_shows_every_setting_and_fills_in_only_the_required(provider):
+    """The file is the documentation: a setting left out of it is one nobody finds."""
+    block = template_block(provider)
+    model = type(provider.validate_model_config(block))
+
+    assert template_tree(block) == settings_tree(model)
 
 
 def unexplained_settings(template):

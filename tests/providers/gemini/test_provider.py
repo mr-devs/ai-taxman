@@ -2,13 +2,10 @@ import asyncio
 import sys
 
 import pytest
-import yaml
 
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.providers.base import Provider
-from ai_taxman.providers.gemini.config import GeminiModelConfig
-from ai_taxman.providers.gemini.models import DEFAULT_MODEL
 from ai_taxman.providers.gemini.provider import PROVIDER, GeminiProvider
 
 
@@ -28,33 +25,8 @@ def test_declares_the_conventional_gemini_variable():
     assert PROVIDER.default_api_key_env == "GEMINI_API_KEY"
 
 
-def test_lists_known_models_with_the_default_first():
-    models = PROVIDER.known_models()
-
-    assert models[0] == DEFAULT_MODEL
-    assert "gemini-2.5-flash" in models
-
-
 def test_does_not_claim_batch_support_yet():
     assert PROVIDER.supports_batch is False
-
-
-def test_template_names_the_default_model():
-    parsed = yaml.safe_load(PROVIDER.render_template())
-
-    assert parsed["model"]["name"] == DEFAULT_MODEL
-
-
-def test_template_leaves_every_other_parameter_blank_as_documentation():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    for key in set(GeminiModelConfig.model_fields) - {"name", "extra", "search"}:
-        assert key in parsed, f"{key} is missing from the template"
-        assert parsed[key] is None, f"{key} should be blank"
-
-
-def test_the_extra_escape_hatch_stays_out_of_the_template():
-    assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
 
 
 def comment_above(key):
@@ -191,13 +163,6 @@ def _make_gemini_error(name):
     compat_errors = pytest.importorskip("google.genai._gaos.lib.compat_errors")
     cls = getattr(compat_errors, name)
     return cls.__new__(cls)
-
-
-def test_web_search_is_set_in_a_search_block_inside_the_model_block():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    assert "web_search" not in parsed
-    assert parsed["search"]["web_search"] is None
 
 
 def test_the_search_block_names_the_documented_settings_it_leaves_out():

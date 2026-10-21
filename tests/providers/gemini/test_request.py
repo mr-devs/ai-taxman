@@ -42,11 +42,6 @@ def test_omits_parameters_the_user_left_blank():
     assert set(request_for(BASE)) == {"model", "input", "store"}
 
 
-def test_model_name_is_required():
-    with pytest.raises(ValidationError, match="name"):
-        request_for({})
-
-
 def test_an_unknown_model_name_is_still_allowed():
     """Google ships models faster than the known list is updated."""
     assert request_for({"name": "gemini-9-ultra"})["model"] == "gemini-9-ultra"

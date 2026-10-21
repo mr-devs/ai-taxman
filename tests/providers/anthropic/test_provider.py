@@ -2,16 +2,9 @@ import asyncio
 import sys
 
 import pytest
-import yaml
 
 from ai_taxman.core import registry
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
-from ai_taxman.providers.anthropic.config import (
-    DEFAULT_MAX_TOKENS,
-    AnthropicModelConfig,
-    AnthropicSearchConfig,
-)
-from ai_taxman.providers.anthropic.models import DEFAULT_MODEL
 from ai_taxman.providers.anthropic.provider import PROVIDER, AnthropicProvider
 from ai_taxman.providers.base import Provider
 
@@ -32,13 +25,6 @@ def test_declares_the_conventional_anthropic_variable():
     assert PROVIDER.default_api_key_env == "ANTHROPIC_API_KEY"
 
 
-def test_lists_known_models_with_the_default_first():
-    models = PROVIDER.known_models()
-
-    assert models[0] == DEFAULT_MODEL
-    assert "claude-sonnet-5-5" in models
-
-
 def test_known_models_are_pinned_snapshots_not_moving_aliases():
     """`claude-haiku-4-5` resolves to whatever is current; an audit wants the snapshot."""
     assert "claude-haiku-4-5-20251001" in PROVIDER.known_models()
@@ -47,42 +33,6 @@ def test_known_models_are_pinned_snapshots_not_moving_aliases():
 
 def test_does_not_claim_batch_support_yet():
     assert PROVIDER.supports_batch is False
-
-
-def test_template_names_the_default_model():
-    parsed = yaml.safe_load(PROVIDER.render_template())
-
-    assert parsed["model"]["name"] == DEFAULT_MODEL
-
-
-def test_template_fills_in_max_tokens_because_anthropic_requires_it():
-    parsed = yaml.safe_load(PROVIDER.render_template())
-
-    assert parsed["model"]["max_tokens"] == DEFAULT_MAX_TOKENS
-
-
-def test_template_leaves_every_other_parameter_blank_as_documentation():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    for key in set(AnthropicModelConfig.model_fields) - {
-        "name",
-        "max_tokens",
-        "extra",
-        "thinking",
-        "search",
-    }:
-        assert key in parsed, f"{key} is missing from the template"
-        assert parsed[key] is None, f"{key} should be blank"
-
-
-def test_every_search_setting_is_in_the_template():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]["search"]
-
-    assert set(parsed) == set(AnthropicSearchConfig.model_fields)
-
-
-def test_the_extra_escape_hatch_stays_out_of_the_template():
-    assert "extra" not in yaml.safe_load(PROVIDER.render_template())["model"]
 
 
 def comment_above(key):
@@ -244,21 +194,8 @@ def _make_anthropic_error(name):
     return cls.__new__(cls)
 
 
-def test_thinking_is_set_in_a_block_inside_the_model_block():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    assert parsed["thinking"] == {"type": None, "budget_tokens": None, "display": None}
-
-
 def test_the_thinking_block_says_blank_means_the_models_default():
     assert "model's default" in " ".join(comment_above("thinking"))
-
-
-def test_web_search_is_set_in_a_search_block_inside_the_model_block():
-    parsed = yaml.safe_load(PROVIDER.render_template())["model"]
-
-    assert "web_search" not in parsed
-    assert parsed["search"]["web_search"] is None
 
 
 def test_the_search_block_says_its_settings_need_web_search():
