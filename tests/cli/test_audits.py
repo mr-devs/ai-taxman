@@ -173,6 +173,25 @@ def test_validate_refuses_a_run_being_collected(invoke, tmp_path, fake_provider)
     assert "being collected right now" in result.output
 
 
+def test_validate_checks_a_run_it_cannot_write(invoke, tmp_path, fake_provider):
+    """A collaborator's read-only copy of the data: looking for a collector of
+    the run must not need to write to it."""
+    import os
+
+    if os.geteuid() == 0:
+        pytest.skip("root writes to read-only files")
+    run = collected(invoke, tmp_path, fake_provider, failing=["two"])
+    (run / "collect.lock").chmod(0o444)
+    run.chmod(0o555)
+    try:
+        result = invoke("audits", "validate", "probe")
+    finally:
+        run.chmod(0o755)
+
+    assert result.exit_code == 0, result.output
+    assert f"Collecting it resumes run {run.name}" in result.output
+
+
 def test_validate_refuses_a_run_it_cannot_read(invoke, tmp_path, fake_provider):
     run = collected(invoke, tmp_path, fake_provider, failing=["two"])
     (run / "manifest.json").write_text("{", encoding="utf-8")

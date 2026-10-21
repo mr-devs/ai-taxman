@@ -270,7 +270,7 @@ def hold_run(directory: Path) -> Iterator[None]:
     The pid file is written only once the lock is held, so it always names the
     process collecting the run: a collect that is refused never touches it.
     """
-    with _lock(directory, warn=True):
+    with _lock(directory):
         pid_file = directory / PID_FILENAME
         pid = os.getpid()
         pid_file.write_text(f"{pid}\n", encoding="utf-8")
@@ -290,20 +290,26 @@ def _clear_pid_file(path: Path, pid: int) -> None:
 
 
 @contextlib.contextmanager
-def _lock(directory: Path, *, warn: bool) -> Iterator[None]:
+def _lock(directory: Path) -> Iterator[None]:
     """`flock` the run's lock file, or raise `RunInProgressError` if it is taken."""
     directory.mkdir(parents=True, exist_ok=True)
-    unlocked = "a second collect of this run at the same time would not be refused"
     with (directory / LOCK_FILENAME).open("a") as handle:
         try:
-            _flock(handle, wait=False, about=directory, unlocked=unlocked if warn else None)
+            _flock(
+                handle,
+                wait=False,
+                about=directory,
+                unlocked="a second collect of this run at the same time would not be refused",
+            )
         except BlockingIOError as exc:
             raise RunInProgressError(_in_progress_message(directory)) from exc
         yield
 
 
-def _flock(handle: IO[Any], *, wait: bool, about: Path, unlocked: str | None) -> None:
-    """Take an exclusive `flock` on `handle`, held until the handle is closed.
+def _flock(
+    handle: IO[Any], *, wait: bool, about: Path, unlocked: str | None, shared: bool = False
+) -> None:
+    """Take an `flock` on `handle`, exclusive unless `shared`, held until it is closed.
 
     Without `wait`, a lock someone else holds raises `BlockingIOError`. Where
     `flock` does not exist (Windows), or the filesystem cannot lock (NFS without
@@ -314,7 +320,8 @@ def _flock(handle: IO[Any], *, wait: bool, about: Path, unlocked: str | None) ->
     if fcntl is None:  # pragma: no cover - the test machines are POSIX
         return
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
+        operation = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+        fcntl.flock(handle.fileno(), operation if wait else operation | fcntl.LOCK_NB)
     except BlockingIOError:
         raise
     except OSError as exc:
@@ -328,10 +335,22 @@ def _flock(handle: IO[Any], *, wait: bool, about: Path, unlocked: str | None) ->
 
 
 def _check_not_in_progress(existing: ExistingRun) -> None:
-    """Raise if another process is collecting `existing` right now."""
-    if (existing.directory / LOCK_FILENAME).is_file():
-        with _lock(existing.directory, warn=False):
-            pass
+    """Raise if another process is collecting `existing` right now.
+
+    A shared lock, on the lock file opened only to read: it is refused while a
+    collector holds the run, and it needs no write access to the run, so
+    `audits validate` can check a read-only copy of the data. A lock file that
+    cannot be read cannot say, so nothing is refused.
+    """
+    try:
+        handle = (existing.directory / LOCK_FILENAME).open("rb")
+    except OSError:
+        return
+    with handle:
+        try:
+            _flock(handle, shared=True, wait=False, about=existing.directory, unlocked=None)
+        except BlockingIOError as exc:
+            raise RunInProgressError(_in_progress_message(existing.directory)) from exc
 
 
 def _in_progress_message(directory: Path) -> str:
