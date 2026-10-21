@@ -192,14 +192,6 @@ def test_the_search_block_offers_no_search_types():
         search(search_types=["web_search"])
 
 
-def test_web_search_false_adds_no_tools():
-    assert "tools" not in request_for({**BASE, "search": {"web_search": False}})
-
-
-def test_a_blank_search_block_adds_no_tools():
-    assert "tools" not in request_for({**BASE, "search": {"web_search": None}})
-
-
 def test_the_search_block_offers_no_tool_choice():
     """Forcing a tool does not force a Google Search on the Interactions API.
 

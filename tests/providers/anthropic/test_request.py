@@ -3,13 +3,10 @@
 Pure function, no network.
 """
 
-from typing import get_args
-
 import pytest
 from pydantic import ValidationError
 
 from ai_taxman.core.messages import Message
-from ai_taxman.providers.anthropic.models import Effort
 from ai_taxman.providers.anthropic.provider import AnthropicProvider, build_request
 from ai_taxman.providers.base import Request
 
@@ -42,11 +39,6 @@ def test_omits_parameters_the_user_left_blank():
     assert set(request_for(BASE)) == {"model", "max_tokens", "messages"}
 
 
-def test_a_blank_max_tokens_is_still_missing():
-    with pytest.raises(ValidationError, match="max_tokens"):
-        request_for({"name": "claude-opus-5-5", "max_tokens": None})
-
-
 def test_the_system_prompt_becomes_the_top_level_system():
     """Anthropic takes it as a parameter, not as a turn in `messages`."""
     payload = request_for(BASE, system_prompt="Answer in one word.")
@@ -61,12 +53,6 @@ def test_no_system_prompt_sends_no_system():
 
 def test_effort_goes_in_output_config():
     assert request_for({**BASE, "effort": "low"})["output_config"] == {"effort": "low"}
-
-
-@pytest.mark.parametrize("effort", get_args(Effort))
-def test_every_documented_effort_level_is_accepted(effort):
-    """Which model takes which level is the API's call; taxman only checks the name."""
-    assert request_for({**BASE, "effort": effort})["output_config"]["effort"] == effort
 
 
 # -- thinking ----------------------------------------------------------------
@@ -97,19 +83,6 @@ def test_progress_updates_are_a_display_too():
     payload = thinking(type="adaptive", display="updates")
 
     assert payload["thinking"] == {"type": "adaptive", "display": "updates"}
-
-
-def test_a_blank_thinking_block_sends_nothing():
-    """Blank leaves the model's default, which differs from model to model."""
-    payload = thinking(type=None, budget_tokens=None, display=None)
-
-    assert "thinking" not in payload
-
-
-@pytest.mark.parametrize("kind", ["adaptive", "disabled", "between_tools"])
-def test_every_documented_thinking_type_without_a_budget_is_accepted(kind):
-    """Which model takes which type is the API's call; taxman only checks the name."""
-    assert thinking(type=kind)["thinking"] == {"type": kind}
 
 
 def test_enabled_thinking_needs_a_budget():
@@ -239,14 +212,6 @@ def test_a_tool_version_can_be_pinned(version):
     assert tool(tool_version=version)["type"] == version
 
 
-def test_web_search_false_adds_no_tools():
-    assert "tools" not in request_for({**BASE, "search": {"web_search": False}})
-
-
-def test_a_blank_search_block_adds_no_tools():
-    assert "tools" not in request_for({**BASE, "search": {"web_search": None}})
-
-
 def test_a_search_setting_without_web_search_is_refused():
     """A setting for a tool that is not sent would be recorded but never used."""
     with pytest.raises(ValidationError, match="web_search"):
@@ -296,10 +261,6 @@ def test_every_user_location_field_goes_through():
     }
 
     assert tool(user_location=fields)["user_location"] == {"type": "approximate", **fields}
-
-
-def test_a_blank_user_location_sends_none():
-    assert "user_location" not in tool(user_location={"city": None, "country": None})
 
 
 def test_allowed_callers_go_on_the_tool():

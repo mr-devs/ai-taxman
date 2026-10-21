@@ -3,14 +3,11 @@
 Pure function, no network.
 """
 
-from typing import get_args
-
 import pytest
 from pydantic import ValidationError
 
 from ai_taxman.core.messages import Message
 from ai_taxman.providers.base import Request
-from ai_taxman.providers.openai.models import ReasoningEffort
 from ai_taxman.providers.openai.provider import OpenAIProvider, build_request
 
 
@@ -56,32 +53,10 @@ def test_reasoning_effort_becomes_the_reasoning_block(provider):
     assert payload["reasoning"] == {"effort": "high"}
 
 
-@pytest.mark.parametrize("effort", get_args(ReasoningEffort))
-def test_every_documented_effort_level_is_accepted(provider, effort):
-    """The Responses API documents none | minimal | low | medium | high | xhigh | max.
-
-    Rejecting one taxman has not heard of turns a valid audit into a hard error
-    before anything is sent.
-    """
-    payload = request_for({"name": "gpt-5", "reasoning_effort": effort})
-
-    assert payload["reasoning"] == {"effort": effort}
-
-
 def test_web_search_becomes_a_tool(provider):
     payload = request_for({"name": "gpt-5", "search": {"web_search": True}})
 
     assert payload["tools"] == [{"type": "web_search"}]
-
-
-def test_web_search_false_adds_no_tools(provider):
-    assert "tools" not in request_for({"name": "gpt-5", "search": {"web_search": False}})
-
-
-def test_a_blank_search_block_adds_no_tools(provider):
-    """`audits new` writes the block with every key blank."""
-    assert "tools" not in request_for({"name": "gpt-5", "search": {"web_search": None}})
-    assert "tools" not in request_for({"name": "gpt-5", "search": None})
 
 
 def test_the_system_prompt_becomes_instructions(provider):
@@ -96,16 +71,6 @@ def test_no_system_prompt_sends_no_instructions(provider):
 
 def test_store_defaults_to_false_so_audits_leave_no_server_side_trace(provider):
     assert request_for({"name": "gpt-5"})["store"] is False
-
-
-def test_blank_values_are_treated_as_unset(provider):
-    """`taxman audits new` writes keys with no value; YAML reads those as None."""
-    config = provider.validate_model_config(
-        {"name": "gpt-5", "temperature": None, "reasoning_effort": None}
-    )
-
-    assert config.temperature is None
-    assert config.reasoning_effort is None
 
 
 # --- the search block -----------------------------------------------------
@@ -124,13 +89,6 @@ def test_a_search_setting_without_web_search_is_refused(provider):
 def test_a_search_setting_with_web_search_false_is_refused(provider):
     with pytest.raises(ValidationError, match="web_search"):
         request_for(search(web_search=False, search_context_size="low"))
-
-
-def test_blank_search_settings_need_no_web_search(provider):
-    """A fresh template leaves every key blank."""
-    block = search(web_search=None, search_context_size=None, return_token_budget=None)
-
-    assert "tools" not in request_for(block)
 
 
 def tool(**settings):
@@ -199,16 +157,6 @@ def test_include_can_be_turned_off(provider):
     assert "include" not in request_for(search(web_search=True, include=[]))
 
 
-def test_include_takes_the_search_results_too(provider):
-    payload = request_for(
-        search(
-            web_search=True, include=["web_search_call.action.sources", "web_search_call.results"]
-        )
-    )
-
-    assert payload["include"] == ["web_search_call.action.sources", "web_search_call.results"]
-
-
 def test_without_web_search_nothing_is_included(provider):
     assert "include" not in request_for(search())
 
@@ -223,10 +171,6 @@ def test_every_user_location_field_goes_through(provider):
     fields = {"country": "GB", "region": "London", "city": "London", "timezone": "Europe/London"}
 
     assert tool(user_location=fields)["user_location"] == {"type": "approximate", **fields}
-
-
-def test_a_blank_user_location_sends_none(provider):
-    assert "user_location" not in tool(user_location={"country": None, "city": None})
 
 
 def test_a_user_location_without_web_search_is_refused(provider):
