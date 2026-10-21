@@ -12,8 +12,6 @@ extraction - it is what makes the response writable at all.
 import inspect
 from pathlib import Path
 
-import pytest
-
 from ai_taxman.core.records import ResponseRecord
 from ai_taxman.providers import base
 
@@ -29,25 +27,21 @@ def test_there_is_no_extracted_type_to_return():
     assert not hasattr(base, "Extracted")
 
 
-@pytest.mark.parametrize("field", ["text", "usage"])
-def test_the_record_carries_no_extracted_convenience_field(field):
+def test_the_record_carries_no_extracted_convenience_field():
     """`raw` is the whole response. Anything derived from it lives downstream."""
-    assert field not in ResponseRecord.model_fields
+    assert not {"text", "usage"} & set(ResponseRecord.model_fields)
 
 
 def test_the_record_still_carries_the_raw_response():
     assert "raw" in ResponseRecord.model_fields
 
 
-@pytest.mark.parametrize(
-    "path",
-    [path for path in PROVIDER_DIRS if path.is_dir() and path.name != "__pycache__"],
-    ids=lambda p: p.name,
-)
-def test_no_provider_defines_an_extract_function(path):
+def test_no_provider_defines_an_extract_function():
     """A provider that parses its own responses reintroduces the seam by hand."""
     offenders = [
         f"{source.relative_to(ROOT)}:{number}: {line.strip()}"
+        for path in PROVIDER_DIRS
+        if path.is_dir() and path.name != "__pycache__"
         for source in sorted(path.rglob("*.py"))
         for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1)
         if line.lstrip().startswith(("def extract", "async def extract"))

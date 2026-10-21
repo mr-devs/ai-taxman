@@ -3,8 +3,6 @@
 import re
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 SEARCHED = ("src", "tests", "docs", ".github")
 EXTENSIONS = {".py", ".md", ".yaml", ".yml", ".toml", ".txt"}
@@ -29,14 +27,19 @@ def project_files():
     return sorted(path for path in set(files) if str(path.relative_to(ROOT)) not in EXEMPT)
 
 
-@pytest.mark.parametrize("path", project_files(), ids=lambda p: str(p.relative_to(ROOT)))
-def test_no_pip_instructions_anywhere(path):
-    """This project installs with uv, never pip - including in error messages."""
-    offenders = [
+def offending_lines(paths, matches):
+    """Every `file:line: text` in `paths` whose line `matches`."""
+    return [
         f"{path.relative_to(ROOT)}:{number}: {line.strip()}"
+        for path in paths
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if PIP.search(line)
+        if matches(line)
     ]
+
+
+def test_no_pip_instructions_anywhere():
+    """This project installs with uv, never pip - including in error messages."""
+    offenders = offending_lines(project_files(), PIP.search)
 
     assert not offenders, "Use uv, not pip:\n" + "\n".join(offenders)
 
@@ -63,28 +66,18 @@ def core_and_cli_files():
     return sorted(path for directory in CORE_AND_CLI for path in (ROOT / directory).rglob("*.py"))
 
 
-@pytest.mark.parametrize("path", core_and_cli_files(), ids=lambda p: str(p.relative_to(ROOT)))
-def test_core_and_cli_never_import_a_specific_provider(path):
+def test_core_and_cli_never_import_a_specific_provider():
     """Providers are reached through the registry, never by name."""
-    offenders = [
-        f"{path.relative_to(ROOT)}:{number}: {line.strip()}"
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if IMPORTS_A_PROVIDER.match(line)
-    ]
+    offenders = offending_lines(core_and_cli_files(), IMPORTS_A_PROVIDER.match)
 
     assert not offenders, "Use core.registry, not a direct import:\n" + "\n".join(offenders)
 
 
-@pytest.mark.parametrize("path", core_and_cli_files(), ids=lambda p: str(p.relative_to(ROOT)))
-def test_core_and_cli_never_read_keys_out_of_the_model_block(path):
+def test_core_and_cli_never_read_keys_out_of_the_model_block():
     """The `model:` block is opaque to core; ask the provider instead."""
     keys = "|".join(PROVIDER_KEYS)
     pattern = re.compile(rf"""\.model(?:_config)?\s*(?:\.get\(|\[)\s*["']({keys})["']""")
-    offenders = [
-        f"{path.relative_to(ROOT)}:{number}: {line.strip()}"
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if pattern.search(line)
-    ]
+    offenders = offending_lines(core_and_cli_files(), pattern.search)
 
     assert not offenders, (
         "Core read a provider-owned key. Use provider.describe_model() or pass the "
@@ -96,12 +89,13 @@ def test_no_provider_name_is_hardcoded_in_core():
     """A provider name in core means a branch that will rot when one is added."""
     from ai_taxman.core.registry import available_providers
 
+    names = available_providers()
     offenders = []
     for path in core_and_cli_files():
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("#") or "help=" in line:
                 continue  # comments and CLI help may name one as an example
-            for name in available_providers():
+            for name in names:
                 if f'"{name}"' in line or f"'{name}'" in line:
                     offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
 
@@ -114,14 +108,9 @@ def test_no_provider_name_is_hardcoded_in_core():
 GLOBAL_AUDITS = re.compile(r"~/\.taxman/audits|taxman_home\(\)\s*/\s*[\"']audits|global_dir")
 
 
-@pytest.mark.parametrize("path", project_files(), ids=lambda p: str(p.relative_to(ROOT)))
-def test_no_user_global_audit_directory_anywhere(path):
+def test_no_user_global_audit_directory_anywhere():
     """There is no `~/.taxman/audits`, and there never will be."""
-    offenders = [
-        f"{path.relative_to(ROOT)}:{number}: {line.strip()}"
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if GLOBAL_AUDITS.search(line)
-    ]
+    offenders = offending_lines(project_files(), GLOBAL_AUDITS.search)
 
     assert not offenders, (
         "Audits are project-scoped; a global one is invisible to the repo that "
