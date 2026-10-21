@@ -17,6 +17,7 @@ import contextlib
 import glob
 import json
 import os
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +56,10 @@ LOCK_FILENAME = "collect.lock"
 #: removed when it lets go, so `kill $(cat data/probe/<run>/collect.pid)` stops
 #: the collector, whichever process that is, with no parsing.
 PID_FILENAME = "collect.pid"
+
+#: How long a collect waits for a run's lock before calling it taken: far longer
+#: than a check holds it, far shorter than any collector does.
+_CHECK_OUTLASTED_S = 0.5
 
 #: Stands in for a run id while `output.dir` is turned into a glob pattern. A
 #: private-use character, so no real path contains it and `glob.escape` leaves it be.
@@ -291,18 +296,30 @@ def _clear_pid_file(path: Path, pid: int) -> None:
 
 @contextlib.contextmanager
 def _lock(directory: Path) -> Iterator[None]:
-    """`flock` the run's lock file, or raise `RunInProgressError` if it is taken."""
+    """`flock` the run's lock file, or raise `RunInProgressError` if it is taken.
+
+    Taken is told from checked by waiting: a collector holds the lock for the
+    whole run, but planning only takes it for an instant to see whether anyone
+    holds it - see `_check_not_in_progress` - and a collect that met that
+    instant would refuse a run no one is collecting.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / LOCK_FILENAME).open("a") as handle:
-        try:
-            _flock(
-                handle,
-                wait=False,
-                about=directory,
-                unlocked="a second collect of this run at the same time would not be refused",
-            )
-        except BlockingIOError as exc:
-            raise RunInProgressError(_in_progress_message(directory)) from exc
+        deadline = time.monotonic() + _CHECK_OUTLASTED_S
+        while True:
+            try:
+                _flock(
+                    handle,
+                    wait=False,
+                    about=directory,
+                    unlocked="a second collect of this run at the same time would not be refused",
+                )
+            except BlockingIOError as exc:
+                if time.monotonic() < deadline:
+                    time.sleep(0.01)
+                    continue
+                raise RunInProgressError(_in_progress_message(directory)) from exc
+            break
         yield
 
 

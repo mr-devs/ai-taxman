@@ -450,6 +450,26 @@ def test_a_refused_collect_leaves_the_collectors_pid_file_alone(project):
     assert pid_file.read_text(encoding="utf-8") == "4242\n"
 
 
+def test_a_check_as_a_run_is_claimed_does_not_refuse_it(project):
+    """Planning anywhere - `validate` included - checks for a collector by taking
+    the run's lock for an instant. A collect claiming the run at that instant
+    waits it out, rather than call the run taken and name a stale pid."""
+    import fcntl
+    import threading
+
+    from ai_taxman.core.runs import hold_run
+
+    directory = project / "data" / "probe" / "run"
+    directory.mkdir(parents=True)
+    (directory / "collect.pid").write_text("4242\n", encoding="utf-8")
+    check = (directory / "collect.lock").open("a")
+    fcntl.flock(check.fileno(), fcntl.LOCK_SH)
+    threading.Timer(0.1, check.close).start()
+
+    with hold_run(directory):
+        pass
+
+
 async def test_a_finished_run_leaves_no_pid_file(project, fake_provider):
     result = await run_audit_async(audit(project))
 
