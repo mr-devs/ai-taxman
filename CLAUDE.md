@@ -237,8 +237,10 @@ has room for one run, and the runner refuses a directory that already claims a d
 (`plan_run()`): resume the latest run, sending only the `(message, repeat)` pairs with no
 successful response yet — never sent, or failed — or say it is complete. `--new-run` is the
 only way to start a second run of an audit. There is no way to choose a run id: an earlier
-`--run-id` did the same job as the audit name, worse, and is gone. Three refusals keep a
-resumed run honest:
+`--run-id` did the same job as the audit name, worse, and is gone. A run id read back from
+a manifest still goes through `records.validate_run_id()`: it names the run's folder and log,
+so one taxman would never have made - `..`, a slash, a space - is refused, not resolved.
+Three refusals keep a resumed run honest:
 
 - **The audit must be unchanged.** Every setting in the resolved config, the set of message
   ids, and the system prompt text are compared with the manifest, and any difference raises

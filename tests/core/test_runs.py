@@ -103,6 +103,21 @@ def test_a_folder_without_a_manifest_is_not_a_run(project):
     assert find_runs(config) == []
 
 
+@pytest.mark.parametrize(
+    ("run_id", "folder"), [("x/../odd", "odd"), ("../probe/odd", "odd"), ("my run", "my run")]
+)
+def test_a_manifest_whose_run_id_taxman_would_never_make_is_an_error(project, run_id, folder):
+    """A run id goes into paths - the log's name among them - and into every row, so
+    one that only resolves to its own folder by way of `..` is not taken on trust."""
+    from ai_taxman.core.errors import ResponseFileError
+
+    config = audit(project)
+    fake_run(project / "data/probe" / folder, run_id, "2026-10-01T00:00:00.000000Z")
+
+    with pytest.raises(ResponseFileError, match="run id"):
+        find_runs(config)
+
+
 def test_an_unreadable_manifest_is_an_error_not_a_missing_run(project):
     """Skipping it could resume an older run, or start over beside a broken one."""
     from ai_taxman.core.errors import ResponseFileError

@@ -34,7 +34,7 @@ from ai_taxman.core.errors import (
 )
 from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message
-from ai_taxman.core.records import RunManifest, new_run_id
+from ai_taxman.core.records import RunManifest, new_run_id, validate_run_id
 from ai_taxman.core.writer import JsonlReader, target_path
 
 try:
@@ -89,10 +89,30 @@ def find_runs(config: AuditConfig) -> list[ExistingRun]:
         manifest = _read_manifest(path)
         if manifest.audit != config.audit:
             continue
+        _check_run_id(manifest, path)
         if _output_dir(config, manifest.run_id) != path.parent:
             continue
         runs.append(ExistingRun(manifest.run_id, path.parent, manifest))
     return sorted(runs, key=lambda run: (run.manifest.started_at or "", run.run_id))
+
+
+def _check_run_id(manifest: RunManifest, path: Path) -> None:
+    """Raise unless the manifest's run id is one taxman could have made.
+
+    The id names the run's folder and its log, and is written into every row it
+    collects. One that reaches its own folder only by way of `..` - or that
+    holds a space or a slash - did not come from taxman, and is not used.
+    """
+    try:
+        safe = validate_run_id(manifest.run_id) == manifest.run_id
+    except ConfigError:
+        safe = False
+    if not safe:
+        raise ResponseFileError(
+            f"The run manifest at {path} names the run id {manifest.run_id!r}, which "
+            "taxman never makes: a run id is letters, digits, dots, dashes and "
+            "underscores. Put back the id the run was collected under."
+        )
 
 
 def latest_run(config: AuditConfig) -> ExistingRun | None:
