@@ -402,14 +402,15 @@ def unfinished(invoke, tmp_path, fake_provider):
     return run
 
 
-def test_collect_reads_a_resumed_run_twice(invoke, tmp_path, fake_provider, reads):
-    """Once to announce the run, once to claim it; the runner does not plan it a third time."""
+def test_collect_reads_a_resumed_run_once(invoke, tmp_path, fake_provider, reads):
+    """To announce the run. Planned again to claim it, it is not read again: the
+    file has not changed, and a large compressed one takes a while to read."""
     unfinished(invoke, tmp_path, fake_provider)
     reads.clear()
 
     invoke("collect", "probe")
 
-    assert len(reads) == 2
+    assert len(reads) == 1
 
 
 def test_a_background_child_reads_its_run_once(invoke, tmp_path, fake_provider, reads):

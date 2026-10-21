@@ -160,6 +160,7 @@ async def run_audit_async(
         provider=provider,
         run_id=plan.run_id,
         new_run=new_run,
+        earlier=plan,
         on_record=on_record,
         backoff_base=backoff_base,
         seed=seed,
@@ -174,6 +175,7 @@ def collect_run(
     provider: Provider,
     run_id: str,
     new_run: bool = False,
+    earlier: RunPlan | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """`collect_run_async`, synchronously."""
@@ -184,6 +186,7 @@ def collect_run(
             provider=provider,
             run_id=run_id,
             new_run=new_run,
+            earlier=earlier,
             stop_signals=stop_signals,
         )
     )
@@ -196,6 +199,7 @@ async def collect_run_async(
     provider: Provider,
     run_id: str,
     new_run: bool = False,
+    earlier: RunPlan | None = None,
     on_record: OnRecord | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
@@ -205,7 +209,9 @@ async def collect_run_async(
 
     For `taxman collect`, which plans the run itself, before the runner, so it
     can announce the run and name its log - and for a background child, whose
-    parent did. The run is planned again here, once, just before sending.
+    parent did. The run is planned again here, once, just before sending:
+    `earlier` is the plan that chose it, when this process made one, whose
+    reading of the responses is used again if nothing has written to them since.
 
     Not part of the Python API, which never takes a run id: an id is made when a
     run starts, and only ever carried from one plan to the next.
@@ -245,7 +251,12 @@ async def collect_run_async(
             # claimed the run, so the next to plan sees the claim.
             with hold_audit(config):
                 plan = plan_run(
-                    config, messages, system_prompt=system_text, new_run=new_run, run_id=run_id
+                    config,
+                    messages,
+                    system_prompt=system_text,
+                    new_run=new_run,
+                    run_id=run_id,
+                    earlier=earlier,
                 )
                 if not plan.complete:
                     lock.enter_context(hold_run(directory))

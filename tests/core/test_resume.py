@@ -662,13 +662,35 @@ def reads(monkeypatch):
     return counted
 
 
-async def test_a_resumed_run_is_planned_from_disk_twice(project, fake_provider, reads):
-    """Once to decide, once more under the lock: a large run's file is not cheap to read."""
+async def test_a_resumed_run_is_read_from_disk_once(project, fake_provider, reads):
+    """Planned twice, to decide and then under the lock, but read once: a large
+    run's file is not cheap to read, and nothing wrote to it in between."""
     await unfinished_run(project, fake_provider)
 
     await run_audit_async(audit(project))
 
-    assert len(reads) == 2
+    assert len(reads) == 1
+
+
+async def test_a_plan_reads_again_what_was_written_since_the_last(project, fake_provider):
+    """Another collect may answer a message between the two plans."""
+    from ai_taxman.core.messages import read_messages
+    from ai_taxman.core.records import ResponseRecord
+    from ai_taxman.core.runs import plan_run
+    from ai_taxman.core.writer import JsonlWriter
+
+    first = await unfinished_run(project, fake_provider)
+    config = audit(project)
+    messages = read_messages(config.messages_path)
+    earlier = plan_run(config, messages, system_prompt=None)
+    (row,) = read_jsonl(first.output_path)
+    with JsonlWriter(first.output_path) as writer:
+        writer.write(ResponseRecord.from_dict({**row.to_dict(), "message_id": TWO}))
+
+    again = plan_run(config, messages, system_prompt=None, run_id=earlier.run_id, earlier=earlier)
+
+    assert (TWO, 0) not in earlier.answered
+    assert (TWO, 0) in again.answered
 
 
 async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider):

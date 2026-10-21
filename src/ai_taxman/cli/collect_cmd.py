@@ -160,7 +160,7 @@ def collect(
         # never be mistaken for a fresh one.
         typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
-    result = _run(config, checked, provider=provider, run_id=run_id, new_run=new_run)
+    result = _run(config, checked, provider=provider, run_id=run_id, new_run=new_run, plan=plan)
     if result.already_complete:
         # Finished by another collect while this one was starting.
         _say_complete(
@@ -250,6 +250,7 @@ def _run(
     provider: Provider,
     run_id: str,
     new_run: bool,
+    plan: RunPlan | None,
 ) -> RunResult:
     """Run in this process, stopping gracefully on SIGTERM.
 
@@ -270,6 +271,7 @@ def _run(
         provider=provider,
         run_id=run_id,
         new_run=new_run,
+        earlier=plan,
         stop_signals=stop_signals,
     )
 
