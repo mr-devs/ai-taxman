@@ -7,6 +7,9 @@ from ai_taxman.core.messages import message_id
 #: The ids of the three messages `make_project` writes by default.
 ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 
+#: The run a test standing in for the runner says it collected.
+RUN = "20261008T000000Z-000000"
+
 
 def hidden_options(command):
     """The option names a command keeps out of its help: plumbing, not for users."""
@@ -288,10 +291,10 @@ def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
 
     make_project(tmp_path)
 
-    def finished_elsewhere(config, checked, *, run_id, **kwargs):
-        directory = tmp_path / "data" / "probe" / run_id
+    def finished_elsewhere(config, checked, **kwargs):
+        directory = tmp_path / "data" / "probe" / RUN
         return RunResult(
-            run_id=run_id,
+            run_id=RUN,
             output_path=directory / "responses.jsonl",
             manifest_path=directory / "manifest.json",
             n_ok=0,
@@ -301,7 +304,7 @@ def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
             already_complete=True,
         )
 
-    monkeypatch.setattr(runner, "collect_run", finished_elsewhere)
+    monkeypatch.setattr(runner, "run_checked", finished_elsewhere)
 
     result = invoke("collect", "probe")
 
@@ -316,10 +319,10 @@ def stopped(tmp_path, monkeypatch, *, by_signal=True, **counts):
     from ai_taxman.core import runner
     from ai_taxman.core.runner import RunResult
 
-    def stopped_run(config, checked, *, run_id, **kwargs):
-        directory = tmp_path / "data" / "probe" / run_id
+    def stopped_run(config, checked, **kwargs):
+        directory = tmp_path / "data" / "probe" / RUN
         return RunResult(
-            run_id=run_id,
+            run_id=RUN,
             output_path=directory / "responses.jsonl",
             manifest_path=directory / "manifest.json",
             expected=3,
@@ -328,7 +331,7 @@ def stopped(tmp_path, monkeypatch, *, by_signal=True, **counts):
             **counts,
         )
 
-    monkeypatch.setattr(runner, "collect_run", stopped_run)
+    monkeypatch.setattr(runner, "run_checked", stopped_run)
 
 
 def test_a_run_stopped_by_kill_says_so(invoke, tmp_path, fake_provider, monkeypatch):
@@ -400,8 +403,7 @@ def unfinished(invoke, tmp_path, fake_provider):
 
 
 def test_collect_reads_a_resumed_run_once(invoke, tmp_path, fake_provider, reads):
-    """To announce the run. Planned again to claim it, it is not read again: the
-    file has not changed, and a large compressed one takes a while to read."""
+    """Planned once, by the runner: a large compressed run takes a while to read."""
     unfinished(invoke, tmp_path, fake_provider)
     reads.clear()
 

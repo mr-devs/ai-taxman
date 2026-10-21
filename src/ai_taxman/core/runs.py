@@ -104,9 +104,6 @@ def latest_run(config: AuditConfig) -> ExistingRun | None:
 #: A `(message_id, repeat)` pair: one response the run expects.
 Pair = tuple[str, int]
 
-#: Enough of a file's `stat` to tell that it was written to since: see `_fingerprint`.
-Fingerprint = tuple[int, int, int, int]
-
 
 @dataclass(frozen=True, slots=True)
 class RunPlan:
@@ -130,8 +127,6 @@ class RunPlan:
     #: `writer.repair_tail` drops before anything is appended. Known from reading
     #: them to plan, so a whole file is not read again only to find that out.
     needs_repair: bool = False
-    #: The responses file as it was when this plan read it, or None if it had none.
-    read_from: Fingerprint | None = None
 
     @property
     def resuming(self) -> bool:
@@ -149,50 +144,26 @@ def plan_run(
     *,
     system_prompt: str | None,
     new_run: bool = False,
-    run_id: str | None = None,
-    earlier: RunPlan | None = None,
 ) -> RunPlan:
     """Decide which run collecting this audit continues, and what it still has to send.
 
     By default, the audit's latest run, or a new run if the audit has none. With
     `new_run`, a new run whatever is on disk.
 
-    `run_id` holds the plan to a run an earlier plan chose: how the runner, when
-    it plans again before sending, keeps to the run `collect` announced. That
-    run is resumed if it is on disk. If not, it is started only the way the
-    earlier plan would have started it - with `new_run`, or while the audit
-    still has no run - so a run another collect started in between is never
-    doubled.
-
-    `earlier` is a plan this process made before this one. Its reading of the
-    run's responses is used again if the file has not been written to since, so
-    a run is not read twice - a large compressed one takes a while - to find
-    what nothing has changed.
-
     Raises `AuditChangedError` rather than resume a run the audit no longer
-    describes. `system_prompt` is the text that would be sent, or None.
+    describes, and `RunInProgressError` rather than resume one another process
+    is collecting. `system_prompt` is the text that would be sent, or None.
+
+    Planning claims nothing. The runner plans under `hold_audit` and claims the
+    run before letting go, so two collects started together cannot both plan it.
     """
     pairs = expand(messages, config.execution.repeats)
-
-    if run_id is None:
-        if new_run:
-            return _new_plan(config, pairs, new_run_id(), beside_the_last=True)
-        latest = latest_run(config)
-        if latest is None:
-            return _new_plan(config, pairs, new_run_id())
-        return _resume(config, messages, system_prompt, pairs, latest, earlier)
-
-    existing = _run_on_disk(config, run_id)
-    if existing is not None:
-        if new_run:
-            raise ConfigError(
-                f"Run {run_id} of {config.audit} is already on disk, so it cannot be "
-                "started as a new run."
-            )
-        return _resume(config, messages, system_prompt, pairs, existing, earlier)
-    if not new_run:
-        _refuse_a_second_run(config, run_id)
-    return _new_plan(config, pairs, run_id, beside_the_last=new_run)
+    if new_run:
+        return _new_plan(config, pairs, new_run_id(), beside_the_last=True)
+    latest = latest_run(config)
+    if latest is None:
+        return _new_plan(config, pairs, new_run_id())
+    return _resume(config, messages, system_prompt, pairs, latest)
 
 
 def _resume(
@@ -201,25 +172,12 @@ def _resume(
     system_prompt: str | None,
     pairs: list[tuple[Message, int]],
     existing: ExistingRun,
-    earlier: RunPlan | None,
 ) -> RunPlan:
     _check_not_in_progress(existing)
     _check_unchanged(config, messages, system_prompt, existing)
 
     expected = {(message.id, repeat) for message, repeat in pairs}
-    path = output_file(config, existing.directory)
-    # Before reading, so a row written while it is read shows as a change.
-    seen = _fingerprint(path)
-    if (
-        earlier is not None
-        and earlier.resuming
-        and earlier.run_id == existing.run_id
-        and earlier.read_from == seen
-    ):
-        answered, failed = set(earlier.answered), set(earlier.failed)
-        needs_repair = earlier.needs_repair
-    else:
-        answered, failed, needs_repair = _responses_so_far(path)
+    answered, failed, needs_repair = _responses_so_far(output_file(config, existing.directory))
     return RunPlan(
         run_id=existing.run_id,
         directory=existing.directory,
@@ -231,29 +189,6 @@ def _resume(
         failed=frozenset(failed & expected),
         manifest=existing.manifest,
         needs_repair=needs_repair,
-        read_from=seen,
-    )
-
-
-def _run_on_disk(config: AuditConfig, run_id: str) -> ExistingRun | None:
-    directory = _output_dir(config, run_id)
-    _guard_run_directory(directory, run_id=run_id)
-    manifest_path = directory / MANIFEST_FILENAME
-    if not manifest_path.is_file():
-        return None
-    return ExistingRun(run_id, directory, _read_manifest(manifest_path))
-
-
-def _refuse_a_second_run(config: AuditConfig, run_id: str) -> None:
-    """Raise if the audit has a run already, so starting `run_id` would double it."""
-    latest = latest_run(config)
-    if latest is None:
-        return
-    _check_not_in_progress(latest)
-    raise RunInProgressError(
-        f"{config.audit} already has run {latest.run_id}, so starting run {run_id} would "
-        f"make a second run of it. Collect again to finish run {latest.run_id}, or start "
-        f"a new run with `taxman collect {config.audit} --new-run`."
     )
 
 
@@ -261,8 +196,8 @@ def _refuse_a_second_run(config: AuditConfig, run_id: str) -> None:
 def hold_audit(config: AuditConfig) -> Iterator[None]:
     """Hold the audit while a collect plans its run and claims it.
 
-    Two collects of one audit started together each plan before either has
-    claimed anything, so both would send the same work. Planned again under this
+    Two collects of one audit started together would otherwise both plan before
+    either had claimed anything, and both send the same work. Planned under this
     lock, which is kept until the run's own lock is taken and its manifest
     written, the second sees the run the first claimed.
 
@@ -557,23 +492,6 @@ def _responses_so_far(path: Path) -> tuple[set[Pair], set[Pair], bool]:
         if row.status == "ok":
             answered.add(pair)
     return answered, attempted - answered, bool(reader.needs_repair)
-
-
-def _fingerprint(path: Path) -> Fingerprint | None:
-    """Enough of a file's `stat` to tell that it was written to since, or None if it is missing.
-
-    Rows are only appended, and a repair truncates the file or replaces it, so
-    its contents never change without its size, inode or modification time.
-    Taken from the file opened, not by its path: over NFS that is what makes
-    the client ask the server, where another host's rows land, rather than
-    answer from its cache.
-    """
-    try:
-        with path.open("rb") as handle:
-            found = os.fstat(handle.fileno())
-    except FileNotFoundError:
-        return None
-    return (found.st_dev, found.st_ino, found.st_size, found.st_mtime_ns)
 
 
 def _guard_run_directory(directory: Path, *, run_id: str) -> None:

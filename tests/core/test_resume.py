@@ -631,6 +631,47 @@ async def test_two_collects_started_together_send_the_audit_once(project, fake_p
     assert len(list((project / "data" / "probe").iterdir())) == 1
 
 
+async def test_a_collect_that_loses_a_one_run_folder_is_told_the_run_is_taken(
+    project, fake_provider
+):
+    """Not that `output.dir` is wrong: it is fine, and the other collect has the run."""
+    import asyncio
+
+    single = "output:\n  dir: data/{audit}\n  log_dir: logs/{audit}"
+    fake_provider.startup_delay = 0.05
+    fake_provider.delay = 0.05
+
+    results = await asyncio.gather(
+        run_audit_async(audit(project, single)),
+        run_audit_async(audit(project, single)),
+        return_exceptions=True,
+    )
+
+    assert sorted(type(result).__name__ for result in results) == [
+        "RunInProgressError",
+        "RunResult",
+    ]
+    assert sent(fake_provider) == sorted([(ONE, 0), (TWO, 0), (THREE, 0)])
+
+
+async def test_a_collect_that_starts_after_another_finished_the_audit_says_it_is_complete(
+    project, fake_provider
+):
+    """Rather than refuse to start a second run no one asked for."""
+    import asyncio
+
+    slow = type(fake_provider)(startup_delay=0.3)
+
+    late, prompt = await asyncio.gather(
+        run_audit_async(audit(project), provider=slow), run_audit_async(audit(project))
+    )
+
+    assert slow.sent == []
+    assert late.already_complete is True
+    assert late.run_id == prompt.run_id
+    assert prompt.n_ok == 3
+
+
 async def test_a_collect_that_was_slow_to_start_does_not_resend_what_another_sent(
     project, fake_provider
 ):
@@ -663,34 +704,13 @@ def reads(monkeypatch):
 
 
 async def test_a_resumed_run_is_read_from_disk_once(project, fake_provider, reads):
-    """Planned twice, to decide and then under the lock, but read once: a large
-    run's file is not cheap to read, and nothing wrote to it in between."""
+    """Planned once, under the audit's lock: a large compressed run's file takes a
+    while to read."""
     await unfinished_run(project, fake_provider)
 
     await run_audit_async(audit(project))
 
     assert len(reads) == 1
-
-
-async def test_a_plan_reads_again_what_was_written_since_the_last(project, fake_provider):
-    """Another collect may answer a message between the two plans."""
-    from ai_taxman.core.messages import read_messages
-    from ai_taxman.core.records import ResponseRecord
-    from ai_taxman.core.runs import plan_run
-    from ai_taxman.core.writer import JsonlWriter
-
-    first = await unfinished_run(project, fake_provider)
-    config = audit(project)
-    messages = read_messages(config.messages_path)
-    earlier = plan_run(config, messages, system_prompt=None)
-    (row,) = read_jsonl(first.output_path)
-    with JsonlWriter(first.output_path) as writer:
-        writer.write(ResponseRecord.from_dict({**row.to_dict(), "message_id": TWO}))
-
-    again = plan_run(config, messages, system_prompt=None, run_id=earlier.run_id, earlier=earlier)
-
-    assert (TWO, 0) not in earlier.answered
-    assert (TWO, 0) in again.answered
 
 
 async def test_a_run_holds_its_lock_while_it_is_collected(project, fake_provider, until):

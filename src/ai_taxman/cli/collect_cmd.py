@@ -14,7 +14,7 @@ from ai_taxman.core.registry import get_provider
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runtime
     from ai_taxman.core.config import AuditConfig
-    from ai_taxman.core.runner import Preflight, RunResult
+    from ai_taxman.core.runner import OnClaim, Preflight, RunResult
     from ai_taxman.core.runs import RunPlan
     from ai_taxman.providers.base import Provider
 
@@ -68,8 +68,7 @@ def collect(
     # every Tab press and must not pay for the config parser or the runner.
     from ai_taxman.core.config import load_audit, resolve_log_file
     from ai_taxman.core.logging import describe_level, setup_logging
-    from ai_taxman.core.runner import preflight, record_complete
-    from ai_taxman.core.runs import plan_run
+    from ai_taxman.core.runner import preflight
 
     # Before anything else, so a typo in the level is not discovered an hour into
     # a run.
@@ -86,44 +85,36 @@ def collect(
     checked = preflight(config, provider)
     model = provider.describe_model(checked.model)
 
-    # Planned here rather than by the runner, because the log is named after the
-    # run and has to be open before the run's first line.
-    plan = plan_run(config, checked.messages, system_prompt=checked.system_text, new_run=new_run)
-    if plan.complete:
-        record_complete(plan)
-        _say_complete(config, run_id=plan.run_id, expected=plan.expected, directory=plan.directory)
-        return
-    run_id = plan.run_id
+    # The log is named after the run, which is known only once the runner has
+    # claimed it. Until then, anything logged goes to the terminal alone.
+    setup_logging(level=log_level, log_file=log_file)
 
-    if log_file is None:
-        setup_logging(
-            level=log_level,
-            log_file=resolve_log_file(config, run_id=run_id),
-            also_terminal=True,
-        )
-    else:
-        setup_logging(level=log_level, log_file=log_file)
+    def announce(plan: RunPlan) -> None:
+        """The run is claimed: open its log, and say which run it is."""
+        if log_file is None:
+            setup_logging(
+                level=log_level,
+                log_file=resolve_log_file(config, run_id=plan.run_id),
+                also_terminal=True,
+            )
+        if not quiet:
+            # The provider names its own model; core has no business reading that block.
+            typer.echo(
+                f"Collecting {config.audit}: {config.provider} "
+                f"({model or 'unspecified'}), {config.execution.repeats} repeat(s) per message."
+            )
+        if plan.left_unfinished is not None:
+            typer.secho(
+                f"Leaving run {plan.left_unfinished} unfinished; starting run {plan.run_id}.",
+                fg=typer.colors.YELLOW,
+            )
+        if plan.resuming:
+            # Even with --quiet: a run that picks up where another left off must
+            # never be mistaken for a fresh one.
+            typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
-    expected = config.execution.repeats
-    if not quiet:
-        # The provider names its own model; core has no business reading that block.
-        typer.echo(
-            f"Collecting {config.audit}: {config.provider} "
-            f"({model or 'unspecified'}), {expected} repeat(s) per message."
-        )
-    if plan.left_unfinished is not None:
-        typer.secho(
-            f"Leaving run {plan.left_unfinished} unfinished; starting run {run_id}.",
-            fg=typer.colors.YELLOW,
-        )
-    if plan.resuming:
-        # Even with --quiet: a run that picks up where another left off must
-        # never be mistaken for a fresh one.
-        typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
-
-    result = _run(config, checked, provider=provider, run_id=run_id, new_run=new_run, plan=plan)
+    result = _run(config, checked, provider=provider, new_run=new_run, on_claim=announce)
     if result.already_complete:
-        # Finished by another collect while this one was starting.
         _say_complete(
             config,
             run_id=result.run_id,
@@ -139,7 +130,7 @@ def collect(
         typer.secho(f"{result.n_error} error", fg=typer.colors.RED, nl=False)
     typer.echo(f"  ->  {display_path(result.output_path)}")
     if result.resumed:
-        typer.echo(f"Run {run_id} now has {result.run_n_ok} of {result.expected} responses.")
+        typer.echo(f"Run {result.run_id} now has {result.run_n_ok} of {result.expected} responses.")
 
     if result.stop_signal is not None:
         import signal
@@ -206,9 +197,8 @@ def _run(
     checked: Preflight,
     *,
     provider: Provider,
-    run_id: str,
     new_run: bool,
-    plan: RunPlan,
+    on_claim: OnClaim,
 ) -> RunResult:
     """Run in this process, stopping gracefully on SIGTERM.
 
@@ -216,19 +206,18 @@ def _run(
     """
     import signal
 
-    from ai_taxman.core.runner import collect_run
+    from ai_taxman.core.runner import run_checked
 
     # SIGTERM is what `kill <pid>` sends, and what a job scheduler sends at a time
     # limit. It winds the run down rather than killing it mid-write, so the
     # responses already paid for are kept and the manifest is finalised.
     stop_signals = (signal.SIGTERM,) if hasattr(signal, "SIGTERM") else ()
 
-    return collect_run(
+    return run_checked(
         config,
         checked,
         provider=provider,
-        run_id=run_id,
         new_run=new_run,
-        earlier=plan,
+        on_claim=on_claim,
         stop_signals=stop_signals,
     )

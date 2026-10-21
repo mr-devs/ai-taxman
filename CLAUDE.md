@@ -249,15 +249,15 @@ resumed run honest:
   never leaves a stale lock. A run whose lock is held raises `RunInProgressError`. Only
   a lock that is taken means that: where the filesystem cannot lock at all (NFS without
   lockd), the run warns and collects unlocked.
-- **The plan is made again once nothing is left to wait for.** `collect` plans before the
-  provider starts, so two collects started together could both plan the same work. The
-  runner plans again, held to the run it announced, under an `flock` on the audit file
-  (`runs.hold_audit()`), and keeps that lock until it holds the run's lock and has written
-  the manifest. The second collect then sees the first one's run. `collect` hands the plan
-  it made to `runner.collect_run()`, which plans only that run once more, and reuses the
-  first plan's reading of the responses unless the file has changed since (`runs._fingerprint`):
-  a large compressed run is read once per collect, not two or three times. The Python API
-  takes no run id at all.
+- **A run is claimed before it is announced.** The runner starts the provider, then plans,
+  once, under an `flock` on the audit file (`runs.hold_audit()`), and keeps that lock until
+  it holds the run's lock and has written the manifest. Only then does `collect` learn which
+  run it has, through `on_claim`, and name its log after it and announce it. A second
+  collect started at the same moment plans after the first has claimed, so it finds that
+  run, being collected or complete, and says so. Do not plan in `collect` as well: two plans
+  meant carrying a run id from one to the other, and a collect that lost the race between
+  them was told the wrong thing. The cost is that a complete audit starts its provider
+  before saying so, and starting one sends nothing. The Python API takes no run id at all.
 - **The broken tail goes first.** See below.
 
 The manifest's `n_ok` and `n_error` count pairs across every session, so a failure later
@@ -276,8 +276,8 @@ byte, so the rows it appends stay readable.
 `core/logging.py` owns the format and `setup_logging()`; **core modules only ever ask for a
 logger and emit**. Handlers are attached by `cli/collect_cmd.py`, never by the library, and a
 `NullHandler` on the package logger keeps the Python API silent. Every `collect` writes
-its log to `<output.log_dir>/<run_id>.log` and to stderr as well — never stdout, which
-stays the command's own. `--log-file` sends it to that path alone.
+its log to `<output.log_dir>/<run_id>.log`, from the moment its run is claimed, and to stderr
+as well — never stdout, which stays the command's own. `--log-file` sends it to that path alone.
 
 **The API key is never logged**, at any level, and neither is message text — ids and counts
 only. `tests/core/test_logging.py` asserts both.

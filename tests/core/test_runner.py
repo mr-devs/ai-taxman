@@ -577,3 +577,25 @@ def test_a_preflight_gives_the_system_prompt_text_it_would_send(text, tmp_path):
     checked = Preflight(messages=[], system_prompt=prompt, model={}, api_key=None)
 
     assert checked.system_text == text
+
+
+async def test_the_caller_hears_of_its_run_once_it_is_claimed(project, fake_provider):
+    """Its manifest written, nothing sent yet - and never for a run with nothing to send."""
+    from ai_taxman.core.runner import preflight, run_checked_async
+
+    config = audit(project)
+    claimed = []
+
+    def on_claim(plan):
+        written = (plan.directory / "manifest.json").is_file()
+        claimed.append((plan.run_id, written, len(fake_provider.sent)))
+
+    first = await run_checked_async(
+        config, preflight(config, fake_provider), provider=fake_provider, on_claim=on_claim
+    )
+    again = await run_checked_async(
+        config, preflight(config, fake_provider), provider=fake_provider, on_claim=on_claim
+    )
+
+    assert claimed == [(first.run_id, True, 0)]
+    assert again.already_complete is True

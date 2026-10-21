@@ -31,7 +31,6 @@ from ai_taxman.core.config import (
     AuditConfig,
     check_output_paths,
     load_audit,
-    resolve_output_dir,
 )
 from ai_taxman.core.credentials import resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
@@ -44,7 +43,6 @@ from ai_taxman.core.records import (
     RunManifest,
     timestamp,
     utc_now,
-    validate_run_id,
 )
 from ai_taxman.core.registry import get_provider
 from ai_taxman.core.runs import (
@@ -66,6 +64,7 @@ DEFAULT_BACKOFF_BASE = 0.5
 MAX_BACKOFF = 30.0
 
 OnRecord = Callable[[ResponseRecord], None]
+OnClaim = Callable[[RunPlan], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,21 +145,11 @@ async def run_audit_async(
     """
     provider = provider or get_provider(config.provider)
     checked = preflight(config, provider)
-    plan = plan_run(
-        config,
-        checked.messages,
-        system_prompt=checked.system_text,
-        new_run=new_run,
-    )
-    if plan.complete:
-        return _already_complete(plan, config)
-    return await collect_run_async(
+    return await run_checked_async(
         config,
         checked,
         provider=provider,
-        run_id=plan.run_id,
         new_run=new_run,
-        earlier=plan,
         on_record=on_record,
         backoff_base=backoff_base,
         seed=seed,
@@ -168,54 +157,52 @@ async def run_audit_async(
     )
 
 
-def collect_run(
+def run_checked(
     config: AuditConfig,
     checked: Preflight,
     *,
     provider: Provider,
-    run_id: str,
     new_run: bool = False,
-    earlier: RunPlan | None = None,
+    on_claim: OnClaim | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
-    """`collect_run_async`, synchronously."""
+    """`run_checked_async`, synchronously."""
     return asyncio.run(
-        collect_run_async(
+        run_checked_async(
             config,
             checked,
             provider=provider,
-            run_id=run_id,
             new_run=new_run,
-            earlier=earlier,
+            on_claim=on_claim,
             stop_signals=stop_signals,
         )
     )
 
 
-async def collect_run_async(
+async def run_checked_async(
     config: AuditConfig,
     checked: Preflight,
     *,
     provider: Provider,
-    run_id: str,
     new_run: bool = False,
-    earlier: RunPlan | None = None,
+    on_claim: OnClaim | None = None,
     on_record: OnRecord | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     seed: int | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
-    """Collect the run an earlier plan chose: `run_id`, started anew if `new_run`.
+    """Collect an audit that has passed `preflight`: plan its run, claim it, send.
 
-    For `taxman collect`, which plans the run itself, before the runner, so it
-    can announce the run and name its log. The run is planned again here, once,
-    just before sending: `earlier` is the plan that chose it, whose reading of
-    the responses is used again if nothing has written to them since.
+    The run is planned once, here, once the provider has started and nothing is
+    left to wait for, under the audit's lock (`runs.hold_audit`). It is claimed -
+    its own lock taken and its manifest written - before that lock is let go, so
+    a second collect of the audit started at the same moment plans after this
+    one has claimed, and finds this run: being collected, or complete.
 
-    Not part of the Python API, which never takes a run id: an id is made when a
-    run starts, and only ever carried from one plan to the next.
+    `on_claim` is called with the plan once the run is claimed, before the run's
+    first log line: how `taxman collect` names its log after a run it only now
+    knows, and announces it.
     """
-    run_id = validate_run_id(run_id)
     messages, system_prompt, model, api_key = (
         checked.messages,
         checked.system_prompt,
@@ -225,12 +212,9 @@ async def collect_run_async(
     system_text = checked.system_text
 
     limit = config.execution.max_concurrency
-    directory = resolve_output_dir(config, run_id=run_id)
-    manifest_path = directory / MANIFEST_FILENAME
     state = _RunState(on_error=config.execution.on_error)
-    # Constructed here but not opened: nothing touches the disk until the `with`.
-    writer = JsonlWriter(directory / config.output.filename, compress=config.output.compress)
-    #: Set once the run's manifest is on disk.
+    plan: RunPlan | None = None
+    #: Set once the run is claimed: its manifest is on disk and its lock held.
     manifest: RunManifest | None = None
 
     # Start the provider first, so a run that cannot begin - a missing SDK, most
@@ -244,31 +228,26 @@ async def collect_run_async(
         try:
             _handle_stop_signals(stop_signals, state)
             await _startup(provider, api_key)
-            # Planned again, now that nothing is left to wait for before sending:
-            # another collect may have started or finished this run meanwhile.
-            # Under the audit's lock, no other collect plans until this one has
-            # claimed the run, so the next to plan sees the claim.
             with hold_audit(config):
-                plan = plan_run(
-                    config,
-                    messages,
-                    system_prompt=system_text,
-                    new_run=new_run,
-                    run_id=run_id,
-                    earlier=earlier,
-                )
+                plan = plan_run(config, messages, system_prompt=system_text, new_run=new_run)
                 if not plan.complete:
-                    lock.enter_context(hold_run(directory))
+                    lock.enter_context(hold_run(plan.directory))
                     opened = (
-                        _new_manifest(config, provider, model, messages, run_id, system_prompt)
+                        _new_manifest(config, provider, model, messages, plan.run_id, system_prompt)
                         if plan.manifest is None
                         else _reopened(plan.manifest)
                     )
-                    _write_manifest(opened, manifest_path)
+                    _write_manifest(opened, plan.directory / MANIFEST_FILENAME)
                     manifest = opened
             if manifest is None:
                 return _already_complete(plan, config)
+            if on_claim is not None:
+                on_claim(plan)
 
+            run_id = plan.run_id
+            writer = JsonlWriter(
+                plan.directory / config.output.filename, compress=config.output.compress
+            )
             state.answered, state.failed = set(plan.answered), set(plan.failed)
             tasks = list(plan.tasks)
             if config.execution.shuffle:
@@ -332,26 +311,13 @@ async def collect_run_async(
         finally:
             _release_stop_signals(stop_signals)
             await _shutdown(provider)
-            if manifest is not None:
-                manifest.finished_at = timestamp()
-                # Per pair across every session, so a failure later answered is not
-                # counted twice, and one retried in vain is counted once.
-                manifest.n_ok = len(state.answered)
-                manifest.n_error = len(state.failed)
-                _write_manifest(manifest, manifest_path)
-                log.info(
-                    "run %s  run_id=%s ok=%d error=%d output=%s",
-                    manifest.status,
-                    run_id,
-                    state.n_ok,
-                    state.n_error,
-                    writer.path,
-                )
+            if manifest is not None and plan is not None:
+                _finalise(manifest, plan, config, state)
 
     return RunResult(
-        run_id=run_id,
-        output_path=writer.path,
-        manifest_path=manifest_path,
+        run_id=plan.run_id,
+        output_path=output_file(config, plan.directory),
+        manifest_path=plan.directory / MANIFEST_FILENAME,
         n_ok=state.n_ok,
         n_error=state.n_error,
         run_n_ok=len(state.answered),
@@ -360,6 +326,24 @@ async def collect_run_async(
         stopped_early=state.stop.is_set(),
         stop_signal=state.stop_signal,
         resumed=plan.resuming,
+    )
+
+
+def _finalise(manifest: RunManifest, plan: RunPlan, config: AuditConfig, state: _RunState) -> None:
+    """Write the manifest as the run ended, however it ended."""
+    manifest.finished_at = timestamp()
+    # Per pair across every session, so a failure later answered is not counted
+    # twice, and one retried in vain is counted once.
+    manifest.n_ok = len(state.answered)
+    manifest.n_error = len(state.failed)
+    _write_manifest(manifest, plan.directory / MANIFEST_FILENAME)
+    log.info(
+        "run %s  run_id=%s ok=%d error=%d output=%s",
+        manifest.status,
+        plan.run_id,
+        state.n_ok,
+        state.n_error,
+        output_file(config, plan.directory),
     )
 
 
