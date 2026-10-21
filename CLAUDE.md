@@ -271,36 +271,26 @@ unreadable row raises: dropping it quietly would undercount what was collected. 
 first drops that broken tail with `writer.repair_tail()`, copying every whole line byte for
 byte, so the rows it appends stay readable.
 
-## Logging and background runs
+## Logging, and running in the background
 
 `core/logging.py` owns the format and `setup_logging()`; **core modules only ever ask for a
 logger and emit**. Handlers are attached by `cli/collect_cmd.py`, never by the library, and a
 `NullHandler` on the package logger keeps the Python API silent. Every `collect` writes
-its log to `<output.log_dir>/<run_id>.log` and, in the foreground, to stderr as well —
-never stdout, which stays the command's own. `--log-file` sends it to that path alone.
+its log to `<output.log_dir>/<run_id>.log` and to stderr as well — never stdout, which
+stays the command's own. `--log-file` sends it to that path alone.
 
 **The API key is never logged**, at any level, and neither is message text — ids and counts
 only. `tests/core/test_logging.py` asserts both.
 
-`collect --background` re-runs taxman as a detached child (`cli/background.py`): the parent
-validates the audit, plans the run, spawns `python -m ai_taxman collect ... --background-run ...`
-in a new session, and exits. Three rules:
+**There is no background mode.** `collect --background` re-ran taxman as a detached child,
+and it is gone, along with the hidden option that told the child its run. The parent had to
+announce a run before the child could claim it, which made planning race and needed a
+second channel for a run id. Detaching is the shell's job — `&`, `nohup`, tmux, a job
+scheduler — and the README shows how. Do not add it back.
 
-- **The parent validates first.** A pid handed back for a run that could never work is worse
-  than an error at the prompt. That includes the plan: a changed audit or a run already being
-  collected is refused at the prompt, and a complete audit prints nothing on stdout.
-- **The parent picks the run** — the latest, resumed, or a new one — because otherwise nothing
-  could name the directory or the log before the child starts. The hidden `--background-run`
-  carries it to the child, with `--new-run` when the run is new; it is plumbing, not a way for a user to choose an id. Its name
-  is deliberately unlike any option a user types: Click's "did you mean" suggests hidden
-  options too, and `test_a_run_id_cannot_be_chosen` checks none is ever offered. A run id
-  given to the runner still goes through `records.validate_run_id()`: it is interpolated into
-  `output.dir` and resolved as a path, so `..` or `/` in one would move the data elsewhere.
-- **stdout is the pid and nothing else**, like `docker run -d`. The human block goes to
-  stderr. Do not add fields to stdout — `PID=$(taxman collect probe -b)` is the whole point.
-
-SIGTERM is a *graceful* stop: `run_audit_async(stop_signals=...)` sets the runner's stop flag,
-so in-flight requests finish and the manifest is finalised. The default is no signal handling,
+SIGTERM is a *graceful* stop — what `kill <pid>` and a scheduler's time limit send:
+`run_audit_async(stop_signals=...)` sets the runner's stop flag, so in-flight requests finish
+and the manifest is finalised. The default is no signal handling,
 because a library does not take its caller's handlers.
 
 ## Repeat semantics
@@ -467,7 +457,7 @@ not which files moved:
 Validate a run id before it becomes a path
 Write the manifest as the run happens, not after it
 Collect responses without parsing them
-Use the run id a background run was given
+Keep a whole last row that lost its newline
 ```
 
 Not `Update discovery.py`, not `fix bug`, not `refactor(core): rework audit resolution`.

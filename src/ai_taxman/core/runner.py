@@ -141,8 +141,8 @@ async def run_audit_async(
     `stop_signals` names signals that should end the run *gracefully*: requests
     already in flight are finished and written, and the manifest is finalised as
     `stopped_early`. It defaults to none, because a library does not take a
-    caller's signal handlers; `taxman collect` passes SIGTERM so that killing a
-    background run keeps the responses it already paid for.
+    caller's signal handlers; `taxman collect` passes SIGTERM so that `kill <pid>`
+    keeps the responses the run already paid for.
     """
     provider = provider or get_provider(config.provider)
     checked = preflight(config, provider)
@@ -208,10 +208,9 @@ async def collect_run_async(
     """Collect the run an earlier plan chose: `run_id`, started anew if `new_run`.
 
     For `taxman collect`, which plans the run itself, before the runner, so it
-    can announce the run and name its log - and for a background child, whose
-    parent did. The run is planned again here, once, just before sending:
-    `earlier` is the plan that chose it, when this process made one, whose
-    reading of the responses is used again if nothing has written to them since.
+    can announce the run and name its log. The run is planned again here, once,
+    just before sending: `earlier` is the plan that chose it, whose reading of
+    the responses is used again if nothing has written to them since.
 
     Not part of the Python API, which never takes a run id: an id is made when a
     run starts, and only ever carried from one plan to the next.
@@ -404,8 +403,8 @@ def record_complete(plan: RunPlan) -> None:
 def _handle_stop_signals(signals: tuple[int, ...], state: _RunState) -> None:
     """Turn the named signals into a request to wind the run down.
 
-    `kill <pid>` on a background run should not throw away work already paid
-    for. Setting the stop flag lets in-flight requests finish and be written,
+    `kill <pid>` - or a job scheduler's time limit - should not throw away work
+    already paid for. Setting the stop flag lets in-flight requests finish and be written,
     then finalises the manifest, instead of the process vanishing mid-write.
 
     Signal handling is unavailable on some platforms and inside some event
@@ -465,11 +464,7 @@ def _write_manifest(manifest: RunManifest, path: Path) -> None:
 
 
 def load_system_prompt(config: AuditConfig) -> SystemPrompt | None:
-    """Read the audit's system prompt file, if it names one.
-
-    Public because `audits validate` and `collect --background` make the same
-    check before anything is sent.
-    """
+    """Read the audit's system prompt file, if it names one."""
     path = config.system_prompt_path
     return read_system_prompt(path) if path is not None else None
 
@@ -480,9 +475,6 @@ def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
     There is no fallback chain: the audit names a variable, and that variable
     either holds a key or the run stops here - before anything is sent, and
     before any output directory is created.
-
-    Public because `collect --background` has to make the same check, with the
-    same message, before it hands back a pid for a run that could never work.
     """
     if not provider.requires_api_key:
         return None
@@ -726,7 +718,7 @@ class Preflight:
 def preflight(config: AuditConfig, provider: Provider) -> Preflight:
     """Everything that can be checked without sending anything, in one place.
 
-    `audits validate`, `collect` (foreground and background) and the runner all
+    `audits validate`, `collect` and the runner all
     call this, so "valid" means the same thing everywhere: if it passes, the run
     can start. Add a check here, never to one caller - a separate list per caller
     drifts apart.

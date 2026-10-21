@@ -171,33 +171,30 @@ run: move that folder elsewhere and collect again to start over.
 | `-q`, `--quiet` | Print only the summary |
 | `--log-file PATH` | Write the log to this file only |
 | `--log-level LEVEL` | `debug`, `info` (default), `warning`, or `error` |
-| `-b`, `--background` | Run detached; print the pid |
 
 ### Logs
 
 Each run logs one line per response to stderr and to `<output.log_dir>/<run_id>.log`. The
 summary goes to stdout. Message text and API keys are never logged.
 
-### Background runs
+### Stopping a run
 
-`-b` detaches the run. stdout is the pid and nothing else; the run id, log path, and output
-path go to stderr. The audit is validated, and the run to collect chosen, before the run
-detaches: a complete audit prints nothing on stdout.
+`kill <pid>` stops a run gracefully: in-flight requests finish and the manifest is set to
+`stopped_early`. Collecting the audit again finishes the run. After `kill -9` the responses on
+disk survive, but the manifest still says `running`.
 
-Every run, in the background or not, keeps the pid of the process collecting it in
-`collect.pid` in the run directory while it runs, so `kill $(cat <run dir>/collect.pid)`
-stops it. A run ended by `kill -9` cannot remove its `collect.pid`, so the file names a
-dead process until the run is collected again.
+While a run is being collected, the pid of the process collecting it is in `collect.pid` in
+the run directory, so `kill $(cat <run dir>/collect.pid)` stops it. A run ended by `kill -9`
+cannot remove its `collect.pid`, so the file names a dead process until the run is collected
+again.
+
+taxman has no background mode of its own; the shell's works. To collect several audits at once:
 
 ```bash
-openai=$(taxman collect openai-probe -b)
-anthropic=$(taxman collect anthropic-probe -b)
-while kill -0 "$openai" 2>/dev/null || kill -0 "$anthropic" 2>/dev/null; do sleep 5; done
+taxman collect openai-probe -q --log-file openai.log &
+taxman collect anthropic-probe -q --log-file anthropic.log &
+wait
 ```
-
-`kill <pid>` stops gracefully: in-flight requests finish and the manifest is set to
-`stopped_early`. After `kill -9` the responses on disk survive, but the manifest still says
-`running`.
 
 ## Output
 

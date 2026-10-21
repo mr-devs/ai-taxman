@@ -139,10 +139,7 @@ def test_two_audits_in_one_directory_are_told_how_to_fix_it(invoke, tmp_path, fa
     assert fake_provider.sent == []
 
 
-@pytest.mark.parametrize("background", [False, True])
-def test_a_run_killed_after_its_last_response_is_marked_complete(
-    invoke, tmp_path, fake_provider, background
-):
+def test_a_run_killed_after_its_last_response_is_marked_complete(invoke, tmp_path, fake_provider):
     """It never got to say so itself; collecting again sends nothing, and says it for it."""
     make_project(tmp_path)
     invoke("collect", "probe")
@@ -152,7 +149,7 @@ def test_a_run_killed_after_its_last_response_is_marked_complete(
     manifest.update(status="running", n_ok=0, finished_at=None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    result = invoke("collect", "probe", *(["--background"] if background else []))
+    result = invoke("collect", "probe")
 
     assert "already complete" in result.output
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -413,20 +410,6 @@ def test_collect_reads_a_resumed_run_once(invoke, tmp_path, fake_provider, reads
     assert len(reads) == 1
 
 
-def test_a_background_child_reads_its_run_once(invoke, tmp_path, fake_provider, reads):
-    """Its parent planned the run already; the child only claims it."""
-    run = unfinished(invoke, tmp_path, fake_provider)
-    reads.clear()
-
-    result = invoke(
-        "collect", "probe", "--background-run", run.name, "--log-file", str(tmp_path / "c.log")
-    )
-
-    assert result.exit_code == 0, result.output
-    assert len(reads) == 1
-    assert fake_provider.sent[-1].message.id == TWO
-
-
 def test_manifest_records_the_run(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 
@@ -604,8 +587,24 @@ def test_a_run_id_cannot_be_chosen(invoke, tmp_path, fake_provider):
 
     assert result.exit_code != 0
     assert fake_provider.sent == []
-    # Not even by way of a "did you mean" pointing at a hidden option.
-    assert not any(name in result.output for name in hidden_options("collect"))
+
+
+def test_collect_has_no_hidden_options():
+    """None a "did you mean" could point a user at: everything comes from the audit."""
+    assert hidden_options("collect") == []
+
+
+@pytest.mark.parametrize("flag", ["--background", "-b"])
+def test_a_collect_is_not_detached_by_taxman(invoke, tmp_path, fake_provider, flag):
+    """The shell already does that: `&`, `nohup`, tmux."""
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe", flag)
+
+    assert result.exit_code != 0
+    assert "No such option" in result.output
+    assert fake_provider.sent == []
+    assert not (tmp_path / "data").exists()
 
 
 @pytest.mark.parametrize(

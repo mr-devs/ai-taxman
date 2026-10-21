@@ -96,7 +96,7 @@ def test_runs_are_found_wherever_the_run_id_sits_in_the_path(project):
 
 
 def test_a_folder_without_a_manifest_is_not_a_run(project):
-    """A background parent makes the directory before its child writes anything."""
+    """A collect killed after making the directory, before writing the manifest."""
     config = audit(project)
     (project / "data/probe/empty").mkdir(parents=True)
 

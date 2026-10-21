@@ -2,7 +2,7 @@
 
 A collection can run for hours. Without a running commentary the only feedback
 is a summary printed at the end, which is no use to someone watching a run they
-started this morning - or to a background run, which has no terminal at all.
+started this morning - or to a run under `nohup`, which has no terminal at all.
 
 Two rules matter more than the format. The library never configures logging for
 its caller, and the API key never reaches a log record.

@@ -1,9 +1,9 @@
 """What a run says about itself while it is running.
 
 A collection can take hours, and until it finishes the only thing a user has to
-go on is that the process has not exited. A background run does not even have a
-terminal. So the runner narrates: what it is about to do, every response as it
-lands, every retry, and how it ended.
+go on is that the process has not exited, and a run left going under `nohup` or
+a job scheduler does not even have a terminal. So the runner narrates: what it
+is about to do, every response as it lands, every retry, and how it ended.
 
 Two rules shape this module.
 

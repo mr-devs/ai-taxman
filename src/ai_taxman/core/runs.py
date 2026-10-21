@@ -158,11 +158,11 @@ def plan_run(
     `new_run`, a new run whatever is on disk.
 
     `run_id` holds the plan to a run an earlier plan chose: how the runner, when
-    it plans again before sending, keeps to the run `collect` announced - or a
-    background parent picked for its child. That run is resumed if it is on
-    disk. If not, it is started only the way the earlier plan would have started
-    it - with `new_run`, or while the audit still has no run - so a run another
-    collect started in between is never doubled.
+    it plans again before sending, keeps to the run `collect` announced. That
+    run is resumed if it is on disk. If not, it is started only the way the
+    earlier plan would have started it - with `new_run`, or while the audit
+    still has no run - so a run another collect started in between is never
+    doubled.
 
     `earlier` is a plan this process made before this one. Its reading of the
     run's responses is used again if the file has not been written to since, so

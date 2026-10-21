@@ -1,7 +1,7 @@
 """A run is on disk while it runs, not after it finishes.
 
 An audit can take hours and can be killed at any point in them - by a timeout, a
-laptop lid, a `kill` from the background flag. Whatever came back before that
+laptop lid, a `kill`, a job scheduler's time limit. Whatever came back before that
 moment is data the user paid for, so it has to survive, and the run directory has
 to describe itself even when nothing finished.
 """

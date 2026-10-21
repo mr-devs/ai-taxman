@@ -50,20 +50,6 @@ def collect(
         str,
         typer.Option("--log-level", help="debug | info | warning | error."),
     ] = DEFAULT_LEVEL,
-    background: Annotated[
-        bool,
-        typer.Option(
-            "--background",
-            "-b",
-            help="Start the run detached and return. Prints its pid, log, and output path.",
-        ),
-    ] = False,
-    background_run: Annotated[
-        str | None,
-        typer.Option(
-            "--background-run", hidden=True, help="The run a background parent chose for its child."
-        ),
-    ] = None,
 ) -> None:
     """Send every message in an audit to its provider and record the responses.
 
@@ -74,14 +60,14 @@ def collect(
     terminal and to the audit's log folder, as <run_id>.log. --log-file sends it
     to that file alone instead.
 
-    With --background the run is detached and the prompt comes straight back, so
-    a script can start several providers at once and stop them by pid.
+    kill <pid> stops a run gracefully: what is in flight finishes, and
+    collecting again picks up where it stopped. The pid is in the run's
+    collect.pid while it runs.
     """
     # Imported here, not at module scope: shell completion imports this module on
     # every Tab press and must not pay for the config parser or the runner.
     from ai_taxman.core.config import load_audit, resolve_log_file
     from ai_taxman.core.logging import describe_level, setup_logging
-    from ai_taxman.core.records import validate_run_id
     from ai_taxman.core.runner import preflight, record_complete
     from ai_taxman.core.runs import plan_run
 
@@ -95,44 +81,19 @@ def collect(
     config = load_audit(find_audit(audit))
     provider = get_provider(config.provider)
 
-    if background:
-        _start_in_background(
-            audit,
-            config=config,
-            provider=provider,
-            new_run=new_run,
-            log_file=log_file,
-            log_level=log_level,
-            quiet=quiet,
-        )
-        return
-
     # Checked before the banner and the log: announcing a run that cannot start
     # reads as if it started.
     checked = preflight(config, provider)
     model = provider.describe_model(checked.model)
 
-    plan: RunPlan | None = None
-    if background_run is not None:
-        # Planned and announced by the parent. The runner plans it once more
-        # before sending; a plan here as well would only read the run again.
-        run_id = validate_run_id(background_run)
-    else:
-        # Planned here rather than by the runner, because the log is named after
-        # the run and has to be open before the run's first line.
-        plan = plan_run(
-            config,
-            checked.messages,
-            system_prompt=checked.system_text,
-            new_run=new_run,
-        )
-        if plan.complete:
-            record_complete(plan)
-            _say_complete(
-                config, run_id=plan.run_id, expected=plan.expected, directory=plan.directory
-            )
-            return
-        run_id = plan.run_id
+    # Planned here rather than by the runner, because the log is named after the
+    # run and has to be open before the run's first line.
+    plan = plan_run(config, checked.messages, system_prompt=checked.system_text, new_run=new_run)
+    if plan.complete:
+        record_complete(plan)
+        _say_complete(config, run_id=plan.run_id, expected=plan.expected, directory=plan.directory)
+        return
+    run_id = plan.run_id
 
     if log_file is None:
         setup_logging(
@@ -150,12 +111,12 @@ def collect(
             f"Collecting {config.audit}: {config.provider} "
             f"({model or 'unspecified'}), {expected} repeat(s) per message."
         )
-    if plan is not None and plan.left_unfinished is not None:
+    if plan.left_unfinished is not None:
         typer.secho(
             f"Leaving run {plan.left_unfinished} unfinished; starting run {run_id}.",
             fg=typer.colors.YELLOW,
         )
-    if plan is not None and plan.resuming:
+    if plan.resuming:
         # Even with --quiet: a run that picks up where another left off must
         # never be mistaken for a fresh one.
         typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
@@ -228,19 +189,16 @@ def _resuming(plan: RunPlan) -> str:
     )
 
 
-def _say_complete(
-    config: AuditConfig, *, run_id: str, expected: int, directory: Path, err: bool = False
-) -> None:
+def _say_complete(config: AuditConfig, *, run_id: str, expected: int, directory: Path) -> None:
     """Say there is nothing to collect, and how to collect the audit again."""
     from ai_taxman.core.runs import output_file, start_over
 
     output = display_path(output_file(config, directory))
     typer.echo(
         f"{config.audit} is already complete: run {run_id} has all "
-        f"{expected} responses, in {output}.",
-        err=err,
+        f"{expected} responses, in {output}."
     )
-    typer.echo(f"To start a new run, {start_over(config, display_path(directory))}.", err=err)
+    typer.echo(f"To start a new run, {start_over(config, display_path(directory))}.")
 
 
 def _run(
@@ -250,7 +208,7 @@ def _run(
     provider: Provider,
     run_id: str,
     new_run: bool,
-    plan: RunPlan | None,
+    plan: RunPlan,
 ) -> RunResult:
     """Run in this process, stopping gracefully on SIGTERM.
 
@@ -260,9 +218,9 @@ def _run(
 
     from ai_taxman.core.runner import collect_run
 
-    # SIGTERM is what `kill <pid>` sends, and what stops a background run. It
-    # winds the run down rather than killing it mid-write, so the responses
-    # already paid for are kept and the manifest is finalised.
+    # SIGTERM is what `kill <pid>` sends, and what a job scheduler sends at a time
+    # limit. It winds the run down rather than killing it mid-write, so the
+    # responses already paid for are kept and the manifest is finalised.
     stop_signals = (signal.SIGTERM,) if hasattr(signal, "SIGTERM") else ()
 
     return collect_run(
@@ -274,91 +232,3 @@ def _run(
         earlier=plan,
         stop_signals=stop_signals,
     )
-
-
-def _start_in_background(
-    audit: str,
-    *,
-    config: AuditConfig,
-    provider: Provider,
-    new_run: bool,
-    log_file: Path | None,
-    log_level: str,
-    quiet: bool,
-) -> None:
-    """Validate, spawn a detached child, and say how to follow or stop it."""
-    from pathlib import Path as _Path
-
-    from ai_taxman.cli.background import build_child_command, spawn
-    from ai_taxman.core.config import resolve_log_file
-    from ai_taxman.core.runner import preflight, record_complete
-    from ai_taxman.core.runs import output_file, plan_run
-
-    # Everything checkable without doing the run, checked before the fork: a pid
-    # for a run that could never have worked is worse than an error here.
-    checked = preflight(config, provider)
-    model = provider.describe_model(checked.model)
-
-    # The parent decides which run the child collects - resumed or new - so it
-    # can name the run's directory and log before the child starts.
-    plan = plan_run(
-        config,
-        checked.messages,
-        system_prompt=checked.system_text,
-        new_run=new_run,
-    )
-    run_id = plan.run_id
-    if plan.complete:
-        record_complete(plan)
-        _say_complete(
-            config, run_id=plan.run_id, expected=plan.expected, directory=plan.directory, err=True
-        )
-        return
-
-    directory = plan.directory
-    directory.mkdir(parents=True, exist_ok=True)
-
-    # The user's --log-file if they gave one, as in the foreground. Made absolute
-    # here so the path the child writes is the one printed below.
-    log_file = (
-        log_file.resolve() if log_file is not None else resolve_log_file(config, run_id=run_id)
-    )
-    argv = build_child_command(
-        audit,
-        run_id=run_id,
-        new_run=new_run,
-        log_file=log_file,
-        log_level=log_level,
-        quiet=quiet,
-    )
-
-    try:
-        pid = spawn(argv, log_file=log_file, cwd=_Path.cwd())
-    except OSError as exc:
-        fail(f"could not start a background run: {exc}")
-        return
-
-    output = output_file(config, directory)
-
-    # The block is for the person; stdout is for the script. A bare pid on
-    # stdout makes `PID=$(taxman collect probe -b)` work, the way `docker run
-    # -d` prints a container id - grepping this block for it is fiddly, and the
-    # `pid` line and the `collect.pid` path both match the obvious pattern.
-    typer.echo(
-        f"Collecting {config.audit} in the background: {config.provider} "
-        f"({model or 'unspecified'}), {config.execution.repeats} repeat(s) per message.",
-        err=True,
-    )
-    if plan.left_unfinished is not None:
-        typer.echo(f"Leaving run {plan.left_unfinished} unfinished.", err=True)
-    if plan.resuming:
-        typer.echo(_resuming(plan), err=True)
-    typer.echo("", err=True)
-    typer.echo(f"  run id   {run_id}", err=True)
-    typer.echo(f"  pid      {pid}", err=True)
-    typer.echo(f"  log      {log_file}", err=True)
-    typer.echo(f"  output   {output}", err=True)
-    # Not `kill $(cat collect.pid)`: the child writes that only once it holds the
-    # run, and until then it can still name a session that `kill -9` ended.
-    typer.echo(f"  stop     kill {pid}", err=True)
-    typer.echo(pid)

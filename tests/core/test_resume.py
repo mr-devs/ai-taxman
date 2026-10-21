@@ -437,8 +437,8 @@ async def test_the_refusal_names_the_run_not_its_folder(project, fake_provider):
 
 
 async def test_the_refusal_names_the_process_collecting_the_run(project, fake_provider):
-    """Whichever process it is, foreground or background - never a stale pid a
-    killed run left behind, which the OS may since have given to anything."""
+    """The one holding the run - never a stale pid a killed run left behind,
+    which the OS may since have given to anything."""
     import os
 
     from ai_taxman.core.errors import RunInProgressError
