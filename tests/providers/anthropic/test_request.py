@@ -52,16 +52,6 @@ def test_max_tokens_must_be_positive():
         request_for({"name": "claude-opus-5-5", "max_tokens": 0})
 
 
-def test_an_unknown_model_name_is_still_allowed():
-    """Anthropic ships models faster than the known list is updated."""
-    assert request_for({**BASE, "name": "claude-future-9"})["model"] == "claude-future-9"
-
-
-def test_unknown_model_keys_are_rejected():
-    with pytest.raises(ValidationError, match="bogus"):
-        request_for({**BASE, "bogus": 1})
-
-
 def test_the_system_prompt_becomes_the_top_level_system():
     """Anthropic takes it as a parameter, not as a turn in `messages`."""
     payload = request_for(BASE, system_prompt="Answer in one word.")
@@ -168,11 +158,6 @@ def test_display_without_a_type_is_refused():
     """The API takes no thinking object without a type, so display alone is never sent."""
     with pytest.raises(ValidationError, match="type"):
         thinking(display="summarized")
-
-
-def test_the_thinking_block_refuses_a_setting_it_does_not_know():
-    with pytest.raises(ValidationError, match="bogus"):
-        thinking(type="adaptive", bogus=1)
 
 
 # -- sampling ----------------------------------------------------------------
@@ -348,16 +333,6 @@ def test_a_blank_search_block_adds_no_tools():
     assert "tools" not in request_for({**BASE, "search": {"web_search": None}})
 
 
-def test_web_search_lives_in_the_search_block():
-    with pytest.raises(ValidationError, match="web_search"):
-        request_for({**BASE, "web_search": True})
-
-
-def test_the_search_block_refuses_a_setting_it_does_not_know():
-    with pytest.raises(ValidationError, match="bogus"):
-        search(bogus=1)
-
-
 def test_a_search_setting_without_web_search_is_refused():
     """A setting for a tool that is not sent would be recorded but never used."""
     with pytest.raises(ValidationError, match="web_search"):
@@ -427,11 +402,6 @@ def test_a_blank_user_location_sends_none():
 def test_country_is_a_two_letter_iso_code(country):
     with pytest.raises(ValidationError, match="user_location.country"):
         search(user_location={"country": country})
-
-
-def test_user_location_refuses_a_field_it_does_not_know():
-    with pytest.raises(ValidationError, match="user_location.street"):
-        search(user_location={"street": "Main St"})
 
 
 def test_allowed_callers_go_on_the_tool():

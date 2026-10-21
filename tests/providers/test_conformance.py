@@ -5,6 +5,7 @@ this the moment it exists - there is no list here to remember to extend. Each
 provider's own tests cover what its API does; these cover what core relies on.
 """
 
+import copy
 import inspect
 from typing import get_args
 
@@ -176,12 +177,58 @@ def test_an_inline_comment_is_not_an_explanation():
     ]
 
 
-def test_an_unknown_setting_is_refused(provider):
-    """A typo must fail at validation, not be silently ignored for a whole run."""
-    block = {**template_block(provider), "not_a_real_setting": 1}
+def test_a_model_it_does_not_know_is_accepted(provider):
+    """Providers ship models faster than `known_models()` is updated."""
+    template = template_block(provider)
+    named = provider.describe_model(provider.validate_model_config(template))
+    key = next(key for key, value in template.items() if value == named)
 
-    with pytest.raises(ValueError):
+    config = provider.validate_model_config({**template, key: "a-model-taxman-never-heard-of"})
+
+    assert provider.describe_model(config) == "a-model-taxman-never-heard-of"
+
+
+def nested_paths(block, path=()):
+    """The path to every block of settings in `block`, itself included."""
+    yield path
+    for key, value in block.items():
+        if isinstance(value, dict):
+            yield from nested_paths(value, (*path, key))
+
+
+def with_setting(block, path, key, value):
+    """A copy of `block` with `key: value` added inside the block at `path`."""
+    changed = copy.deepcopy(block)
+    inner = changed
+    for step in path:
+        inner = inner[step]
+    inner[key] = value
+    return changed
+
+
+def refuses_by_name(provider, block, key):
+    try:
         provider.validate_model_config(block)
+    except ValueError as error:
+        return key in str(error)
+    return False
+
+
+def test_an_unknown_setting_is_refused(provider):
+    """A typo must fail at validation, not be silently ignored for a whole run.
+
+    In every block the template shows, and by name, so the user can find it.
+    """
+    template = template_block(provider)
+    let_through = [
+        ".".join(path) or "model"
+        for path in nested_paths(template)
+        if not refuses_by_name(
+            provider, with_setting(template, path, "not_a_real_setting", 1), "not_a_real_setting"
+        )
+    ]
+
+    assert let_through == []
 
 
 def test_the_model_block_takes_no_system_prompt(provider):

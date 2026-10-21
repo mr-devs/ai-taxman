@@ -42,16 +42,6 @@ def test_omits_parameters_the_user_left_blank():
     assert set(request_for(BASE)) == {"model", "input", "store"}
 
 
-def test_an_unknown_model_name_is_still_allowed():
-    """Google ships models faster than the known list is updated."""
-    assert request_for({"name": "gemini-9-ultra"})["model"] == "gemini-9-ultra"
-
-
-def test_unknown_model_keys_are_rejected():
-    with pytest.raises(ValidationError, match="bogus"):
-        request_for({**BASE, "bogus": 1})
-
-
 def test_the_system_prompt_becomes_the_system_instruction():
     payload = request_for(BASE, system_prompt="Answer in one word.")
 
@@ -252,11 +242,6 @@ def test_web_search_false_adds_no_tools():
 
 def test_a_blank_search_block_adds_no_tools():
     assert "tools" not in request_for({**BASE, "search": {"web_search": None}})
-
-
-def test_web_search_lives_in_the_search_block():
-    with pytest.raises(ValidationError, match="web_search"):
-        request_for({**BASE, "web_search": True})
 
 
 def test_extra_cannot_add_tools_of_its_own():

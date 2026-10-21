@@ -60,14 +60,6 @@ def test_describe_model_names_the_model_for_the_record(fake_provider):
     assert fake_provider.describe_model(config) == "fake-2"
 
 
-def test_openai_describe_model():
-    from ai_taxman.providers.openai.provider import PROVIDER
-
-    config = PROVIDER.validate_model_config({"name": "gpt-5"})
-
-    assert PROVIDER.describe_model(config) == "gpt-5"
-
-
 def test_startup_receives_the_resolved_api_key(fake_provider):
     import asyncio
 

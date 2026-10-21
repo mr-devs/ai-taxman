@@ -10,7 +10,6 @@ from pydantic import ValidationError
 
 from ai_taxman.core.messages import Message
 from ai_taxman.providers.base import Request
-from ai_taxman.providers.openai.config import OpenAIModelConfig
 from ai_taxman.providers.openai.models import ReasoningEffort
 from ai_taxman.providers.openai.provider import OpenAIProvider, build_request
 
@@ -85,16 +84,6 @@ def test_a_blank_search_block_adds_no_tools(provider):
     assert "tools" not in request_for({"name": "gpt-5", "search": None})
 
 
-def test_web_search_lives_in_the_search_block(provider):
-    with pytest.raises(ValidationError):
-        request_for({"name": "gpt-5", "web_search": True})
-
-
-def test_the_search_block_refuses_a_setting_it_does_not_know(provider):
-    with pytest.raises(ValidationError):
-        request_for({"name": "gpt-5", "search": {"web_serch": True}})
-
-
 def test_the_system_prompt_becomes_instructions(provider):
     payload = request_for({"name": "gpt-5"}, system_prompt="Be terse.")
 
@@ -105,12 +94,6 @@ def test_no_system_prompt_sends_no_instructions(provider):
     assert "instructions" not in request_for({"name": "gpt-5"})
 
 
-def test_the_model_block_takes_no_system_prompt(provider):
-    """It is set once, as a file, in the audit's top-level `system_prompt:`."""
-    with pytest.raises(ValidationError):
-        request_for({"name": "gpt-5", "system_prompt": "Be terse."})
-
-
 def test_store_defaults_to_false_so_audits_leave_no_server_side_trace(provider):
     assert request_for({"name": "gpt-5"})["store"] is False
 
@@ -119,11 +102,6 @@ def test_extra_body_passes_through_unknown_api_parameters(provider):
     payload = request_for({"name": "gpt-5", "extra": {"service_tier": "flex"}})
 
     assert payload["service_tier"] == "flex"
-
-
-def test_unknown_model_keys_are_rejected(provider):
-    with pytest.raises(ValidationError, match="temprature"):
-        provider.validate_model_config({"name": "gpt-5", "temprature": 1.5})
 
 
 def test_blank_values_are_treated_as_unset(provider):
@@ -149,13 +127,6 @@ def test_blank_values_are_treated_as_unset(provider):
 def test_out_of_range_values_are_rejected(provider, block):
     with pytest.raises(ValidationError):
         provider.validate_model_config(block)
-
-
-def test_an_unknown_model_name_is_still_allowed(provider):
-    """Providers ship models faster than we can list them."""
-    config = provider.validate_model_config({"name": "gpt-6-turbo-unreleased"})
-
-    assert isinstance(config, OpenAIModelConfig)
 
 
 # --- the search block -----------------------------------------------------
@@ -309,11 +280,6 @@ def test_a_blank_user_location_sends_none(provider):
 def test_country_is_a_two_letter_iso_code(provider, country):
     with pytest.raises(ValidationError, match="country"):
         tool(user_location={"country": country})
-
-
-def test_user_location_refuses_a_field_it_does_not_know(provider):
-    with pytest.raises(ValidationError):
-        tool(user_location={"zip": "55401"})
 
 
 def test_a_user_location_without_web_search_is_refused(provider):
