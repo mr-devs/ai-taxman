@@ -551,3 +551,14 @@ async def test_a_provider_that_needs_no_key_does_not_require_the_field(project, 
 
     assert result.n_ok == 3
     assert fake_provider.api_key is None
+
+
+@pytest.mark.parametrize("text", ["Answer briefly.", None])
+def test_a_preflight_gives_the_system_prompt_text_it_would_send(text, tmp_path):
+    from ai_taxman.core.prompts import SystemPrompt
+    from ai_taxman.core.runner import Preflight
+
+    prompt = SystemPrompt(text=text, path=tmp_path / "p.txt") if text is not None else None
+    checked = Preflight(messages=[], system_prompt=prompt, model={}, api_key=None)
+
+    assert checked.system_text == text

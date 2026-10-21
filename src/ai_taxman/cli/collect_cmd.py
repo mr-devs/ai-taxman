@@ -123,7 +123,7 @@ def collect(
         plan = plan_run(
             config,
             checked.messages,
-            system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+            system_prompt=checked.system_text,
             new_run=new_run,
         )
         if plan.complete:
@@ -302,7 +302,7 @@ def _start_in_background(
     plan = plan_run(
         config,
         checked.messages,
-        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+        system_prompt=checked.system_text,
         new_run=new_run,
     )
     run_id = plan.run_id

@@ -149,7 +149,7 @@ async def run_audit_async(
     plan = plan_run(
         config,
         checked.messages,
-        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+        system_prompt=checked.system_text,
         new_run=new_run,
     )
     if plan.complete:
@@ -217,7 +217,7 @@ async def collect_run_async(
         checked.model,
         checked.api_key,
     )
-    system_text = system_prompt.text if system_prompt else None
+    system_text = checked.system_text
 
     limit = config.execution.max_concurrency
     directory = resolve_output_dir(config, run_id=run_id)
@@ -702,6 +702,11 @@ class Preflight:
     system_prompt: SystemPrompt | None
     model: object
     api_key: str | None
+
+    @property
+    def system_text(self) -> str | None:
+        """The system prompt's text, as sent with each message, or None if there is none."""
+        return self.system_prompt.text if self.system_prompt is not None else None
 
 
 def preflight(config: AuditConfig, provider: Provider) -> Preflight:

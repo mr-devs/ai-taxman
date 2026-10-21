@@ -161,7 +161,7 @@ def validate_command(audit: AuditName) -> None:
     plan = plan_run(
         config,
         checked.messages,
-        system_prompt=checked.system_prompt.text if checked.system_prompt else None,
+        system_prompt=checked.system_text,
     )
     messages = checked.messages
     total = len(messages) * config.execution.repeats
