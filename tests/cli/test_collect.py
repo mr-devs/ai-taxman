@@ -312,6 +312,39 @@ def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
     assert "already complete" in result.output
 
 
+def stopped(tmp_path, monkeypatch, **counts):
+    """Stand in for a run that a signal stopped, with these counts."""
+    import signal
+
+    from ai_taxman.core import runner
+    from ai_taxman.core.runner import RunResult
+
+    def stopped_run(config, checked, *, run_id, **kwargs):
+        directory = tmp_path / "data" / "probe" / run_id
+        return RunResult(
+            run_id=run_id,
+            output_path=directory / "responses.jsonl",
+            manifest_path=directory / "manifest.json",
+            expected=3,
+            stopped_early=True,
+            stop_signal=signal.SIGTERM,
+            **counts,
+        )
+
+    monkeypatch.setattr(runner, "collect_run", stopped_run)
+
+
+def test_a_run_stopped_by_kill_says_so(invoke, tmp_path, fake_provider, monkeypatch):
+    make_project(tmp_path)
+    stopped(tmp_path, monkeypatch, n_ok=1, n_error=0, run_n_ok=1)
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code == 0, result.output
+    assert "Run stopped on SIGTERM; collect again to finish it." in result.output
+    assert "on_error" not in result.output
+
+
 @pytest.fixture
 def reads(monkeypatch):
     """How many times the run's responses are read to plan it."""

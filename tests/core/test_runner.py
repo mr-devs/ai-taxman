@@ -203,7 +203,31 @@ async def test_on_error_stop_halts_the_run(project, fake_provider):
     )
 
     assert result.stopped_early is True
+    assert result.stop_signal is None
     assert result.n_ok + result.n_error < 60
+
+
+async def test_a_run_stopped_by_a_signal_says_which(project, fake_provider):
+    """`kill <pid>` is not `on_error: stop`, and the user is told which it was."""
+    import os
+    import signal
+
+    def interrupt():
+        # Only once the runner has the signal: unhandled, it would end pytest.
+        assert signal.getsignal(signal.SIGUSR1) is not signal.SIG_DFL
+        os.kill(os.getpid(), signal.SIGUSR1)
+
+    fake_provider.delay = 0.05
+    asyncio.get_running_loop().call_later(0.1, interrupt)
+
+    result = await run_audit_async(
+        audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1"),
+        stop_signals=(signal.SIGUSR1,),
+    )
+
+    assert result.stopped_early is True
+    assert result.stop_signal == signal.SIGUSR1
+    assert result.n_ok < 60
 
 
 async def test_provider_lifecycle_hooks_run_once(project, fake_provider):

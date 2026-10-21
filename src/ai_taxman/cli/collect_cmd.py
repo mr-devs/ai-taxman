@@ -180,7 +180,15 @@ def collect(
     if result.resumed:
         typer.echo(f"Run {run_id} now has {result.run_n_ok} of {result.expected} responses.")
 
-    if result.stopped_early:
+    if result.stop_signal is not None:
+        import signal
+
+        typer.secho(
+            f"Run stopped on {signal.Signals(result.stop_signal).name}; "
+            "collect again to finish it.",
+            fg=typer.colors.YELLOW,
+        )
+    elif result.stopped_early:
         typer.secho(
             "Run stopped early because execution.on_error is `stop`.",
             fg=typer.colors.YELLOW,

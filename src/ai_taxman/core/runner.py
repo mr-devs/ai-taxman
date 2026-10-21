@@ -84,6 +84,8 @@ class RunResult:
     #: How many responses the whole run has: messages times repeats.
     expected: int = 0
     stopped_early: bool = False
+    #: The signal that stopped the run early, or None if a signal did not.
+    stop_signal: int | None = None
     #: True when this call finished an existing run rather than starting one.
     resumed: bool = False
     #: True when the run already had every response, so nothing was sent.
@@ -346,6 +348,7 @@ async def collect_run_async(
         run_n_error=len(state.failed),
         expected=plan.expected,
         stopped_early=state.stop.is_set(),
+        stop_signal=state.stop_signal,
         resumed=plan.resuming,
     )
 
@@ -408,6 +411,8 @@ def _handle_stop_signals(signals: tuple[int, ...], state: _RunState) -> None:
 
 def _request_stop(state: _RunState, number: int) -> None:
     log.warning("stopping on signal %d: finishing what is in flight", number)
+    if not state.stop.is_set():
+        state.stop_signal = number
     state.stop.set()
 
 
@@ -514,6 +519,8 @@ class _RunState:
     n_ok: int = 0
     n_error: int = 0
     stop: asyncio.Event = dataclass_field(default_factory=asyncio.Event)
+    #: The signal that set `stop`, if one did before an error could.
+    stop_signal: int | None = None
 
     def record(self, record: ResponseRecord) -> None:
         pair = (record.message_id, record.repeat)
