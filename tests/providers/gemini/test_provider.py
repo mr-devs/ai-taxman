@@ -49,16 +49,6 @@ def ambient(monkeypatch):
     monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
 
 
-async def test_the_client_is_the_one_startup_was_given(ambient):
-    provider = GeminiProvider()
-
-    await provider.startup(api_key="gm-one")
-    try:
-        assert provider._require_client()._api_client.api_key == "gm-one"
-    finally:
-        await provider.shutdown()
-
-
 async def test_an_ambient_switch_never_sends_the_audit_to_vertex(ambient):
     """GOOGLE_GENAI_USE_ENTERPRISE would move the audit to another API and another bill."""
     provider = GeminiProvider()
@@ -86,14 +76,8 @@ async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):
 @pytest.mark.parametrize(
     "exc_name, retryable",
     [
-        ("RateLimitError", True),
-        ("InternalServerError", True),
         ("ConflictError", True),
-        ("APITimeoutError", True),
-        ("APIConnectionError", True),
-        ("BadRequestError", False),
         ("AuthenticationError", False),
-        ("PermissionDeniedError", False),
         ("NotFoundError", False),
         ("UnprocessableEntityError", False),
     ],

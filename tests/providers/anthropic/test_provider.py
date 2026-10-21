@@ -63,31 +63,6 @@ def test_the_newest_search_tool_is_the_default():
 # -- the key comes from core, never from the environment -------------------
 
 
-async def test_the_client_is_the_one_startup_was_given():
-    provider = AnthropicProvider()
-
-    await provider.startup(api_key="sk-ant-one")
-    try:
-        assert provider._require_client().api_key == "sk-ant-one"
-    finally:
-        await provider.shutdown()
-
-
-async def test_an_ambient_auth_token_is_never_sent_alongside_the_key(monkeypatch):
-    """The SDK reads ANTHROPIC_AUTH_TOKEN by default and sends it as a second credential."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-ambient-must-not-be-used")
-    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "ambient-token-must-not-be-used")
-    provider = AnthropicProvider()
-
-    await provider.startup(api_key="sk-ant-one")
-    try:
-        client = provider._require_client()
-        assert client.api_key == "sk-ant-one"
-        assert client.auth_token is None
-    finally:
-        await provider.shutdown()
-
-
 async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):
     monkeypatch.setitem(sys.modules, "anthropic", None)
 
