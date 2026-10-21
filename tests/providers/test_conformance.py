@@ -3,10 +3,15 @@
 Parametrized over the registry, so a new `providers/<name>/` folder is held to
 this the moment it exists - there is no list here to remember to extend. Each
 provider's own tests cover what its API does; these cover what core relies on.
+
+The `extra:` tests also call the provider module's own `build_request`, which
+CLAUDE.md's pure / IO split requires every provider to have: what `extra:` may
+add to a request is shared code, so it is checked here once for all of them.
 """
 
 import copy
 import inspect
+import sys
 from typing import get_args
 
 import pytest
@@ -206,11 +211,12 @@ def with_setting(block, path, key, value):
     return changed
 
 
-def refuses_by_name(provider, block, key):
+def refuses_by_name(provider, block, name):
+    """Whether validating `block` fails with an error that says `name`."""
     try:
         provider.validate_model_config(block)
     except ValueError as error:
-        return key in str(error)
+        return name in str(error)
     return False
 
 
@@ -229,6 +235,53 @@ def test_an_unknown_setting_is_refused(provider):
     ]
 
     assert let_through == []
+
+
+def built_request(provider, config, *, repeat=0, system_prompt=None):
+    """What the provider's own `build_request` makes of one message under `config`."""
+    build_request = sys.modules[type(provider).__module__].build_request
+    message = Message(id="m0000", text="hello", line_number=1)
+    return build_request(
+        Request(message=message, repeat=repeat, model=config, system_prompt=system_prompt)
+    )
+
+
+def test_extra_cannot_set_what_taxman_sends(provider):
+    """Otherwise `extra:` could quietly bypass a named setting's checks and defaults."""
+    template = template_block(provider)
+    config = provider.validate_model_config(template)
+    sent = built_request(provider, config, system_prompt="Be terse.")
+    let_through = [
+        key
+        for key in sent
+        if not refuses_by_name(provider, {**template, "extra": {key: "x"}}, f"cannot set {key}")
+    ]
+
+    assert let_through == []
+
+
+def probe():
+    """An `extra:` naming settings no provider has, so it may send them."""
+    return {"taxman_probe": {"nested": [1]}, "taxman_null": None}
+
+
+def test_extra_is_sent_as_written(provider):
+    """`extra:` is the escape hatch: what is written is what is sent, nulls included."""
+    config = provider.validate_model_config({**template_block(provider), "extra": probe()})
+    sent = built_request(provider, config)
+
+    assert {key: sent[key] for key in probe() if key in sent} == probe()
+
+
+def test_a_request_never_carries_changes_from_the_one_before(provider):
+    """Every request in a run shares the audit's one `extra:`; none may write back into it."""
+    config = provider.validate_model_config({**template_block(provider), "extra": probe()})
+    first = built_request(provider, config)
+    first["taxman_probe"]["nested"].append(2)
+
+    second = built_request(provider, config, repeat=1)
+
+    assert second["taxman_probe"] == {"nested": [1]}
 
 
 def test_the_model_block_takes_no_system_prompt(provider):

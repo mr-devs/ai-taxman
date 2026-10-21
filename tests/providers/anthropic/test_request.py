@@ -185,20 +185,6 @@ def test_out_of_range_sampling_values_are_refused(block):
 # -- extra -------------------------------------------------------------------
 
 
-def test_extra_passes_through_unknown_api_parameters():
-    assert request_for({**BASE, "extra": {"service_tier": "standard_only"}})["service_tier"] == (
-        "standard_only"
-    )
-
-
-def test_extra_passes_a_null_through_as_is():
-    """`extra:` is the escape hatch: what is written is what is sent, nulls included."""
-    payload = request_for({**BASE, "extra": {"inference_geo": None}})
-
-    assert "inference_geo" in payload
-    assert payload["inference_geo"] is None
-
-
 def test_extra_can_add_to_an_object_taxman_also_fills():
     """Effort and an output format share `output_config`; neither displaces the other."""
     fmt = {"type": "json_schema", "schema": {"type": "object"}}
@@ -215,43 +201,10 @@ def test_extra_can_fill_an_object_taxman_left_out():
     }
 
 
-@pytest.mark.parametrize(
-    "extra",
-    [
-        {"model": "claude-other"},
-        {"max_tokens": 5},
-        {"messages": []},
-        {"system": "sneaky"},
-        {"temperature": 0.5},
-        {"thinking": {"type": "adaptive"}},
-        {"thinking": {"display": "summarized"}},
-        {"output_config": {"effort": "max"}},
-        {"output_config": None},
-    ],
-)
-def test_extra_cannot_override_a_setting_taxman_names(extra):
-    """Otherwise `extra:` could quietly bypass a named setting's checks and defaults."""
-    with pytest.raises(ValidationError, match="extra"):
-        request_for({**BASE, "extra": extra})
-
-
 def test_extra_cannot_ask_for_a_stream():
     """A stream is not a response; there would be nothing whole to record."""
     with pytest.raises(ValidationError, match="stream"):
         request_for({**BASE, "extra": {"stream": True}})
-
-
-def test_a_request_never_carries_changes_from_the_one_before():
-    """Two requests from one audit share its `extra:`; merging must not write back into it."""
-    block = {**BASE, "effort": "low", "extra": {"output_config": {"format": {"type": "x"}}}}
-    config = AnthropicProvider().validate_model_config(block)
-    message = Message(id="m0000", text="hello", line_number=1)
-    first = build_request(Request(message=message, repeat=0, model=config))
-    first["output_config"]["format"]["type"] = "changed"
-
-    second = build_request(Request(message=message, repeat=1, model=config))
-
-    assert second["output_config"]["format"] == {"type": "x"}
 
 
 def test_a_request_never_shares_the_audits_search_lists():
@@ -337,11 +290,6 @@ def test_a_search_setting_without_web_search_is_refused():
     """A setting for a tool that is not sent would be recorded but never used."""
     with pytest.raises(ValidationError, match="web_search"):
         request_for({**BASE, "search": {"tool_version": "web_search_20250305"}})
-
-
-def test_extra_cannot_add_tools_of_its_own():
-    with pytest.raises(ValidationError, match="tools"):
-        request_for({**BASE, "extra": {"tools": []}})
 
 
 def test_max_uses_goes_on_the_tool():
@@ -446,8 +394,3 @@ def test_tool_choice_is_left_to_anthropic_unless_set():
 def test_tool_choice_is_auto_or_any():
     with pytest.raises(ValidationError, match="search.tool_choice"):
         search(tool_choice="required")
-
-
-def test_extra_cannot_set_tool_choice():
-    with pytest.raises(ValidationError, match="cannot set tool_choice"):
-        request_for({**BASE, "extra": {"tool_choice": {"type": "none"}}})

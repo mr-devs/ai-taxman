@@ -98,12 +98,6 @@ def test_store_defaults_to_false_so_audits_leave_no_server_side_trace(provider):
     assert request_for({"name": "gpt-5"})["store"] is False
 
 
-def test_extra_body_passes_through_unknown_api_parameters(provider):
-    payload = request_for({"name": "gpt-5", "extra": {"service_tier": "flex"}})
-
-    assert payload["service_tier"] == "flex"
-
-
 def test_blank_values_are_treated_as_unset(provider):
     """`taxman audits new` writes keys with no value; YAML reads those as None."""
     config = provider.validate_model_config(
@@ -326,40 +320,10 @@ def test_image_settings_without_image_results_are_refused(provider):
         tool(image_settings={"max_results": 3})
 
 
-def test_extra_passes_a_null_through_as_is(provider):
-    """`extra:` is the escape hatch: what is written is what is sent, nulls included."""
-    payload = request_for({"name": "gpt-5", "extra": {"service_tier": None}})
-
-    assert "service_tier" in payload
-    assert payload["service_tier"] is None
-
-
-@pytest.mark.parametrize(
-    "key", ["include", "tool_choice", "tools", "instructions", "temperature", "model", "input"]
-)
-def test_extra_cannot_override_a_setting_taxman_names(provider, key):
-    """Otherwise `extra: {include: [...]}` would quietly drop the default sources."""
-    with pytest.raises(ValidationError, match=key):
-        request_for({"name": "gpt-5", "extra": {key: "anything"}})
-
-
 @pytest.mark.parametrize("key", ["stream", "background"])
 def test_extra_cannot_ask_for_a_response_send_could_not_record(provider, key):
     with pytest.raises(ValidationError, match=f"cannot set {key}"):
         request_for({"name": "gpt-5", "extra": {key: True}})
-
-
-def test_a_request_never_carries_changes_from_the_one_before(provider):
-    """Two requests from one audit share its `extra:`; merging must not write back into it."""
-    block = {"name": "gpt-5", "extra": {"text": {"format": {"type": "json_schema"}}}}
-    config = OpenAIProvider().validate_model_config(block)
-    message = Message(id="m0000", text="hello", line_number=1)
-    first = build_request(Request(message=message, repeat=0, model=config))
-    first["text"]["format"]["type"] = "changed"
-
-    second = build_request(Request(message=message, repeat=1, model=config))
-
-    assert second["text"]["format"] == {"type": "json_schema"}
 
 
 def test_a_request_never_shares_the_audits_search_lists(provider):
