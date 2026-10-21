@@ -308,3 +308,54 @@ def test_repair_leaves_a_whole_gzip_file_alone(tmp_path):
 
     assert repair_tail(writer.path) is False
     assert writer.path.read_bytes() == whole
+
+
+def left_behind(tmp_path, state):
+    """A responses file in one of the states a run can leave it in."""
+    rows = b"".join(json.dumps(make_record(m).to_dict()).encode() + b"\n" for m in ("m0", "m1"))
+    plain, compressed = tmp_path / "responses.jsonl", tmp_path / "responses.jsonl.gz"
+    if state == "missing":
+        return plain
+    if state == "empty":
+        plain.write_bytes(b"")
+    elif state == "whole":
+        plain.write_bytes(rows)
+    elif state == "half a line":
+        plain.write_bytes(rows + b'{"partial": ')
+    elif state == "no newline":
+        plain.write_bytes(rows[:-1])
+    elif state == "gzip whole":
+        compressed.write_bytes(gzip.compress(rows))
+        return compressed
+    elif state == "gzip killed":
+        return killed_gzip(plain, [make_record("m0"), make_record("m1")])
+    elif state == "gzip no newline":
+        compressed.write_bytes(gzip.compress(rows[:-1]))
+        return compressed
+    return plain
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "missing",
+        "empty",
+        "whole",
+        "half a line",
+        "no newline",
+        "gzip whole",
+        "gzip killed",
+        "gzip no newline",
+    ],
+)
+def test_reading_a_file_says_whether_repair_would_change_it(tmp_path, state):
+    """So a resumed run, having just read its responses, need not read them again
+    to find out - a compressed file costs a full decompression each time."""
+    from ai_taxman.core.writer import JsonlReader
+
+    path = left_behind(tmp_path, state)
+    reader = JsonlReader(path)
+    rows = list(reader)
+
+    assert [row.message_id for row in rows] == [row.message_id for row in read_jsonl(path)]
+    assert reader.needs_repair is repair_tail(path)

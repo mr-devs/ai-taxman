@@ -82,42 +82,64 @@ def read_jsonl(path: str | Path) -> Iterator[ResponseRecord]:
     with rows after it, or a whole JSON object that is not a record. Dropping
     those quietly would hand back fewer responses than were collected.
     """
-    path = Path(path)
-    if not path.is_file():
-        return
+    yield from JsonlReader(path)
 
-    # Bytes, decoded a line at a time: a kill can stop the file inside a
-    # character, and only the line it cut may fail to decode.
-    opener = gzip.open if path.suffix == GZIP_SUFFIX else open
-    with opener(path, "rb") as handle:
-        cut_short: int | None = None
-        for number, line in enumerate(_lines(handle), start=1):
-            line = line.strip()
-            if not line:
-                continue
-            if cut_short is not None:
-                raise ResponseFileError(
-                    f"Line {cut_short} of {path} is not complete JSON, and more rows "
-                    "follow it. Only the last line can be cut short, by a run that was "
-                    "killed while writing it."
-                )
-            try:
-                data = _parse(line)
-            except ValueError:
-                cut_short = number
-                continue
-            if not isinstance(data, dict):
-                raise ResponseFileError(
-                    f"Line {number} of {path} is not a response record: it is not a JSON object."
-                )
-            try:
-                yield ResponseRecord.from_dict(data)
-            except ValidationError as exc:
-                fields = ", ".join(sorted({str(error["loc"][0]) for error in exc.errors()}))
-                raise ResponseFileError(
-                    f"Line {number} of {path} is not a response record. "
-                    f"These fields are missing or wrong: {fields}."
-                ) from exc
+
+class JsonlReader:
+    """`read_jsonl`, which also says, once read to the end, how the file ended.
+
+    `needs_repair` is then whether `repair_tail` would change the file: half a
+    line at the end, a last line with no newline, or a gzip stream never closed.
+    A resumed run has just read its responses to plan, and need not read them a
+    second time - a full decompression, for a compressed run - to find out.
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        #: None until the file has been read to its end.
+        self.needs_repair: bool | None = None
+
+    def __iter__(self) -> Iterator[ResponseRecord]:
+        path = self.path
+        if not path.is_file():
+            self.needs_repair = False
+            return
+
+        # Bytes, decoded a line at a time: a kill can stop the file inside a
+        # character, and only the line it cut may fail to decode.
+        opener = gzip.open if path.suffix == GZIP_SUFFIX else open
+        with opener(path, "rb") as handle:
+            lines = _Lines(handle)
+            cut_short: int | None = None
+            for number, line in enumerate(lines, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                if cut_short is not None:
+                    raise ResponseFileError(
+                        f"Line {cut_short} of {path} is not complete JSON, and more rows "
+                        "follow it. Only the last line can be cut short, by a run that was "
+                        "killed while writing it."
+                    )
+                try:
+                    data = _parse(line)
+                except ValueError:
+                    cut_short = number
+                    continue
+                if not isinstance(data, dict):
+                    raise ResponseFileError(
+                        f"Line {number} of {path} is not a response record: it is not a "
+                        "JSON object."
+                    )
+                try:
+                    yield ResponseRecord.from_dict(data)
+                except ValidationError as exc:
+                    fields = ", ".join(sorted({str(error["loc"][0]) for error in exc.errors()}))
+                    raise ResponseFileError(
+                        f"Line {number} of {path} is not a response record. "
+                        f"These fields are missing or wrong: {fields}."
+                    ) from exc
+            self.needs_repair = not lines.end_whole
 
 
 def _parse(line: bytes) -> Any:
@@ -125,22 +147,36 @@ def _parse(line: bytes) -> Any:
     return json.loads(line.decode("utf-8"))
 
 
-def _lines(handle: io.BufferedIOBase) -> Iterator[bytes]:
-    """Yield lines, stopping where a killed run stopped writing.
+class _Lines:
+    """A handle's lines, stopping where a killed run stopped writing.
 
     A gzip stream from an interrupted run has no end-of-stream marker, and the
     decompressor raises rather than handing back the data it already has. Every
     line before that point is intact, and is what the user paid for - so the
     error ends the iteration instead of the read.
     """
-    while True:
-        try:
-            line = handle.readline()
-        except (EOFError, OSError, zlib.error):
-            return
-        if not line:
-            return
-        yield line
+
+    def __init__(self, handle: io.BufferedIOBase) -> None:
+        self._handle = handle
+        self._broken_off = False
+        self._last = b""
+
+    def __iter__(self) -> Iterator[bytes]:
+        while True:
+            try:
+                line = self._handle.readline()
+            except (EOFError, OSError, zlib.error):
+                self._broken_off = True
+                return
+            if not line:
+                return
+            self._last = line
+            yield line
+
+    @property
+    def end_whole(self) -> bool:
+        """Once read through: whether it ended as a finished write leaves it, on a newline."""
+        return not self._broken_off and (not self._last or self._last.endswith(b"\n"))
 
 
 def target_path(path: Path, *, compress: bool) -> Path:
@@ -215,7 +251,7 @@ def _close_gzip_stream(path: Path) -> bool:
         return False
     replacement = path.with_name(path.name + ".repair")
     with gzip.open(path, "rb") as source, gzip.open(replacement, "wb") as target:
-        for line in _lines(source):
+        for line in _Lines(source):
             # Only the last line can lack its newline.
             if line.endswith(b"\n"):
                 target.write(line)

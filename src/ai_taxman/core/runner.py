@@ -263,7 +263,7 @@ async def collect_run_async(
             tasks = list(plan.tasks)
             if config.execution.shuffle:
                 random.Random(seed).shuffle(tasks)
-            if plan.resuming and repair_tail(writer.path):
+            if plan.needs_repair and repair_tail(writer.path):
                 log.warning(
                     "repaired  the end of %s, which a killed run left unfinished", writer.path
                 )

@@ -324,6 +324,30 @@ async def test_a_run_killed_after_its_last_response_is_marked_complete(project, 
 # --- what a killed run left behind is made whole before it is added to -------------
 
 
+@pytest.mark.parametrize("compress", [False, True])
+async def test_a_run_that_ends_whole_is_not_read_again_to_repair_it(
+    project, fake_provider, monkeypatch, compress
+):
+    """Planning has just read it to the end, so it knows: a compressed run would
+    otherwise be decompressed all over again to find nothing to repair."""
+    from ai_taxman.core import runner
+
+    output = (
+        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+        f"  compress: {compress}"
+    )
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    await run_audit_async(audit(project, output))
+    repaired = []
+    monkeypatch.setattr(runner, "repair_tail", lambda path: repaired.append(path) or False)
+
+    resumed = await run_audit_async(audit(project, output))
+
+    assert resumed.resumed is True
+    assert resumed.output_path.suffix == (".gz" if compress else ".jsonl")
+    assert repaired == []
+
+
 async def test_a_half_written_last_line_does_not_break_the_resumed_file(project, fake_provider):
     first = await run_audit_async(audit(project))
     keep_only(first, (ONE, 0))

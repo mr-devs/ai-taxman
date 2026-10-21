@@ -35,7 +35,7 @@ from ai_taxman.core.errors import (
 from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message
 from ai_taxman.core.records import RunManifest, new_run_id
-from ai_taxman.core.writer import read_jsonl, target_path
+from ai_taxman.core.writer import JsonlReader, target_path
 
 try:
     import fcntl
@@ -123,6 +123,10 @@ class RunPlan:
     manifest: RunManifest | None
     #: An unfinished run a new run was asked for in place of, left as it is.
     left_unfinished: str | None = None
+    #: The run's responses end in a tail a killed run left, which
+    #: `writer.repair_tail` drops before anything is appended. Known from reading
+    #: them to plan, so a whole file is not read again only to find that out.
+    needs_repair: bool = False
 
     @property
     def resuming(self) -> bool:
@@ -191,7 +195,7 @@ def _resume(
     _check_unchanged(config, messages, system_prompt, existing)
 
     expected = {(message.id, repeat) for message, repeat in pairs}
-    answered, failed = _responses_so_far(output_file(config, existing.directory))
+    answered, failed, needs_repair = _responses_so_far(output_file(config, existing.directory))
     return RunPlan(
         run_id=existing.run_id,
         directory=existing.directory,
@@ -202,6 +206,7 @@ def _resume(
         answered=frozenset(answered & expected),
         failed=frozenset(failed & expected),
         manifest=existing.manifest,
+        needs_repair=needs_repair,
     )
 
 
@@ -515,16 +520,18 @@ def output_file(config: AuditConfig, directory: Path) -> Path:
     return target_path(directory / config.output.filename, compress=config.output.compress)
 
 
-def _responses_so_far(path: Path) -> tuple[set[Pair], set[Pair]]:
-    """The pairs answered successfully, and those that have only failed."""
+def _responses_so_far(path: Path) -> tuple[set[Pair], set[Pair], bool]:
+    """The pairs answered successfully, those that have only failed, and whether
+    the file needs repair before it is appended to."""
     answered: set[Pair] = set()
     attempted: set[Pair] = set()
-    for row in read_jsonl(path):
+    reader = JsonlReader(path)
+    for row in reader:
         pair = (row.message_id, row.repeat)
         attempted.add(pair)
         if row.status == "ok":
             answered.add(pair)
-    return answered, attempted - answered
+    return answered, attempted - answered, bool(reader.needs_repair)
 
 
 def _guard_run_directory(directory: Path, *, run_id: str) -> None:
