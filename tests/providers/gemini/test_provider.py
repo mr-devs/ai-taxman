@@ -1,32 +1,13 @@
-import asyncio
 import sys
 
 import pytest
 
-from ai_taxman.core import registry
-from ai_taxman.core.errors import ProviderDependencyError, ProviderError
-from ai_taxman.providers.base import Provider
+from ai_taxman.core.errors import ProviderDependencyError
 from ai_taxman.providers.gemini.provider import PROVIDER, GeminiProvider
-
-
-def test_registry_resolves_gemini():
-    assert isinstance(registry.get_provider("gemini"), Provider)
-
-
-def test_module_exports_a_provider_instance():
-    assert isinstance(PROVIDER, GeminiProvider)
-
-
-def test_is_named_gemini():
-    assert PROVIDER.name == "gemini"
 
 
 def test_declares_the_conventional_gemini_variable():
     assert PROVIDER.default_api_key_env == "GEMINI_API_KEY"
-
-
-def test_does_not_claim_batch_support_yet():
-    assert PROVIDER.supports_batch is False
 
 
 def comment_above(key):
@@ -87,32 +68,6 @@ async def test_an_ambient_switch_never_sends_the_audit_to_vertex(ambient):
         assert provider._require_client()._api_client.vertexai is False
     finally:
         await provider.shutdown()
-
-
-async def test_shutdown_clears_the_client():
-    provider = GeminiProvider()
-
-    await provider.startup(api_key="gm-one")
-    await provider.shutdown()
-
-    with pytest.raises(ProviderError):
-        provider._require_client()
-
-
-async def test_two_concurrent_runs_do_not_share_a_client():
-    """`get_provider` hands back one instance, so per-run state must not live on it."""
-    provider = GeminiProvider()
-    seen: list[str] = []
-
-    async def run(key: str) -> None:
-        await provider.startup(api_key=key)
-        await asyncio.sleep(0)  # give the other run a chance to clobber us
-        seen.append(provider._require_client()._api_client.api_key)
-        await provider.shutdown()
-
-    await asyncio.gather(run("gm-alpha"), run("gm-beta"))
-
-    assert sorted(seen) == ["gm-alpha", "gm-beta"]
 
 
 async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):

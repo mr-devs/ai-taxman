@@ -9,6 +9,7 @@ CLAUDE.md's pure / IO split requires every provider to have: what `extra:` may
 add to a request is shared code, so it is checked here once for all of them.
 """
 
+import asyncio
 import copy
 import inspect
 import sys
@@ -296,13 +297,60 @@ def test_an_unrelated_exception_is_not_retried(provider):
     assert provider.is_retryable(ValueError("nope")) is False
 
 
+def test_claims_batch_support_only_if_it_implements_it(provider):
+    """`execution.batch` trusts the claim; without the methods a run would fail at its first."""
+    implements = type(provider).submit_batch is not Provider.submit_batch
+
+    assert provider.supports_batch == implements
+
+
+def a_request(provider):
+    """One message under the provider's own template."""
+    config = provider.validate_model_config(template_block(provider))
+    message = Message(id="m0000", text="hello", line_number=1)
+    return Request(message=message, repeat=0, model=config)
+
+
 async def test_send_before_startup_never_uses_an_ambient_key(provider, monkeypatch):
     """One named variable, no fallback chain: the key only ever arrives via startup()."""
     if provider.default_api_key_env:
         monkeypatch.setenv(provider.default_api_key_env, "ambient-key-must-not-be-used")
     fresh = type(provider)()
-    config = fresh.validate_model_config(template_block(fresh))
-    message = Message(id="m0000", text="hello", line_number=1)
 
     with pytest.raises(ProviderError, match="startup"):
-        await fresh.send(Request(message=message, repeat=0, model=config), timeout_s=1.0)
+        await fresh.send(a_request(fresh), timeout_s=1.0)
+
+
+async def test_send_after_shutdown_is_refused(provider):
+    """A run's client goes with its shutdown; nothing may send on it afterwards."""
+    fresh = type(provider)()
+    await fresh.startup(api_key="a-key")
+    await fresh.shutdown()
+
+    with pytest.raises(ProviderError, match="startup"):
+        await fresh.send(a_request(fresh), timeout_s=1.0)
+
+
+async def test_a_run_never_borrows_another_runs_client(provider):
+    """`get_provider` hands back one instance, so per-run state must not live on it.
+
+    Two audits gathered in one process would otherwise bill whichever key started
+    last, and the first to finish would close the client the other still used.
+    """
+    shared = type(provider)()
+    started, finished = asyncio.Event(), asyncio.Event()
+
+    async def another_run():
+        await shared.startup(api_key="another-runs-key")
+        started.set()
+        await finished.wait()
+        await shared.shutdown()
+
+    other = asyncio.create_task(another_run())
+    await started.wait()
+    try:
+        with pytest.raises(ProviderError, match="startup"):
+            await shared.send(a_request(shared), timeout_s=1.0)
+    finally:
+        finished.set()
+        await other
