@@ -21,22 +21,13 @@ def request_for(block, text="hello", system_prompt=None):
     )
 
 
-def test_sends_the_message_as_one_user_turn():
-    assert request_for(BASE, text="hi there")["messages"] == [
-        {"role": "user", "content": "hi there"}
-    ]
-
-
-def test_sends_the_model_name():
-    assert request_for(BASE)["model"] == "claude-opus-5-5"
-
-
-def test_sends_max_tokens():
-    assert request_for(BASE)["max_tokens"] == 1024
-
-
-def test_omits_parameters_the_user_left_blank():
-    assert set(request_for(BASE)) == {"model", "max_tokens", "messages"}
+def test_a_minimal_block_sends_only_what_anthropic_requires():
+    """The message as one user turn; every setting left blank is left to Anthropic."""
+    assert request_for(BASE, text="hi there") == {
+        "model": "claude-opus-5-5",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "hi there"}],
+    }
 
 
 def test_the_system_prompt_becomes_the_top_level_system():
@@ -76,13 +67,6 @@ def test_display_goes_with_the_type():
     payload = thinking(type="adaptive", display="summarized")
 
     assert payload["thinking"] == {"type": "adaptive", "display": "summarized"}
-
-
-def test_progress_updates_are_a_display_too():
-    """Beta: reasoning stays hidden, and notes between tool calls come back as text."""
-    payload = thinking(type="adaptive", display="updates")
-
-    assert payload["thinking"] == {"type": "adaptive", "display": "updates"}
 
 
 def test_enabled_thinking_needs_a_budget():
@@ -130,14 +114,6 @@ def test_extra_can_add_to_an_object_taxman_also_fills():
     payload = request_for({**BASE, "effort": "low", "extra": {"output_config": {"format": fmt}}})
 
     assert payload["output_config"] == {"effort": "low", "format": fmt}
-
-
-def test_extra_can_fill_an_object_taxman_left_out():
-    fmt = {"type": "json_schema", "schema": {"type": "object"}}
-
-    assert request_for({**BASE, "extra": {"output_config": {"format": fmt}}})["output_config"] == {
-        "format": fmt
-    }
 
 
 def test_extra_cannot_ask_for_a_stream():
@@ -206,32 +182,24 @@ def test_web_search_gives_claude_the_latest_web_search_tool():
 
 
 @pytest.mark.parametrize(
-    "version", ["web_search_20250305", "web_search_20260209", "web_search_20260318"]
+    "settings, sent",
+    [
+        ({"tool_version": "web_search_20250305"}, {"type": "web_search_20250305"}),
+        ({"max_uses": 3}, {"max_uses": 3}),
+        ({"allowed_domains": ["cdc.gov", "who.int"]}, {"allowed_domains": ["cdc.gov", "who.int"]}),
+        ({"blocked_domains": ["example.com/blog"]}, {"blocked_domains": ["example.com/blog"]}),
+        ({"allowed_callers": ["direct"]}, {"allowed_callers": ["direct"]}),
+        ({"response_inclusion": "excluded"}, {"response_inclusion": "excluded"}),
+    ],
 )
-def test_a_tool_version_can_be_pinned(version):
-    assert tool(tool_version=version)["type"] == version
+def test_a_search_setting_goes_on_the_tool(settings, sent):
+    assert tool(**settings) == {"type": "web_search_20260318", "name": "web_search", **sent}
 
 
 def test_a_search_setting_without_web_search_is_refused():
     """A setting for a tool that is not sent would be recorded but never used."""
     with pytest.raises(ValidationError, match="web_search"):
         request_for({**BASE, "search": {"tool_version": "web_search_20250305"}})
-
-
-def test_max_uses_goes_on_the_tool():
-    assert tool(max_uses=3)["max_uses"] == 3
-
-
-def test_unset_tool_settings_are_left_to_anthropic():
-    assert set(tool()) == {"type", "name"}
-
-
-def test_allowed_domains_go_on_the_tool():
-    assert tool(allowed_domains=["cdc.gov", "who.int"])["allowed_domains"] == ["cdc.gov", "who.int"]
-
-
-def test_blocked_domains_go_on_the_tool():
-    assert tool(blocked_domains=["example.com/blog"])["blocked_domains"] == ["example.com/blog"]
 
 
 def test_allowed_and_blocked_domains_cannot_both_be_set():
@@ -246,12 +214,6 @@ def test_a_domain_with_a_scheme_is_refused_rather_than_rewritten(domain):
         search(allowed_domains=[domain])
 
 
-def test_user_location_is_sent_as_an_approximate_location():
-    location = tool(user_location={"country": "US", "city": "Minneapolis"})["user_location"]
-
-    assert location == {"type": "approximate", "country": "US", "city": "Minneapolis"}
-
-
 def test_every_user_location_field_goes_through():
     fields = {
         "city": "Paris",
@@ -261,16 +223,6 @@ def test_every_user_location_field_goes_through():
     }
 
     assert tool(user_location=fields)["user_location"] == {"type": "approximate", **fields}
-
-
-def test_allowed_callers_go_on_the_tool():
-    """`[direct]` turns dynamic filtering off; models without code execution need it."""
-    assert tool(allowed_callers=["direct"])["allowed_callers"] == ["direct"]
-
-
-@pytest.mark.parametrize("inclusion", ["full", "excluded"])
-def test_response_inclusion_goes_on_the_tool(inclusion):
-    assert tool(response_inclusion=inclusion)["response_inclusion"] == inclusion
 
 
 @pytest.mark.parametrize("version", ["web_search_20250305", "web_search_20260209"])

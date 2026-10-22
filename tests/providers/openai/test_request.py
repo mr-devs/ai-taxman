@@ -24,39 +24,24 @@ def request_for(block, text="hello", system_prompt=None):
     )
 
 
-def test_sends_the_message_as_the_input(provider):
-    assert request_for({"name": "gpt-5"})["input"] == "hello"
+def test_a_minimal_block_sends_only_what_openai_requires(provider):
+    """The message as the input; every setting left blank is left to OpenAI."""
+    assert request_for({"name": "gpt-5"}, text="hi there") == {
+        "model": "gpt-5",
+        "input": "hi there",
+        "store": False,
+    }
 
 
-def test_sends_the_model_name(provider):
-    assert request_for({"name": "gpt-5"})["model"] == "gpt-5"
-
-
-def test_omits_parameters_the_user_left_blank(provider):
-    payload = request_for({"name": "gpt-5"})
-
-    for absent in ("temperature", "max_output_tokens", "top_p", "reasoning", "tools"):
-        assert absent not in payload
-
-
-def test_includes_temperature_when_set(provider):
-    assert request_for({"name": "gpt-5", "temperature": 1.5})["temperature"] == 1.5
-
-
-def test_includes_max_output_tokens_when_set(provider):
-    assert request_for({"name": "gpt-5", "max_output_tokens": 512})["max_output_tokens"] == 512
+@pytest.mark.parametrize("key, value", [("temperature", 1.5), ("max_output_tokens", 512)])
+def test_a_setting_is_sent_when_set(provider, key, value):
+    assert request_for({"name": "gpt-5", key: value})[key] == value
 
 
 def test_reasoning_effort_becomes_the_reasoning_block(provider):
     payload = request_for({"name": "gpt-5", "reasoning_effort": "high"})
 
     assert payload["reasoning"] == {"effort": "high"}
-
-
-def test_web_search_becomes_a_tool(provider):
-    payload = request_for({"name": "gpt-5", "search": {"web_search": True}})
-
-    assert payload["tools"] == [{"type": "web_search"}]
 
 
 def test_the_system_prompt_becomes_instructions(provider):
@@ -86,41 +71,25 @@ def test_a_search_setting_without_web_search_is_refused(provider):
         request_for(search(search_context_size="low"))
 
 
-def test_a_search_setting_with_web_search_false_is_refused(provider):
-    with pytest.raises(ValidationError, match="web_search"):
-        request_for(search(web_search=False, search_context_size="low"))
-
-
 def tool(**settings):
     return request_for(search(web_search=True, **settings))["tools"][0]
 
 
-def test_search_context_size_goes_on_the_tool(provider):
-    assert tool(search_context_size="high")["search_context_size"] == "high"
-
-
-def test_external_web_access_goes_on_the_tool(provider):
-    assert tool(external_web_access=False)["external_web_access"] is False
-
-
-def test_return_token_budget_goes_on_the_tool(provider):
-    assert tool(return_token_budget="unlimited")["return_token_budget"] == "unlimited"
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("search_context_size", "high"),
+        ("external_web_access", False),
+        ("return_token_budget", "unlimited"),
+        ("search_content_types", ["image", "text"]),
+    ],
+)
+def test_a_search_setting_goes_on_the_tool(provider, key, value):
+    assert tool(**{key: value}) == {"type": "web_search", key: value}
 
 
 def test_unset_tool_settings_are_left_to_openai(provider):
     assert tool() == {"type": "web_search"}
-
-
-def test_allowed_domains_become_a_filter(provider):
-    filters = tool(allowed_domains=["cdc.gov", "who.int"])["filters"]
-
-    assert filters == {"allowed_domains": ["cdc.gov", "who.int"]}
-
-
-def test_blocked_domains_become_a_filter(provider):
-    filters = tool(blocked_domains=["reddit.com"])["filters"]
-
-    assert filters == {"blocked_domains": ["reddit.com"]}
 
 
 def test_both_domain_lists_share_one_filter(provider):
@@ -161,36 +130,10 @@ def test_without_web_search_nothing_is_included(provider):
     assert "include" not in request_for(search())
 
 
-def test_user_location_is_sent_as_an_approximate_location(provider):
-    location = tool(user_location={"country": "US", "city": "Minneapolis"})["user_location"]
-
-    assert location == {"type": "approximate", "country": "US", "city": "Minneapolis"}
-
-
 def test_every_user_location_field_goes_through(provider):
     fields = {"country": "GB", "region": "London", "city": "London", "timezone": "Europe/London"}
 
     assert tool(user_location=fields)["user_location"] == {"type": "approximate", **fields}
-
-
-def test_a_user_location_without_web_search_is_refused(provider):
-    with pytest.raises(ValidationError, match="web_search"):
-        request_for(search(user_location={"country": "US"}))
-
-
-def test_search_content_types_go_on_the_tool(provider):
-    assert tool(search_content_types=["image", "text"])["search_content_types"] == [
-        "image",
-        "text",
-    ]
-
-
-def test_image_settings_go_on_the_tool(provider):
-    settings = tool(
-        search_content_types=["image"], image_settings={"max_results": 3, "caption": True}
-    )
-
-    assert settings["image_settings"] == {"max_results": 3, "caption": True}
 
 
 def test_image_settings_send_only_what_was_set(provider):

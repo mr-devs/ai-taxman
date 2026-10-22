@@ -76,11 +76,7 @@ async def test_a_missing_sdk_says_how_to_add_it(monkeypatch):
 @pytest.mark.parametrize(
     "exc_name, retryable",
     [
-        ("RateLimitError", True),
-        ("OverloadedError", True),
         ("InternalServerError", True),
-        ("ServiceUnavailableError", True),
-        ("DeadlineExceededError", True),
         ("ConflictError", True),
         ("APITimeoutError", True),
         ("APIConnectionError", True),

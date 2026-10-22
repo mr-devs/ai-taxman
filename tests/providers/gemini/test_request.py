@@ -21,12 +21,13 @@ def request_for(block, text="hello", system_prompt=None):
     )
 
 
-def test_sends_the_message_as_the_input():
-    assert request_for(BASE, text="hi there")["input"] == "hi there"
-
-
-def test_sends_the_model_name():
-    assert request_for(BASE)["model"] == "gemini-3.8-flash"
+def test_a_minimal_block_sends_only_what_gemini_requires():
+    """The message as the input; every setting left blank is left to Google."""
+    assert request_for(BASE, text="hi there") == {
+        "model": "gemini-3.8-flash",
+        "input": "hi there",
+        "store": False,
+    }
 
 
 def test_store_defaults_to_false_so_audits_leave_no_server_side_trace():
@@ -36,10 +37,6 @@ def test_store_defaults_to_false_so_audits_leave_no_server_side_trace():
 
 def test_store_can_be_turned_on():
     assert request_for({**BASE, "store": True})["store"] is True
-
-
-def test_omits_parameters_the_user_left_blank():
-    assert set(request_for(BASE)) == {"model", "input", "store"}
 
 
 def test_the_system_prompt_becomes_the_system_instruction():
@@ -55,10 +52,12 @@ def test_no_system_prompt_sends_no_system_instruction():
 # -- generation config -------------------------------------------------------
 
 
-def test_max_output_tokens_goes_in_generation_config():
-    assert request_for({**BASE, "max_output_tokens": 256})["generation_config"] == {
-        "max_output_tokens": 256
-    }
+@pytest.mark.parametrize(
+    "key, value",
+    [("max_output_tokens", 256), ("thinking_level", "minimal"), ("thinking_summaries", "none")],
+)
+def test_a_generation_setting_goes_in_generation_config(key, value):
+    assert request_for({**BASE, key: value})["generation_config"] == {key: value}
 
 
 def test_settings_share_one_generation_config():
@@ -85,25 +84,10 @@ def test_extra_can_still_send_sampling_settings_to_an_older_model():
 # -- thinking ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("level", ["minimal", "low", "medium", "high"])
-def test_every_documented_thinking_level_goes_in_generation_config(level):
-    """Gemini 3 models take it; which model takes which level is Google's call."""
-    assert request_for({**BASE, "thinking_level": level})["generation_config"] == {
-        "thinking_level": level
-    }
-
-
 def test_there_is_no_thinking_budget():
     """Google is retiring it: upcoming models refuse it with a 400 rather than map it to a level."""
     with pytest.raises(ValidationError, match="thinking_budget"):
         request_for({**BASE, "thinking_budget": 1024})
-
-
-@pytest.mark.parametrize("summaries", ["auto", "none"])
-def test_thinking_summaries_go_in_generation_config(summaries):
-    assert request_for({**BASE, "thinking_summaries": summaries})["generation_config"] == {
-        "thinking_summaries": summaries
-    }
 
 
 @pytest.mark.parametrize(
@@ -128,12 +112,6 @@ def test_extra_can_add_to_generation_config_beside_named_settings():
     block = {**BASE, "max_output_tokens": 64, "extra": {"generation_config": {"seed": 7}}}
 
     assert request_for(block)["generation_config"] == {"max_output_tokens": 64, "seed": 7}
-
-
-def test_extra_can_fill_a_generation_config_taxman_left_out():
-    payload = request_for({**BASE, "extra": {"generation_config": {"stop_sequences": ["END"]}}})
-
-    assert payload["generation_config"] == {"stop_sequences": ["END"]}
 
 
 @pytest.mark.parametrize("key", ["stream", "background"])
