@@ -352,18 +352,6 @@ async def test_a_run_that_ends_whole_is_not_read_again_to_repair_it(
     assert repaired == []
 
 
-async def test_a_half_written_last_line_does_not_break_the_resumed_file(project, fake_provider):
-    first = await run_audit_async(audit(project))
-    keep_only(first, (ONE, 0))
-    with first.output_path.open("a", encoding="utf-8") as handle:
-        handle.write('{"partial": ')
-
-    await run_audit_async(audit(project))
-
-    rows = list(read_jsonl(first.output_path))
-    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
-
-
 async def test_a_whole_last_row_that_lost_its_newline_is_kept(project, fake_provider):
     """It was counted as answered, so it is not sent again - and must not be dropped."""
     first = await run_audit_async(audit(project))
@@ -374,38 +362,6 @@ async def test_a_whole_last_row_that_lost_its_newline_is_kept(project, fake_prov
     await run_audit_async(audit(project))
 
     assert sent(fake_provider) == [(THREE, 0)]
-    rows = list(read_jsonl(first.output_path))
-    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
-
-
-async def test_a_last_line_cut_inside_a_character_does_not_stop_the_resume(project, fake_provider):
-    first = await run_audit_async(audit(project))
-    keep_only(first, (ONE, 0))
-    with first.output_path.open("ab") as handle:
-        handle.write('{"message": "it’s'.encode()[:-2])  # "s" and the last byte of ’
-
-    await run_audit_async(audit(project))
-
-    rows = list(read_jsonl(first.output_path))
-    assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
-
-
-async def test_a_killed_compressed_run_is_resumed_into_a_readable_file(project, fake_provider):
-    from ai_taxman.core.writer import JsonlWriter
-
-    compressed = "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n  compress: true"
-    first = await run_audit_async(audit(project, compressed))
-    (kept,) = [row for row in read_jsonl(first.output_path) if row.message_id == ONE]
-    # What a kill leaves: the row flushed, the gzip stream never closed.
-    writer = JsonlWriter(first.output_path, compress=True)
-    first.output_path.unlink()
-    with writer:
-        writer.write(kept)
-        left_behind = writer.path.read_bytes()
-    writer.path.write_bytes(left_behind)
-
-    await run_audit_async(audit(project, compressed))
-
     rows = list(read_jsonl(first.output_path))
     assert sorted(row.message_id for row in rows) == sorted([ONE, TWO, THREE])
 

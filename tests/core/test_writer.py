@@ -206,13 +206,19 @@ def killed_gzip(path, records):
     return writer.path
 
 
-def test_repair_drops_a_half_written_last_line(tmp_path):
+#: What a kill can leave after the last whole row: half a line, or one cut inside a
+#: character, here the "s" and the last byte of the three that encode ’.
+CUT_TAILS = [b'{"partial": ', '{"message": "it’s'.encode()[:-2]]
+
+
+@pytest.mark.parametrize("tail", CUT_TAILS, ids=["half a line", "inside a character"])
+def test_repair_drops_a_half_written_last_line(tmp_path, tail):
     target = tmp_path / "responses.jsonl"
     with JsonlWriter(target) as writer:
         writer.write(make_record("m0"))
     whole = target.read_bytes()
-    with target.open("a", encoding="utf-8") as handle:
-        handle.write('{"partial": ')
+    with target.open("ab") as handle:
+        handle.write(tail)
 
     assert repair_tail(target) is True
     assert target.read_bytes() == whole
@@ -321,7 +327,9 @@ def left_behind(tmp_path, state):
     elif state == "whole":
         plain.write_bytes(rows)
     elif state == "half a line":
-        plain.write_bytes(rows + b'{"partial": ')
+        plain.write_bytes(rows + CUT_TAILS[0])
+    elif state == "cut inside a character":
+        plain.write_bytes(rows + CUT_TAILS[1])
     elif state == "no newline":
         plain.write_bytes(rows[:-1])
     elif state == "gzip whole":
@@ -342,6 +350,7 @@ def left_behind(tmp_path, state):
         "empty",
         "whole",
         "half a line",
+        "cut inside a character",
         "no newline",
         "gzip whole",
         "gzip killed",
