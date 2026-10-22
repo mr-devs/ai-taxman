@@ -92,6 +92,10 @@ def test_unset_tool_settings_are_left_to_openai(provider):
     assert tool() == {"type": "web_search"}
 
 
+def test_web_search_false_adds_no_tools(provider):
+    assert "tools" not in request_for({"name": "gpt-5", "search": {"web_search": False}})
+
+
 def test_both_domain_lists_share_one_filter(provider):
     filters = tool(allowed_domains=["cdc.gov"], blocked_domains=["reddit.com"])["filters"]
 
