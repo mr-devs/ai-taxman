@@ -58,9 +58,10 @@ def test_a_thinking_type_becomes_the_thinking_parameter():
 
 
 def test_enabled_thinking_carries_its_budget():
-    payload = thinking(type="enabled", budget_tokens=4096)
+    """At the floor itself: 1024 is the least Anthropic takes, and it is allowed."""
+    payload = thinking(type="enabled", budget_tokens=1024)
 
-    assert payload["thinking"] == {"type": "enabled", "budget_tokens": 4096}
+    assert payload["thinking"] == {"type": "enabled", "budget_tokens": 1024}
 
 
 def test_display_goes_with_the_type():

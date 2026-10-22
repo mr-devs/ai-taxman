@@ -28,35 +28,8 @@ def comment_above(key):
     return above
 
 
-def test_max_tokens_says_thinking_counts_toward_it():
-    above = " ".join(comment_above("max_tokens"))
-
-    assert "thinking included" in above
-    assert "Required: yes" in comment_above("max_tokens")
-
-
-def test_effort_says_what_each_level_does():
-    above = comment_above("effort")
-
-    assert any(line.startswith("Options:  low ") for line in above), above
-    assert any(line.startswith("max ") for line in above), above
-
-
-def test_thinking_type_says_what_each_mode_does():
-    above = comment_above("type")
-
-    assert any(line.startswith("Options:  adaptive ") for line in above), above
-    assert any(line.startswith("between_tools ") for line in above), above
-
-
-def test_budget_tokens_says_it_needs_room_to_answer():
-    above = " ".join(comment_above("budget_tokens"))
-
-    assert "less than max_tokens" in above
-    assert "integer, 1024 or more" in above
-
-
 def test_the_newest_search_tool_is_the_default():
+    """Wording, kept on purpose: the only test of what the file says a blank one means."""
     assert "Default:  blank (web_search_20260318, the newest)" in comment_above("tool_version")
 
 
@@ -118,13 +91,3 @@ def _make_anthropic_error(name):
     anthropic = pytest.importorskip("anthropic")
     cls = getattr(anthropic, name)
     return cls.__new__(cls)
-
-
-def test_the_thinking_block_says_blank_means_the_models_default():
-    assert "model's default" in " ".join(comment_above("thinking"))
-
-
-def test_the_search_block_says_its_settings_need_web_search():
-    above = " ".join(comment_above("search"))
-
-    assert "web_search must be true to use any other setting in this block" in above

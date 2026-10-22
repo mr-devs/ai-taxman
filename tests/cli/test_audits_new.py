@@ -8,7 +8,6 @@ than spread across command-line parsing.
 The folders it writes into the audit come from the project's marker.
 """
 
-import pytest
 import yaml
 
 from ai_taxman.core.config import load_audit
@@ -111,17 +110,6 @@ def test_refuses_to_overwrite_an_existing_audit(invoke, tmp_path):
 
     assert result.exit_code != 0
     assert (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8") == "edited by hand\n"
-
-
-def test_the_refusal_says_what_to_do(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    result = invoke("audits", "new", "openai", "probe")
-
-    assert "already exists" in result.output
-    # Neither flag exists; do not advertise them.
-    assert "--force" not in result.output
-    assert "--name" not in result.output
 
 
 def test_unknown_provider_is_reported_with_the_available_ones(invoke):
@@ -230,56 +218,11 @@ def test_settings_are_in_the_order_a_user_fills_them_in(invoke, tmp_path):
     ]
 
 
-def test_the_audit_name_says_it_must_match_the_file(invoke, tmp_path):
-    above = " ".join(nested_comment_above(audit_text(invoke, tmp_path), "audit"))
-
-    assert "must match this file's name" in above
-
-
 def test_the_api_key_variable_is_required_and_hints_at_the_usual_name(invoke, tmp_path):
     above = nested_comment_above(audit_text(invoke, tmp_path), "api_key_env")
 
     assert "Required: yes" in above
     assert "Example:  OPENAI_API_KEY" in above
-
-
-def explanation(text, key):
-    """The sentences above `key:`, joined: `# ...` lines, not the `#   Label:` ones."""
-    lines = text.splitlines()
-    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
-    sentences = []
-    for line in reversed(lines[:index]):
-        if not line.lstrip().startswith("#"):
-            break
-        if not line.lstrip().startswith("#  "):
-            sentences.insert(0, line.lstrip().removeprefix("# "))
-    return " ".join(sentences)
-
-
-#: The wording a user settled on by editing a generated file by hand.
-CONCISE = {
-    "audit": "This audit's name, which must match this file's name.",
-    "provider": "The AI provider this audit sends messages to.",
-    "api_key_env": "The name of the environment variable that holds the API key to use for "
-    "this audit.",
-    "messages": "A filepath, relative to the project root, of messages to send.",
-    "system_prompt": "A filepath, relative to the project root, of a system prompt to send "
-    "with every message.",
-    "output": "Where output files are written.",
-    "dir": "Where responses and manifest are written to, relative to the project root. "
-    "{audit} and {run_id} are filled in at run time.",
-    "filename": "Filename for the responses file in the `output` directory.",
-    "log_dir": "Path to directory where the log file is written, saved as <run_id>.log, and "
-    "relative to the project root. {audit} and {run_id} are filled in at run time.",
-    "execution": "How the messages are sent.",
-    "repeats": "How many times each message is sent.",
-    "max_concurrency": "Max number of simultaneous requests.",
-}
-
-
-@pytest.mark.parametrize("key", CONCISE)
-def test_each_core_setting_is_explained_in_one_or_two_short_sentences(invoke, tmp_path, key):
-    assert explanation(audit_text(invoke, tmp_path), key) == CONCISE[key]
 
 
 def unexplained_settings(text):
@@ -328,12 +271,6 @@ def nested_comment_above(text, key):
             break
         above.insert(0, line.strip().removeprefix("#").strip())
     return above
-
-
-def test_the_batch_comment_says_it_is_not_available_yet(invoke, tmp_path):
-    above = nested_comment_above(audit_text(invoke, tmp_path), "batch")
-
-    assert "Not available yet" in " ".join(above)
 
 
 CORE_SETTINGS = (

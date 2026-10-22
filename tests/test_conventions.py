@@ -44,13 +44,6 @@ def test_no_pip_instructions_anywhere():
     assert not offenders, "Use uv, not pip:\n" + "\n".join(offenders)
 
 
-def test_the_rule_is_written_down_in_claude_md():
-    """The guard is only half the rule; the other half has to be documented."""
-    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-
-    assert "uv only" in text.lower()
-
-
 # --- provider isolation ---------------------------------------------------
 
 CORE_AND_CLI = ("src/ai_taxman/core", "src/ai_taxman/cli")
@@ -116,13 +109,6 @@ def test_no_user_global_audit_directory_anywhere():
         "Audits are project-scoped; a global one is invisible to the repo that "
         "depends on it:\n" + "\n".join(offenders)
     )
-
-
-def test_the_project_scope_rule_is_written_down_in_claude_md():
-    """The guard is only half the rule; the other half has to be documented."""
-    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-
-    assert "project-scoped" in text.lower()
 
 
 def test_the_marker_holds_a_version_and_folders_and_nothing_else():

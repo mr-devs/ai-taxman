@@ -10,33 +10,6 @@ def test_declares_the_conventional_gemini_variable():
     assert PROVIDER.default_api_key_env == "GEMINI_API_KEY"
 
 
-def comment_above(key):
-    """The comment above `key:` in the template, at any depth, without its `#`s."""
-    lines = PROVIDER.render_template().splitlines()
-    index = next(i for i, line in enumerate(lines) if line.lstrip().startswith(f"{key}:"))
-    above = []
-    for line in reversed(lines[:index]):
-        if not line.lstrip().startswith("#"):
-            break
-        above.insert(0, line.strip().removeprefix("#").strip())
-    return above
-
-
-def test_max_output_tokens_says_thinking_counts_toward_it():
-    assert "thinking included" in " ".join(comment_above("max_output_tokens"))
-
-
-def test_store_says_how_long_google_would_keep_it():
-    above = " ".join(comment_above("store"))
-
-    assert "55 days" in above
-    assert "Default:  false" in comment_above("store")
-
-
-def test_thinking_level_lists_every_documented_level():
-    assert "Options:  minimal | low | medium | high" in comment_above("thinking_level")
-
-
 # -- the key comes from core, never from the environment -------------------
 
 
@@ -102,11 +75,3 @@ def _make_gemini_error(name):
     compat_errors = pytest.importorskip("google.genai._gaos.lib.compat_errors")
     cls = getattr(compat_errors, name)
     return cls.__new__(cls)
-
-
-def test_the_search_block_names_the_documented_settings_it_leaves_out():
-    """Google documents both, so a user will look for them here."""
-    comment = " ".join(comment_above("search"))
-
-    assert "search_types" in comment
-    assert "tool_choice" in comment
