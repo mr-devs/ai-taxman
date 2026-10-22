@@ -39,26 +39,30 @@ def test_round_trips_through_json():
     assert restored == record
 
 
-def test_a_record_names_its_message_by_text_and_id_only():
-    """Where a message sat in its file is not part of the data."""
-    assert "message_line" not in make_record().to_dict()
+def test_a_row_has_exactly_the_schema_fields():
+    """Auditors read old data by these names, so none is added, dropped or renamed by accident.
 
-
-def test_a_record_carries_no_message_hash():
-    """The id is derived from the text, so a hash of it would say the same thing twice."""
-    assert "message_hash" not in make_record().to_dict()
-
-
-def test_a_record_does_not_carry_the_system_prompt():
-    """The manifest holds the system prompt; a run can never mix two."""
-    assert "system_prompt_hash" not in make_record().to_dict()
-
-
-def test_serialises_every_schema_field_even_when_empty():
-    row = make_record(raw={}).to_dict()
-
-    for field in ("error", "raw", "attempts", "schema_version"):
-        assert field in row
+    Every one is written, even when empty. A message is named by its text and id
+    only: not where it sat in its file, not a hash of a text the id already derives
+    from, and not the system prompt, which the manifest holds.
+    """
+    assert set(make_record(raw={}).to_dict()) == {
+        "schema_version",
+        "audit",
+        "run_id",
+        "message_id",
+        "message",
+        "repeat",
+        "provider",
+        "model",
+        "requested_at",
+        "received_at",
+        "latency_ms",
+        "status",
+        "error",
+        "attempts",
+        "raw",
+    }
 
 
 def test_carries_the_schema_version():
