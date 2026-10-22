@@ -9,16 +9,6 @@ ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 RUN = "20261008T000000Z-000000"
 
 
-def hidden_options(command):
-    """The option names a command keeps out of its help: plumbing, not for users."""
-    from typer.main import get_command
-
-    from ai_taxman.cli import app
-
-    params = get_command(app).commands[command].params  # type: ignore[attr-defined]
-    return [name for param in params if getattr(param, "hidden", False) for name in param.opts]
-
-
 def make_project(tmp_path, body=None, messages="one\ntwo\nthree\n"):
     (tmp_path / "messages").mkdir(exist_ok=True)
     (tmp_path / "messages" / "probe.txt").write_text(messages, encoding="utf-8")
@@ -45,17 +35,6 @@ def test_collects_an_audit_by_name_and_summarises_it(invoke, tmp_path, fake_prov
     summary = result.output.strip().splitlines()[-1]
     assert summary.startswith("3 ok  ->  data/probe/")
     assert summary.endswith("responses.jsonl")
-
-
-@pytest.mark.parametrize("flag", ["--repeats", "-r", "--concurrency", "-c"])
-def test_settings_come_only_from_the_audit_file(invoke, tmp_path, fake_provider, flag):
-    """A run is what its audit file says, so a resumed run can be checked against it."""
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", flag, "2")
-
-    assert result.exit_code != 0
-    assert fake_provider.sent == []
 
 
 def test_new_run_starts_another_run_of_the_audit(invoke, tmp_path, fake_provider):
@@ -359,35 +338,30 @@ def test_an_unknown_log_level_is_refused_by_name(invoke, tmp_path, fake_provider
     assert len(fake_provider.sent) == 0
 
 
-# --- run ids -------------------------------------------------------------
+# --- what collect takes --------------------------------------------------
 
 
-def test_a_run_id_cannot_be_chosen(invoke, tmp_path, fake_provider):
-    """The audit names the run: collecting it again finishes it, --new-run starts another."""
-    make_project(tmp_path)
+def test_collect_takes_only_its_own_options():
+    """Every setting comes from the audit file, so a resumed run can be checked against it.
 
-    result = invoke("collect", "probe", "--run-id", "pilot")
+    So `--repeats`, `--run-id` and `--background` stay gone under any name, and
+    nothing is hidden for a "did you mean" to point a user at.
+    """
+    from typer.main import get_command
 
-    assert result.exit_code != 0
-    assert fake_provider.sent == []
+    from ai_taxman.cli import app
 
+    params = get_command(app).commands["collect"].params
+    taken = {(p.param_type_name, *p.opts, *p.secondary_opts) for p in params}
 
-def test_collect_has_no_hidden_options():
-    """None a "did you mean" could point a user at: everything comes from the audit."""
-    assert hidden_options("collect") == []
-
-
-@pytest.mark.parametrize("flag", ["--background", "-b"])
-def test_a_collect_is_not_detached_by_taxman(invoke, tmp_path, fake_provider, flag):
-    """The shell already does that: `&`, `nohup`, tmux."""
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", flag)
-
-    assert result.exit_code != 0
-    assert "No such option" in result.output
-    assert fake_provider.sent == []
-    assert not (tmp_path / "data").exists()
+    assert taken == {
+        ("argument", "audit"),
+        ("option", "--new-run"),
+        ("option", "--quiet", "-q"),
+        ("option", "--log-file"),
+        ("option", "--log-level"),
+    }
+    assert [p.name for p in params if getattr(p, "hidden", False)] == []
 
 
 @pytest.mark.parametrize(
