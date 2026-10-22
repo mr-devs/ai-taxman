@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(*pytest*live*)",
+      "Bash(*pytest*-m*)",
+      "Bash(*pytest*addopts*)"
+    ]
+  }
+}
