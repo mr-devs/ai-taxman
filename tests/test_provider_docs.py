@@ -3,8 +3,8 @@
 The offline test keeps the listing honest: every page a provider's template links
 a setting to is one its file lists, so the link-rot check below fetches it.
 
-The live test is the one that catches link rot. It is marked `live` because it
-needs the network, so `uv run pytest` stays offline.
+The network test is the one that catches link rot. It is marked `network`, not
+`live`: it needs the network but costs nothing, and `uv run pytest` stays offline.
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def registered_providers():
 def test_every_template_link_is_a_page_the_provider_file_lists(provider):
     """A link in an audit file is only as good as the check its listed twin gets.
 
-    The live test below fetches every listed page, so a link that is not listed
+    The network test below fetches every listed page, so a link that is not listed
     is one nothing checks. List the page in docs/provider-apis/ first.
     """
     links = template_links(provider)
@@ -83,7 +83,7 @@ def documented_urls():
     return sorted(urls)
 
 
-@pytest.mark.live
+@pytest.mark.network
 @pytest.mark.parametrize("source, url", documented_urls(), ids=lambda value: value)
 def test_documented_url_still_serves_markdown(source, url):
     """A 200 is not proof - two providers serve HTML from a `.md` path."""

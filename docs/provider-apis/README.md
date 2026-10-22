@@ -67,7 +67,7 @@ render client-side, so a plain fetch returns an empty shell.
 ## Keeping this current
 
 ```
-uv run pytest -m live -k provider_docs
+uv run pytest -m network
 ```
 
 Deselected by default, because `uv run pytest` must pass offline. A failure is a moved page,

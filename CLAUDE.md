@@ -63,8 +63,10 @@ No implementation without a failing test first. For every unit of behaviour:
 
 Do not write a module and backfill tests. If you are about to, stop and write the test.
 
-**No network in the default test run.** Real API calls go behind `@pytest.mark.live`, which is
-deselected by default via `addopts`. `uv run pytest` must pass offline, with no API keys set.
+**No network in the default test run.** Real API calls, which cost money, go behind
+`@pytest.mark.live`; free fetches, such as the docs link checks, go behind
+`@pytest.mark.network`. `addopts` deselects both. `uv run pytest` must pass offline, with no
+API keys set.
 
 ## Provider isolation (the core architectural rule)
 
@@ -385,8 +387,9 @@ Audit YAMLs resolve to `<audits folder>/<name>.yaml`, and nowhere else.
 ## Commands
 
 ```
-uv run pytest              # full suite, offline, live tests deselected
-uv run pytest -m live      # opt in to real API calls (needs keys)
+uv run pytest              # full suite, offline, live and network tests deselected
+uv run pytest -m live      # opt in to real API calls (needs keys, costs money)
+uv run pytest -m network   # opt in to the free docs link checks
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src
 uv run taxman --help
