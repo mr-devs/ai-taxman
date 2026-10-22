@@ -5,5 +5,29 @@
       "Bash(*pytest*-m*)",
       "Bash(*pytest*addopts*)"
     ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/test_gate.py\" prompt",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/test_gate.py\" stop",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
   }
 }
