@@ -130,6 +130,16 @@ def test_include_can_be_turned_off(provider):
     assert "include" not in request_for(search(web_search=True, include=[]))
 
 
+def test_include_takes_the_search_results_too(provider):
+    payload = request_for(
+        search(
+            web_search=True, include=["web_search_call.action.sources", "web_search_call.results"]
+        )
+    )
+
+    assert payload["include"] == ["web_search_call.action.sources", "web_search_call.results"]
+
+
 def test_without_web_search_nothing_is_included(provider):
     assert "include" not in request_for(search())
 
