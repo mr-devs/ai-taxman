@@ -67,6 +67,7 @@ dev = [
     "ruff>=0.9",
     "mypy>=1.14",
     "types-pyyaml>=6.0",
+    "pytest-socket>=0.8.1",
 ]
 
 [tool.pytest.ini_options]
@@ -78,7 +79,10 @@ markers = [
 ]
 # importlib, so each provider's tests can mirror the others' file names
 # (tests/providers/<name>/test_provider.py) without a collection clash.
-addopts = "-m 'not live and not network' --import-mode=importlib"
+# --disable-socket fails any test that opens a network socket; unix sockets stay
+# allowed because asyncio's event loop needs them. live and network tests are
+# also marked enable_socket.
+addopts = "-m 'not live and not network' --import-mode=importlib --disable-socket --allow-unix-socket"
 
 [tool.ruff]
 line-length = 100

@@ -23,6 +23,7 @@ KEY = os.environ.get("TAXMAN_LIVE_KEY_PREFIX", "") + PROVIDER.default_api_key_en
 
 pytestmark = [
     pytest.mark.live,
+    pytest.mark.enable_socket,
     pytest.mark.skipif(not os.environ.get(KEY), reason=f"{KEY} is not exported"),
 ]
 

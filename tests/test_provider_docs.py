@@ -84,6 +84,7 @@ def documented_urls():
 
 
 @pytest.mark.network
+@pytest.mark.enable_socket
 @pytest.mark.parametrize("source, url", documented_urls(), ids=lambda value: value)
 def test_documented_url_still_serves_markdown(source, url):
     """A 200 is not proof - two providers serve HTML from a `.md` path."""
