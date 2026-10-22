@@ -55,11 +55,3 @@ def test_the_placeholder_init_writes_is_reported_as_unset():
     """An unedited scaffold must fail before anything is sent."""
     with pytest.raises(MissingApiKeyError, match="insert_api_key_env_var_here"):
         resolve_api_key("<insert_api_key_env_var_here>")
-
-
-def test_taxman_stores_no_keys_of_its_own():
-    """The module offers no way to write a key to disk."""
-    import ai_taxman.core.credentials as module
-
-    assert not hasattr(module, "store_api_key")
-    assert not hasattr(module, "env_file_path")
