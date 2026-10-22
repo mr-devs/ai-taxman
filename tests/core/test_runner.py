@@ -55,13 +55,6 @@ async def test_writes_one_record_per_message(project, fake_provider):
     assert len(list(read_jsonl(result.output_path))) == 3
 
 
-async def test_repeats_multiply_the_record_count(project, fake_provider):
-    result = await run_audit_async(audit(project, "execution:\n  repeats: 4"))
-
-    assert result.n_ok == 12
-    assert len(list(read_jsonl(result.output_path))) == 12
-
-
 async def test_every_message_and_repeat_pair_appears_exactly_once(project, fake_provider):
     result = await run_audit_async(audit(project, "execution:\n  repeats: 3"))
 
@@ -137,23 +130,16 @@ async def test_records_carry_the_response_verbatim_and_nothing_derived(project, 
     assert not hasattr(record, "text")
 
 
-async def test_a_failing_message_does_not_stop_the_others(project, fake_provider):
-    fake_provider.failures = {TWO: [RuntimeError("nope")]}
-
-    result = await run_audit_async(audit(project))
-
-    assert result.n_ok == 2
-    assert result.n_error == 1
-    assert len(list(read_jsonl(result.output_path))) == 3
-
-
 async def test_a_failure_is_recorded_as_an_error_row(project, fake_provider):
+    """And the run goes on: the other messages are still sent and answered."""
     fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
     result = await run_audit_async(audit(project))
 
-    failed = [r for r in read_jsonl(result.output_path) if r.status == "error"]
+    rows = list(read_jsonl(result.output_path))
+    failed = [r for r in rows if r.status == "error"]
 
+    assert (result.n_ok, result.n_error, len(rows)) == (2, 1, 3)
     assert len(failed) == 1
     assert failed[0].message_id == TWO
     assert "nope" in failed[0].error
@@ -193,20 +179,6 @@ async def test_non_retryable_failures_are_not_retried(project, fake_provider):
     assert len(attempts) == 1
 
 
-async def test_on_error_stop_halts_the_run(project, fake_provider):
-    fake_provider.delay = 0.01
-    fake_provider.failures = {ONE: [RuntimeError("nope")]}
-
-    result = await run_audit_async(
-        audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1\n  on_error: stop"),
-        backoff_base=0,
-    )
-
-    assert result.stopped_early is True
-    assert result.stop_signal is None
-    assert result.n_ok + result.n_error < 60
-
-
 async def test_on_error_stop_sends_nothing_after_the_failure(project, fake_provider):
     """One request at a time, so the one that failed is the last one sent: the
     slot it frees must not go to the next message before the stop is seen."""
@@ -219,6 +191,7 @@ async def test_on_error_stop_sends_nothing_after_the_failure(project, fake_provi
 
     assert [request.message.id for request in fake_provider.sent] == [ONE]
     assert result.stopped_early is True
+    assert result.stop_signal is None
     assert (result.n_ok, result.n_error) == (0, 1)
 
 
@@ -260,14 +233,6 @@ async def test_provider_is_shut_down_even_when_the_run_blows_up(project, fake_pr
         await run_audit_async(audit(project))
 
     assert fake_provider.stopped == 1
-
-
-async def test_the_manifest_names_the_message_file_relative_to_the_project(project, fake_provider):
-    """A manifest is committed with the data; it must not carry the author's home."""
-    result = await run_audit_async(audit(project))
-    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-
-    assert manifest["messages_path"] == "messages/probe.txt"
 
 
 async def test_the_manifest_names_a_linked_message_file_relative_to_the_project(
@@ -381,9 +346,11 @@ async def test_the_system_prompt_goes_with_every_request(project, fake_provider)
 
 
 async def test_without_a_system_prompt_none_is_sent(project, fake_provider):
-    await run_audit_async(audit(project))
+    result = await run_audit_async(audit(project))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
 
     assert all(r.system_prompt is None for r in fake_provider.sent)
+    assert manifest["system_prompt_text"] is None
 
 
 async def test_the_manifest_records_which_system_prompt_was_sent(project, fake_provider):
@@ -394,23 +361,6 @@ async def test_the_manifest_records_which_system_prompt_was_sent(project, fake_p
     assert manifest["system_prompt_path"] == "prompts/neutral.txt"
     assert manifest["system_prompt_text"] == "Be terse."
     assert "system_prompt_hash" not in manifest
-
-
-async def test_the_manifest_keeps_the_system_prompt_text(project, fake_provider):
-    """The file can be edited or deleted later; what was sent must survive it."""
-    result = await run_audit_async(with_system_prompt(project, "Be terse.\n"))
-    (project / "prompts" / "neutral.txt").write_text("Something else.", encoding="utf-8")
-
-    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-
-    assert manifest["system_prompt_text"] == "Be terse."
-
-
-async def test_without_a_system_prompt_the_manifest_records_none(project, fake_provider):
-    result = await run_audit_async(audit(project))
-    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-
-    assert manifest["system_prompt_text"] is None
 
 
 async def test_a_missing_system_prompt_is_reported_before_anything_is_sent(project, fake_provider):
@@ -451,37 +401,19 @@ async def test_an_unknown_placeholder_in_a_path_is_refused_before_anything_is_se
 
 
 async def test_a_provider_that_cannot_start_fails_cleanly(project, fake_provider):
-    """A missing API key is a user error, not a traceback."""
+    """A missing API key is a user error, not a traceback.
+
+    The error names the provider, the provider is still shut down, and nothing is
+    created until the run can actually produce data.
+    """
     fake_provider.startup_error = RuntimeError("Missing credentials.")
 
-    with pytest.raises(ProviderError, match="Missing credentials"):
+    with pytest.raises(ProviderError, match="Missing credentials") as caught:
         await run_audit_async(audit(project))
 
-
-async def test_a_provider_that_cannot_start_is_still_shut_down(project, fake_provider):
-    fake_provider.startup_error = RuntimeError("Missing credentials.")
-
-    with pytest.raises(ProviderError):
-        await run_audit_async(audit(project))
-
+    assert "fake" in str(caught.value)
     assert fake_provider.stopped == 1
-
-
-async def test_a_provider_that_cannot_start_leaves_no_output_behind(project, fake_provider):
-    """Nothing is created until the run can actually produce data."""
-    fake_provider.startup_error = RuntimeError("Missing credentials.")
-
-    with pytest.raises(ProviderError):
-        await run_audit_async(audit(project))
-
     assert not (project / "data").exists()
-
-
-async def test_the_provider_name_is_named_in_the_startup_error(project, fake_provider):
-    fake_provider.startup_error = RuntimeError("Missing credentials.")
-
-    with pytest.raises(ProviderError, match="fake"):
-        await run_audit_async(audit(project))
 
 
 async def test_the_model_name_comes_from_the_provider_not_the_yaml(project, fake_provider):
@@ -494,16 +426,9 @@ async def test_the_model_name_comes_from_the_provider_not_the_yaml(project, fake
     finally:
         fake_provider.describe_model = original
 
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert calls
     assert all(r.model == "described" for r in read_jsonl(result.output_path))
-
-
-async def test_the_manifest_model_also_comes_from_the_provider(project, fake_provider):
-    fake_provider.describe_model = lambda model: "described"
-
-    result = await run_audit_async(audit(project))
-
-    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["model"] == "described"
 
 
@@ -532,20 +457,13 @@ async def test_a_missing_api_key_stops_the_run_before_anything_is_sent(
 async def test_an_audit_without_api_key_env_is_rejected_when_the_provider_needs_one(
     project, fake_provider
 ):
-    fake_provider.requires_api_key = True
-
-    with pytest.raises(ConfigError, match="api_key_env"):
-        await run_audit_async(audit(project))
-
-
-async def test_the_missing_field_error_points_at_the_audit_not_a_command(project, fake_provider):
     """There is no configuration command to send the user to; the fix is the file."""
     fake_provider.requires_api_key = True
 
-    with pytest.raises(ConfigError) as exc:
+    with pytest.raises(ConfigError, match="api_key_env") as caught:
         await run_audit_async(audit(project))
 
-    message = str(exc.value)
+    message = str(caught.value)
     assert "setup" not in message
     assert "export" in message.lower()
 
