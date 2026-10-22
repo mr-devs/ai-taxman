@@ -6,7 +6,6 @@ import textwrap
 import pytest
 
 from ai_taxman.core.config import load_audit
-from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.errors import (
     ConfigError,
     MessageFileError,
@@ -21,42 +20,22 @@ from ai_taxman.core.writer import read_jsonl
 ONE, TWO, THREE = (message_id(text) for text in ("one", "two", "three"))
 
 
-@pytest.fixture
-def project(tmp_path, flat_layout):
-    """A project directory with three messages and a `fake` provider audit."""
-    (tmp_path / "messages").mkdir()
-    (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
-    (tmp_path / "audits").mkdir()
-    write_marker(tmp_path, flat_layout)
-    return tmp_path
-
-
 def write_audit(project, body):
     path = project / "audits" / "probe.yaml"
     path.write_text(textwrap.dedent(body).lstrip(), encoding="utf-8")
     return load_audit(path)
 
 
-def audit(project, *blocks):
-    """Build a `fake`-provider audit, appending whole YAML blocks verbatim."""
-    body = (
-        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
-        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
-        "model:\n  name: fake-1\n"
-    )
-    return write_audit(project, body + "".join(block.rstrip() + "\n" for block in blocks))
-
-
-async def test_writes_one_record_per_message(project, fake_provider):
-    result = await run_audit_async(audit(project))
+async def test_writes_one_record_per_message(audit, fake_provider):
+    result = await run_audit_async(audit())
 
     assert isinstance(result, RunResult)
     assert result.n_ok == 3
     assert len(list(read_jsonl(result.output_path))) == 3
 
 
-async def test_every_message_and_repeat_pair_appears_exactly_once(project, fake_provider):
-    result = await run_audit_async(audit(project, "execution:\n  repeats: 3"))
+async def test_every_message_and_repeat_pair_appears_exactly_once(audit, fake_provider):
+    result = await run_audit_async(audit("execution:\n  repeats: 3"))
 
     pairs = [(r.message_id, r.repeat) for r in read_jsonl(result.output_path)]
 
@@ -65,39 +44,39 @@ async def test_every_message_and_repeat_pair_appears_exactly_once(project, fake_
     )
 
 
-async def test_repeats_of_one_message_are_sent_together_not_in_passes(project, fake_provider):
+async def test_repeats_of_one_message_are_sent_together_not_in_passes(audit, fake_provider):
     """The stated requirement: repeats go out concurrently, not as sequential passes."""
-    await run_audit_async(audit(project, "execution:\n  repeats: 3\n  max_concurrency: 3"))
+    await run_audit_async(audit("execution:\n  repeats: 3\n  max_concurrency: 3"))
 
     first_three = [(r.message.id, r.repeat) for r in fake_provider.sent[:3]]
 
     assert first_three == [(ONE, 0), (ONE, 1), (ONE, 2)]
 
 
-async def test_concurrency_is_capped(project, fake_provider):
+async def test_concurrency_is_capped(audit, fake_provider):
     fake_provider.delay = 0.01
 
-    await run_audit_async(audit(project, "execution:\n  repeats: 5\n  max_concurrency: 2"))
+    await run_audit_async(audit("execution:\n  repeats: 5\n  max_concurrency: 2"))
 
     assert fake_provider.peak_concurrency <= 2
 
 
-async def test_concurrency_is_actually_used(project, fake_provider):
+async def test_concurrency_is_actually_used(audit, fake_provider):
     fake_provider.delay = 0.01
 
-    await run_audit_async(audit(project, "execution:\n  repeats: 5\n  max_concurrency: 4"))
+    await run_audit_async(audit("execution:\n  repeats: 5\n  max_concurrency: 4"))
 
     assert fake_provider.peak_concurrency > 1
 
 
-async def test_shuffle_changes_the_dispatch_order(project, fake_provider):
-    ordered = audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1")
+async def test_shuffle_changes_the_dispatch_order(project, audit, fake_provider):
+    ordered = audit("execution:\n  repeats: 20\n  max_concurrency: 1")
     await run_audit_async(ordered)
     in_order = [(r.message.id, r.repeat) for r in fake_provider.sent]
 
     fake_provider.sent.clear()
     shutil.rmtree(project / "data")  # a fresh run, not the first one resumed
-    shuffled = audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1\n  shuffle: true")
+    shuffled = audit("execution:\n  repeats: 20\n  max_concurrency: 1\n  shuffle: true")
     await run_audit_async(shuffled, seed=1234)
     after = [(r.message.id, r.repeat) for r in fake_provider.sent]
 
@@ -105,8 +84,8 @@ async def test_shuffle_changes_the_dispatch_order(project, fake_provider):
     assert after != in_order
 
 
-async def test_records_carry_the_audit_envelope(project, fake_provider):
-    result = await run_audit_async(audit(project))
+async def test_records_carry_the_audit_envelope(audit, fake_provider):
+    result = await run_audit_async(audit())
 
     record = next(iter(read_jsonl(result.output_path)))
 
@@ -119,9 +98,9 @@ async def test_records_carry_the_audit_envelope(project, fake_provider):
     assert record.latency_ms >= 0
 
 
-async def test_records_carry_the_response_verbatim_and_nothing_derived(project, fake_provider):
+async def test_records_carry_the_response_verbatim_and_nothing_derived(audit, fake_provider):
     """`raw` is the whole response. Nothing is parsed out of it at collection."""
-    result = await run_audit_async(audit(project))
+    result = await run_audit_async(audit())
 
     record = next(iter(read_jsonl(result.output_path)))
 
@@ -130,11 +109,11 @@ async def test_records_carry_the_response_verbatim_and_nothing_derived(project, 
     assert not hasattr(record, "text")
 
 
-async def test_a_failure_is_recorded_as_an_error_row(project, fake_provider):
+async def test_a_failure_is_recorded_as_an_error_row(audit, fake_provider):
     """And the run goes on: the other messages are still sent and answered."""
     fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
-    result = await run_audit_async(audit(project))
+    result = await run_audit_async(audit())
 
     rows = list(read_jsonl(result.output_path))
     failed = [r for r in rows if r.status == "error"]
@@ -146,22 +125,22 @@ async def test_a_failure_is_recorded_as_an_error_row(project, fake_provider):
     assert failed[0].raw == {}
 
 
-async def test_retryable_failures_are_retried_then_succeed(project, fake_provider):
+async def test_retryable_failures_are_retried_then_succeed(audit, fake_provider):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [TimeoutError("slow"), TimeoutError("slow")]}
 
-    result = await run_audit_async(audit(project), backoff_base=0)
+    result = await run_audit_async(audit(), backoff_base=0)
 
     assert result.n_error == 0
     record = next(r for r in read_jsonl(result.output_path) if r.message_id == ONE)
     assert record.attempts == 3
 
 
-async def test_retries_stop_at_max_retries(project, fake_provider):
+async def test_retries_stop_at_max_retries(audit, fake_provider):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [TimeoutError("slow")] * 10}
 
-    result = await run_audit_async(audit(project, "execution:\n  max_retries: 2"), backoff_base=0)
+    result = await run_audit_async(audit("execution:\n  max_retries: 2"), backoff_base=0)
 
     record = next(r for r in read_jsonl(result.output_path) if r.message_id == ONE)
     assert record.status == "error"
@@ -169,23 +148,23 @@ async def test_retries_stop_at_max_retries(project, fake_provider):
     assert result.n_error == 1
 
 
-async def test_non_retryable_failures_are_not_retried(project, fake_provider):
+async def test_non_retryable_failures_are_not_retried(audit, fake_provider):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [ValueError("bad request")] * 5}
 
-    await run_audit_async(audit(project), backoff_base=0)
+    await run_audit_async(audit(), backoff_base=0)
 
     attempts = [r for r in fake_provider.sent if r.message.id == ONE]
     assert len(attempts) == 1
 
 
-async def test_on_error_stop_sends_nothing_after_the_failure(project, fake_provider):
+async def test_on_error_stop_sends_nothing_after_the_failure(audit, fake_provider):
     """One request at a time, so the one that failed is the last one sent: the
     slot it frees must not go to the next message before the stop is seen."""
     fake_provider.failures = {ONE: [RuntimeError("nope")]}
 
     result = await run_audit_async(
-        audit(project, "execution:\n  max_concurrency: 1\n  on_error: stop"),
+        audit("execution:\n  max_concurrency: 1\n  on_error: stop"),
         backoff_base=0,
     )
 
@@ -195,7 +174,7 @@ async def test_on_error_stop_sends_nothing_after_the_failure(project, fake_provi
     assert (result.n_ok, result.n_error) == (0, 1)
 
 
-async def test_a_run_stopped_by_a_signal_says_which(project, fake_provider):
+async def test_a_run_stopped_by_a_signal_says_which(audit, fake_provider):
     """`kill <pid>` is not `on_error: stop`, and the user is told which it was."""
     import os
     import signal
@@ -209,7 +188,7 @@ async def test_a_run_stopped_by_a_signal_says_which(project, fake_provider):
     asyncio.get_running_loop().call_later(0.1, interrupt)
 
     result = await run_audit_async(
-        audit(project, "execution:\n  repeats: 20\n  max_concurrency: 1"),
+        audit("execution:\n  repeats: 20\n  max_concurrency: 1"),
         stop_signals=(signal.SIGUSR1,),
     )
 
@@ -218,39 +197,39 @@ async def test_a_run_stopped_by_a_signal_says_which(project, fake_provider):
     assert result.n_ok < 60
 
 
-async def test_provider_lifecycle_hooks_run_once(project, fake_provider):
-    await run_audit_async(audit(project))
+async def test_provider_lifecycle_hooks_run_once(audit, fake_provider):
+    await run_audit_async(audit())
 
     assert fake_provider.started == 1
     assert fake_provider.stopped == 1
 
 
-async def test_provider_is_shut_down_even_when_the_run_blows_up(project, fake_provider):
+async def test_provider_is_shut_down_even_when_the_run_blows_up(audit, fake_provider):
     """Cancellation propagates, but the provider still gets to close its client."""
     fake_provider.failures = {ONE: [asyncio.CancelledError()]}
 
     with pytest.raises(asyncio.CancelledError):
-        await run_audit_async(audit(project))
+        await run_audit_async(audit())
 
     assert fake_provider.stopped == 1
 
 
 async def test_the_manifest_names_a_linked_message_file_relative_to_the_project(
-    project, fake_provider, tmp_path_factory
+    project, audit, fake_provider, tmp_path_factory
 ):
     """A messages folder linked in from elsewhere is still named as the project names it."""
     storage = tmp_path_factory.mktemp("storage")
     (project / "messages").rename(storage / "messages")
     (project / "messages").symlink_to(storage / "messages", target_is_directory=True)
 
-    result = await run_audit_async(audit(project))
+    result = await run_audit_async(audit())
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
 
     assert manifest["messages_path"] == "messages/probe.txt"
 
 
-async def test_writes_a_manifest_beside_the_jsonl(project, fake_provider):
-    result = await run_audit_async(audit(project, "execution:\n  repeats: 2"))
+async def test_writes_a_manifest_beside_the_jsonl(audit, fake_provider):
+    result = await run_audit_async(audit("execution:\n  repeats: 2"))
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
 
@@ -269,17 +248,16 @@ async def test_writes_a_manifest_beside_the_jsonl(project, fake_provider):
     assert "messages_hash" not in manifest
 
 
-async def test_output_goes_to_the_configured_directory(project, fake_provider):
-    result = await run_audit_async(audit(project))
+async def test_output_goes_to_the_configured_directory(project, audit, fake_provider):
+    result = await run_audit_async(audit())
 
     assert result.output_path.parent == project / "data" / "probe" / result.run_id
     assert result.output_path.name == "responses.jsonl"
 
 
-async def test_compression_is_honoured(project, fake_provider):
+async def test_compression_is_honoured(audit, fake_provider):
     result = await run_audit_async(
         audit(
-            project,
             "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n  compress: true",
         )
     )
@@ -345,8 +323,8 @@ async def test_the_system_prompt_goes_with_every_request(project, fake_provider)
     assert [r.system_prompt for r in fake_provider.sent] == ["Be terse."] * 3
 
 
-async def test_without_a_system_prompt_none_is_sent(project, fake_provider):
-    result = await run_audit_async(audit(project))
+async def test_without_a_system_prompt_none_is_sent(audit, fake_provider):
+    result = await run_audit_async(audit())
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
 
     assert all(r.system_prompt is None for r in fake_provider.sent)
@@ -374,33 +352,33 @@ async def test_a_missing_system_prompt_is_reported_before_anything_is_sent(proje
     assert not (project / "data").exists()
 
 
-async def test_progress_callback_sees_every_record(project, fake_provider):
+async def test_progress_callback_sees_every_record(audit, fake_provider):
     seen = []
 
-    await run_audit_async(audit(project, "execution:\n  repeats: 2"), on_record=seen.append)
+    await run_audit_async(audit("execution:\n  repeats: 2"), on_record=seen.append)
 
     assert len(seen) == 6
 
 
-async def test_batch_mode_is_rejected_when_the_provider_cannot_do_it(project, fake_provider):
+async def test_batch_mode_is_rejected_when_the_provider_cannot_do_it(audit, fake_provider):
     with pytest.raises(ConfigError, match="batch"):
-        await run_audit_async(audit(project, "execution:\n  batch: true"))
+        await run_audit_async(audit("execution:\n  batch: true"))
 
 
 @pytest.mark.parametrize("key", ["dir", "log_dir"])
 async def test_an_unknown_placeholder_in_a_path_is_refused_before_anything_is_sent(
-    project, fake_provider, key
+    project, audit, fake_provider, key
 ):
     with pytest.raises(ConfigError, match="date"):
         paths = {"dir": "data/{audit}/{run_id}", "log_dir": "logs/{audit}", key: "out/{date}"}
         block = "output:\n" + "".join(f"  {name}: {value}\n" for name, value in paths.items())
-        await run_audit_async(audit(project, block))
+        await run_audit_async(audit(block))
 
     assert fake_provider.sent == []
     assert not (project / "out").exists()
 
 
-async def test_a_provider_that_cannot_start_fails_cleanly(project, fake_provider):
+async def test_a_provider_that_cannot_start_fails_cleanly(project, audit, fake_provider):
     """A missing API key is a user error, not a traceback.
 
     The error names the provider, the provider is still shut down, and nothing is
@@ -409,20 +387,20 @@ async def test_a_provider_that_cannot_start_fails_cleanly(project, fake_provider
     fake_provider.startup_error = RuntimeError("Missing credentials.")
 
     with pytest.raises(ProviderError, match="Missing credentials") as caught:
-        await run_audit_async(audit(project))
+        await run_audit_async(audit())
 
     assert "fake" in str(caught.value)
     assert fake_provider.stopped == 1
     assert not (project / "data").exists()
 
 
-async def test_the_model_name_comes_from_the_provider_not_the_yaml(project, fake_provider):
+async def test_the_model_name_comes_from_the_provider_not_the_yaml(audit, fake_provider):
     """Core must not assume the `model:` block has a `name` key."""
     calls = []
     original = fake_provider.describe_model
     fake_provider.describe_model = lambda model: (calls.append(model), "described")[1]
     try:
-        result = await run_audit_async(audit(project))
+        result = await run_audit_async(audit())
     finally:
         fake_provider.describe_model = original
 
@@ -432,55 +410,55 @@ async def test_the_model_name_comes_from_the_provider_not_the_yaml(project, fake
     assert manifest["model"] == "described"
 
 
-async def test_a_provider_needing_a_key_gets_the_resolved_one(project, fake_provider, monkeypatch):
+async def test_a_provider_needing_a_key_gets_the_resolved_one(audit, fake_provider, monkeypatch):
     fake_provider.requires_api_key = True
     monkeypatch.setenv("TAXMAN_FAKE_API_KEY", "sk-resolved")
 
-    await run_audit_async(audit(project, "api_key_env: TAXMAN_FAKE_API_KEY"))
+    await run_audit_async(audit("api_key_env: TAXMAN_FAKE_API_KEY"))
 
     assert fake_provider.api_key == "sk-resolved"
 
 
 async def test_a_missing_api_key_stops_the_run_before_anything_is_sent(
-    project, fake_provider, monkeypatch
+    project, audit, fake_provider, monkeypatch
 ):
     fake_provider.requires_api_key = True
     monkeypatch.delenv("TAXMAN_FAKE_API_KEY", raising=False)
 
     with pytest.raises(MissingApiKeyError, match="TAXMAN_FAKE_API_KEY"):
-        await run_audit_async(audit(project, "api_key_env: TAXMAN_FAKE_API_KEY"))
+        await run_audit_async(audit("api_key_env: TAXMAN_FAKE_API_KEY"))
 
     assert fake_provider.sent == []
     assert not (project / "data").exists()
 
 
 async def test_an_audit_without_api_key_env_is_rejected_when_the_provider_needs_one(
-    project, fake_provider
+    audit, fake_provider
 ):
     """There is no configuration command to send the user to; the fix is the file."""
     fake_provider.requires_api_key = True
 
     with pytest.raises(ConfigError, match="api_key_env") as caught:
-        await run_audit_async(audit(project))
+        await run_audit_async(audit())
 
     message = str(caught.value)
     assert "setup" not in message
     assert "export" in message.lower()
 
 
-async def test_the_unedited_placeholder_stops_the_run(project, fake_provider):
+async def test_the_unedited_placeholder_stops_the_run(audit, fake_provider):
     """A scaffold nobody filled in must fail before anything is sent."""
     fake_provider.requires_api_key = True
 
     with pytest.raises(MissingApiKeyError, match="insert_api_key_env_var_here"):
-        await run_audit_async(audit(project, "api_key_env: <insert_api_key_env_var_here>"))
+        await run_audit_async(audit("api_key_env: <insert_api_key_env_var_here>"))
 
     assert fake_provider.sent == []
 
 
-async def test_a_provider_that_needs_no_key_does_not_require_the_field(project, fake_provider):
+async def test_a_provider_that_needs_no_key_does_not_require_the_field(audit, fake_provider):
     """The fake provider authenticates against nothing."""
-    result = await run_audit_async(audit(project))
+    result = await run_audit_async(audit())
 
     assert result.n_ok == 3
     assert fake_provider.api_key is None
@@ -497,11 +475,11 @@ def test_a_preflight_gives_the_system_prompt_text_it_would_send(text, tmp_path):
     assert checked.system_text == text
 
 
-async def test_the_caller_hears_of_its_run_once_it_is_claimed(project, fake_provider):
+async def test_the_caller_hears_of_its_run_once_it_is_claimed(audit, fake_provider):
     """Its manifest written, nothing sent yet - and never for a run with nothing to send."""
     from ai_taxman.core.runner import preflight, run_checked_async
 
-    config = audit(project)
+    config = audit()
     claimed = []
 
     def on_claim(plan):

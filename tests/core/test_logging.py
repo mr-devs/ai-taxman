@@ -9,12 +9,9 @@ its caller, and the API key never reaches a log record.
 """
 
 import logging
-import textwrap
 
 import pytest
 
-from ai_taxman.core.config import load_audit
-from ai_taxman.core.discovery import write_marker
 from ai_taxman.core.logging import LOGGER_NAME, describe_level, setup_logging
 from ai_taxman.core.messages import message_id
 
@@ -37,29 +34,6 @@ def restore_logger():
             logger.addHandler(handler)
         logger.setLevel(level)
         logger.propagate = propagate
-
-
-@pytest.fixture
-def project(tmp_path, flat_layout):
-    (tmp_path / "messages").mkdir()
-    (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
-    (tmp_path / "audits").mkdir()
-    write_marker(tmp_path, flat_layout)
-    return tmp_path
-
-
-def audit(project, *blocks):
-    body = (
-        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
-        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
-        "model:\n  name: fake-1\n"
-    )
-    path = project / "audits" / "probe.yaml"
-    path.write_text(
-        textwrap.dedent(body + "".join(block.rstrip() + "\n" for block in blocks)).lstrip(),
-        encoding="utf-8",
-    )
-    return load_audit(path)
 
 
 def test_the_library_is_silent_until_someone_configures_it():
@@ -176,11 +150,11 @@ def logged(tmp_path, restore_logger):
     return target
 
 
-async def test_a_run_announces_what_it_is_about_to_do(project, fake_provider, logged):
+async def test_a_run_announces_what_it_is_about_to_do(audit, fake_provider, logged):
     """The first lines answer 'what is this process doing?' without the audit file."""
     from ai_taxman.core.runner import run_audit_async
 
-    result = await run_audit_async(audit(project, "execution:\n  repeats: 2"))
+    result = await run_audit_async(audit("execution:\n  repeats: 2"))
 
     log = read_log(logged)
     assert result.run_id in log
@@ -189,68 +163,68 @@ async def test_a_run_announces_what_it_is_about_to_do(project, fake_provider, lo
     assert "6" in log  # 3 messages x 2 repeats, the number of responses to expect
 
 
-async def test_every_response_is_logged_as_it_lands(project, fake_provider, logged):
+async def test_every_response_is_logged_as_it_lands(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
-    await run_audit_async(audit(project))
+    await run_audit_async(audit())
 
     log = read_log(logged)
     for expected in (ONE, TWO, THREE):
         assert expected in log
 
 
-async def test_a_retry_is_logged_as_a_warning(project, fake_provider, logged):
+async def test_a_retry_is_logged_as_a_warning(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {TWO: [TimeoutError("slow")]}
 
-    await run_audit_async(audit(project, "execution:\n  max_retries: 2"))
+    await run_audit_async(audit("execution:\n  max_retries: 2"))
 
     log = read_log(logged)
     assert "WARNING" in log
     assert "TimeoutError" in log
 
 
-async def test_a_failed_message_is_logged_as_an_error(project, fake_provider, logged):
+async def test_a_failed_message_is_logged_as_an_error(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
     fake_provider.failures = {TWO: [RuntimeError("nope")]}
 
-    await run_audit_async(audit(project))
+    await run_audit_async(audit())
 
     log = read_log(logged)
     assert "ERROR" in log
     assert TWO in log
 
 
-async def test_the_end_of_the_run_is_logged_with_the_counts(project, fake_provider, logged):
+async def test_the_end_of_the_run_is_logged_with_the_counts(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
-    await run_audit_async(audit(project))
+    await run_audit_async(audit())
 
     log = read_log(logged)
     assert "complete" in log
     assert "responses.jsonl" in log
 
 
-async def test_the_api_key_never_reaches_the_log(project, fake_provider, logged, monkeypatch):
+async def test_the_api_key_never_reaches_the_log(audit, fake_provider, logged, monkeypatch):
     """The one thing that must never be written down, at any level."""
     from ai_taxman.core.runner import run_audit_async
 
     monkeypatch.setenv("PROBE_KEY", "sk-do-not-log-me")
     fake_provider.requires_api_key = True
 
-    await run_audit_async(audit(project, "api_key_env: PROBE_KEY"))
+    await run_audit_async(audit("api_key_env: PROBE_KEY"))
 
     assert "sk-do-not-log-me" not in read_log(logged)
     assert fake_provider.api_key == "sk-do-not-log-me"
 
 
-async def test_message_text_is_not_logged(project, fake_provider, logged):
+async def test_message_text_is_not_logged(audit, fake_provider, logged):
     """Ids, not bodies: the text is already in the JSONL, and a log of it is unusable."""
     from ai_taxman.core.runner import run_audit_async
 
-    await run_audit_async(audit(project))
+    await run_audit_async(audit())
 
     assert "two" not in read_log(logged).split("messages")[-1]

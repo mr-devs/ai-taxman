@@ -14,7 +14,8 @@ from typing import Any
 import pytest
 
 from ai_taxman.core import registry
-from ai_taxman.core.discovery import Layout
+from ai_taxman.core.config import load_audit
+from ai_taxman.core.discovery import Layout, write_marker
 from ai_taxman.providers.base import Provider, Request
 
 #: Every folder directly under the project root. Most tests build a project by
@@ -25,6 +26,41 @@ FLAT = Layout(data="data", audits="audits", messages="messages", prompts="prompt
 @pytest.fixture
 def flat_layout():
     return FLAT
+
+
+@pytest.fixture
+def project(tmp_path, flat_layout):
+    """A project directory with three messages, ready for a `fake`-provider audit."""
+    (tmp_path / "messages").mkdir()
+    (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
+    (tmp_path / "audits").mkdir()
+    write_marker(tmp_path, flat_layout)
+    return tmp_path
+
+
+#: The `fake`-provider audit `audit` writes, before any blocks are added to it.
+FAKE_AUDIT = (
+    "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
+    "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
+    "model:\n  name: fake-1\n"
+)
+
+
+@pytest.fixture
+def audit(project):
+    """Write the project's `fake`-provider audit and load it.
+
+    Whole YAML blocks passed in are appended verbatim; a block repeating a key
+    replaces it, as YAML reads the last one.
+    """
+
+    def write(*blocks):
+        path = project / "audits" / "probe.yaml"
+        body = FAKE_AUDIT + "".join(block.rstrip() + "\n" for block in blocks)
+        path.write_text(body, encoding="utf-8")
+        return load_audit(path)
+
+    return write
 
 
 @dataclass

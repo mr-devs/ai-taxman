@@ -1,6 +1,7 @@
 import textwrap
 
 import pytest
+import yaml
 
 from ai_taxman.core.config import AuditConfig, load_audit, resolve_log_file, resolve_output_dir
 from ai_taxman.core.errors import ConfigError
@@ -15,6 +16,12 @@ output:
 model:
   name: gpt-5
 """
+
+
+def audit_body(**changes):
+    """MINIMAL with these top-level settings changed, and any given as None left out."""
+    body = {**yaml.safe_load(MINIMAL), **changes}
+    return yaml.safe_dump({key: value for key, value in body.items() if value is not None})
 
 
 def write_audit(tmp_path, body=MINIMAL, name="my-audit", in_audits_dir=True, marker=True):
@@ -49,14 +56,14 @@ def test_an_audit_outside_a_project_is_refused(tmp_path):
 @pytest.mark.parametrize(
     "output, missing",
     [
-        ("", "output"),
-        ("output:\n  log_dir: logs/{audit}\n", "output.dir"),
-        ("output:\n  dir: data/{audit}/{run_id}\n", "output.log_dir"),
+        (None, "output"),
+        ({"log_dir": "logs/{audit}"}, "output.dir"),
+        ({"dir": "data/{audit}/{run_id}"}, "output.log_dir"),
     ],
 )
 def test_an_audit_must_say_where_its_output_goes(tmp_path, output, missing):
     """A default would write outside the folders the project chose."""
-    body = "audit: my-audit\nprovider: openai\nmessages: messages/probe.txt\n" + output
+    body = audit_body(output=output)
 
     with pytest.raises(ConfigError, match=missing):
         load_audit(write_audit(tmp_path, body))
@@ -71,31 +78,12 @@ def test_loads_the_required_keys(tmp_path):
 
 
 def test_model_block_is_passed_through_untouched(tmp_path):
-    path = write_audit(
-        tmp_path,
-        """
-        audit: my-audit
-        provider: openai
-        messages: messages/probe.txt
-        output:
-          dir: data/{audit}/{run_id}
-          log_dir: logs/{audit}
-        model:
-          name: gpt-5
-          temperature: 1.5
-          web_search: true
-          something_only_openai_knows: 7
-        """,
-    )
+    model = {"name": "gpt-5", "temperature": 1.5, "web_search": True, "only_openai_knows": 7}
+    path = write_audit(tmp_path, audit_body(model=model))
 
     config = load_audit(path)
 
-    assert config.model == {
-        "name": "gpt-5",
-        "temperature": 1.5,
-        "web_search": True,
-        "something_only_openai_knows": 7,
-    }
+    assert config.model == model
 
 
 def test_execution_defaults(tmp_path):
@@ -158,19 +146,7 @@ def test_an_audit_linked_in_from_another_project_belongs_to_this_one(tmp_path):
 
 def test_absolute_message_path_is_left_alone(tmp_path):
     absolute = tmp_path / "elsewhere" / "probe.txt"
-    path = write_audit(
-        tmp_path,
-        f"""
-        audit: my-audit
-        provider: openai
-        messages: {absolute}
-        output:
-          dir: data/{{audit}}/{{run_id}}
-          log_dir: logs/{{audit}}
-        model:
-          name: gpt-5
-        """,
-    )
+    path = write_audit(tmp_path, audit_body(messages=str(absolute)))
 
     assert load_audit(path).messages_path == absolute
 
@@ -201,16 +177,7 @@ def test_the_system_prompt_resolves_against_the_project_root(tmp_path):
     write_marker(tmp_path)
     config = load_audit(
         write_audit(
-            tmp_path / "taxman" / "audits",
-            """
-            audit: my-audit
-            provider: openai
-            messages: messages/probe.txt
-            output:
-              dir: data/{audit}/{run_id}
-              log_dir: logs/{audit}
-            system_prompt: taxman/prompts/neutral.txt
-            """,
+            tmp_path / "taxman" / "audits", audit_body(system_prompt="taxman/prompts/neutral.txt")
         )
     )
 
@@ -226,19 +193,8 @@ def test_each_run_logs_to_a_file_named_after_it(tmp_path):
 
 
 def test_the_log_folder_can_be_moved(tmp_path):
-    config = load_audit(
-        write_audit(
-            tmp_path,
-            """
-            audit: my-audit
-            provider: openai
-            messages: messages/probe.txt
-            output:
-              dir: data/{audit}/{run_id}
-              log_dir: elsewhere/{audit}/logs
-            """,
-        )
-    )
+    output = {"dir": "data/{audit}/{run_id}", "log_dir": "elsewhere/{audit}/logs"}
+    config = load_audit(write_audit(tmp_path, audit_body(output=output)))
 
     assert (
         resolve_log_file(config, run_id="r1")
@@ -248,83 +204,40 @@ def test_the_log_folder_can_be_moved(tmp_path):
 
 def test_output_dir_may_be_absolute(tmp_path):
     target = tmp_path / "archive"
-    path = write_audit(
-        tmp_path,
-        f"""
-        audit: my-audit
-        provider: openai
-        messages: messages/probe.txt
-        output:
-          dir: {target}/{{audit}}
-          log_dir: logs/{{audit}}
-        model:
-          name: gpt-5
-        """,
-    )
+    output = {"dir": f"{target}/{{audit}}", "log_dir": "logs/{audit}"}
+    path = write_audit(tmp_path, audit_body(output=output))
 
     assert resolve_output_dir(load_audit(path), run_id="r1") == target / "my-audit"
 
 
 def test_missing_required_key_is_reported_by_name(tmp_path):
-    missing = "provider"
-    body = "\n".join(
-        line
-        for line in textwrap.dedent(MINIMAL).lstrip().splitlines()
-        if not line.startswith(f"{missing}:")
-    )
-    path = write_audit(tmp_path, body)
+    path = write_audit(tmp_path, audit_body(provider=None))
 
-    with pytest.raises(ConfigError, match=missing):
+    with pytest.raises(ConfigError, match="provider"):
         load_audit(path)
 
 
 def test_unknown_top_level_key_is_rejected(tmp_path):
-    path = write_audit(
-        tmp_path,
-        """
-        audit: my-audit
-        provider: openai
-        messages: messages/probe.txt
-        output:
-          dir: data/{audit}/{run_id}
-          log_dir: logs/{audit}
-        tempurature: 1.5
-        model:
-          name: gpt-5
-        """,
-    )
+    path = write_audit(tmp_path, audit_body(tempurature=1.5))
 
     with pytest.raises(ConfigError, match="tempurature"):
         load_audit(path)
 
 
 @pytest.mark.parametrize(
-    "block",
+    "execution",
     [
-        "execution:\n  repeats: 0",
-        "execution:\n  max_concurrency: 0",
-        "execution:\n  max_retries: -1",
-        "execution:\n  timeout_s: 0",
-        "execution:\n  on_error: explode",
+        {"repeats": 0},
+        {"max_concurrency": 0},
+        {"max_retries": -1},
+        {"timeout_s": 0},
+        {"on_error": "explode"},
     ],
 )
-def test_out_of_range_execution_values_are_rejected(tmp_path, block):
-    path = write_audit(
-        tmp_path,
-        f"""
-        audit: my-audit
-        provider: openai
-        messages: messages/probe.txt
-        output:
-          dir: data/{{audit}}/{{run_id}}
-          log_dir: logs/{{audit}}
-        {block}
-        model:
-          name: gpt-5
-        """,
-    )
+def test_out_of_range_execution_values_are_rejected(tmp_path, execution):
+    path = write_audit(tmp_path, audit_body(execution=execution))
 
-    with pytest.raises(ConfigError):
+    with pytest.raises(ConfigError, match=next(iter(execution))):
         load_audit(path)
 
 
@@ -371,17 +284,7 @@ def test_audit_name_must_match_the_filename(tmp_path):
 
 
 def test_model_block_defaults_to_empty(tmp_path):
-    path = write_audit(
-        tmp_path,
-        """
-        audit: my-audit
-        provider: openai
-        messages: messages/probe.txt
-        output:
-          dir: data/{audit}/{run_id}
-          log_dir: logs/{audit}
-        """,
-    )
+    path = write_audit(tmp_path, audit_body(model=None))
 
     assert load_audit(path).model == {}
 
