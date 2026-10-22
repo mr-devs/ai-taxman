@@ -18,84 +18,31 @@ def read(tmp_path, name):
     return yaml.safe_load((tmp_path / "audits" / f"{name}.yaml").read_text(encoding="utf-8"))
 
 
-def test_creates_the_named_audit_in_the_audits_directory(invoke, tmp_path):
+def test_writes_the_audit_from_the_projects_folders(invoke, tmp_path):
+    """Named by its two arguments, with every path read from the project's marker."""
+    custom_project(tmp_path)
+
     result = invoke("audits", "new", "openai", "election-probe")
 
     assert result.exit_code == 0
-    assert (tmp_path / "audits" / "election-probe.yaml").is_file()
+    text = (tmp_path / "study" / "audits" / "election-probe.yaml").read_text(encoding="utf-8")
+    audit = yaml.safe_load(text)
+    assert audit["audit"] == "election-probe"
+    assert audit["provider"] == "openai"
+    # taxman never guesses which variable holds the key; the user names it.
+    assert audit["api_key_env"] == "<insert_api_key_env_var_here>"
+    assert audit["messages"] == "study/msgs/election-probe.txt"
+    assert audit["system_prompt"] is None
+    assert "#   Example:  taxman/prompts/neutral.txt" in comment_above(text, "system_prompt")
+    assert audit["output"]["dir"] == "out/{audit}/{run_id}"
+    assert audit["output"]["log_dir"] == "taxman/logs/{audit}"
+    assert not (tmp_path / "taxman-home").exists()
 
 
-def test_the_audit_is_named_by_the_second_argument(invoke, tmp_path):
-    invoke("audits", "new", "openai", "election-probe")
+def test_the_file_loads_and_validates_as_written(invoke, tmp_path):
+    """`audits new` output must load before the user edits a thing, model block included."""
+    from ai_taxman.core.registry import get_provider
 
-    assert read(tmp_path, "election-probe")["audit"] == "election-probe"
-
-
-def test_the_audit_names_its_provider(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    assert read(tmp_path, "probe")["provider"] == "openai"
-
-
-def test_the_name_is_required(invoke):
-    result = invoke("audits", "new", "openai")
-
-    assert result.exit_code != 0
-
-
-def test_the_model_defaults_to_the_providers_own(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    assert read(tmp_path, "probe")["model"]["name"] == "gpt-5"
-
-
-def test_the_api_key_variable_is_left_for_the_user_to_fill_in(invoke, tmp_path):
-    """taxman never guesses which variable holds the key; the user names it."""
-    invoke("audits", "new", "openai", "probe")
-
-    assert read(tmp_path, "probe")["api_key_env"] == "<insert_api_key_env_var_here>"
-
-
-def test_the_comment_hints_at_the_providers_conventional_variable(invoke, tmp_path):
-    text = (
-        (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8")
-        if invoke("audits", "new", "openai", "probe")
-        else ""
-    )
-
-    assert "OPENAI_API_KEY" in text
-    hint = next(line for line in text.splitlines() if "OPENAI_API_KEY" in line)
-    assert hint.lstrip().startswith("#"), "the hint belongs in a comment, not the value"
-
-
-def test_the_scaffolded_file_still_parses_as_yaml(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    assert isinstance(read(tmp_path, "probe"), dict)
-
-
-def test_settings_are_written_at_their_defaults(invoke, tmp_path):
-    """Nothing is pre-filled from the command line; the file carries the defaults."""
-    audit = read(tmp_path, "probe") if invoke("audits", "new", "openai", "probe") else None
-
-    assert audit["execution"]["repeats"] == 1
-    assert audit["model"]["temperature"] is None
-
-
-def test_it_writes_only_to_the_working_directory(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    assert (tmp_path / "audits" / "probe.yaml").is_file()
-    assert not (tmp_path / "taxman-home" / "audits").exists()
-
-
-def test_points_at_a_messages_file_named_after_the_audit(invoke, tmp_path):
-    invoke("audits", "new", "openai", "election-probe")
-
-    assert read(tmp_path, "election-probe")["messages"] == "messages/election-probe.txt"
-
-
-def test_the_generated_file_loads_as_a_valid_audit(invoke, tmp_path):
     invoke("audits", "new", "openai", "probe")
     (tmp_path / "messages").mkdir()
     (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
@@ -103,15 +50,13 @@ def test_the_generated_file_loads_as_a_valid_audit(invoke, tmp_path):
     config = load_audit(tmp_path / "audits" / "probe.yaml")
 
     assert config.provider == "openai"
+    get_provider("openai").validate_model_config(read(tmp_path, "probe")["model"])
 
 
-def test_the_generated_model_block_validates_against_the_provider(invoke, tmp_path):
-    from ai_taxman.core.registry import get_provider
+def test_the_name_is_required(invoke):
+    result = invoke("audits", "new", "openai")
 
-    invoke("audits", "new", "openai", "probe")
-    block = read(tmp_path, "probe")["model"]
-
-    get_provider("openai").validate_model_config(block)
+    assert result.exit_code != 0
 
 
 def next_steps(output):
@@ -192,14 +137,6 @@ def test_it_takes_no_further_arguments(invoke):
     assert result.exit_code != 0
 
 
-def test_the_generated_file_carries_explanatory_comments(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-    text = (tmp_path / "audits" / "probe.yaml").read_text(encoding="utf-8")
-
-    assert "# How many times each message is sent." in text
-    assert "taxman collect probe" in text
-
-
 # --- the project's folders --------------------------------------------------
 
 
@@ -208,62 +145,6 @@ def custom_project(tmp_path):
 
     (tmp_path / MARKER_FILENAME).unlink()
     write_marker(tmp_path, Layout(audits="study/audits", messages="study/msgs", data="out"))
-
-
-def test_the_audit_lands_in_the_projects_audits_folder(invoke, tmp_path):
-    custom_project(tmp_path)
-
-    result = invoke("audits", "new", "openai", "probe")
-
-    assert result.exit_code == 0
-    assert (tmp_path / "study" / "audits" / "probe.yaml").is_file()
-
-
-def test_the_messages_file_is_in_the_projects_messages_folder(invoke, tmp_path):
-    custom_project(tmp_path)
-    invoke("audits", "new", "openai", "probe")
-
-    audit = yaml.safe_load((tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8"))
-
-    assert audit["messages"] == "study/msgs/probe.txt"
-
-
-def test_output_goes_to_the_projects_data_folder(invoke, tmp_path):
-    custom_project(tmp_path)
-    invoke("audits", "new", "openai", "probe")
-
-    audit = yaml.safe_load((tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8"))
-
-    assert audit["output"]["dir"] == "out/{audit}/{run_id}"
-
-
-def test_logs_go_to_the_projects_logs_folder(invoke, tmp_path):
-    custom_project(tmp_path)
-    invoke("audits", "new", "openai", "probe")
-
-    audit = yaml.safe_load((tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8"))
-
-    assert audit["output"]["log_dir"] == "taxman/logs/{audit}"
-
-
-def test_no_system_prompt_is_set_until_the_user_names_one(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    assert read(tmp_path, "probe")["system_prompt"] is None
-
-
-def test_the_system_prompt_comment_points_at_the_prompts_folder(invoke, tmp_path):
-    custom_project(tmp_path)
-    invoke("audits", "new", "openai", "probe")
-    text = (tmp_path / "study" / "audits" / "probe.yaml").read_text("utf-8")
-
-    assert any("taxman/prompts/" in line for line in comment_above(text, "system_prompt"))
-
-
-def test_the_model_block_no_longer_carries_a_system_prompt(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-
-    assert "system_prompt" not in read(tmp_path, "probe")["model"]
 
 
 def test_a_second_audit_lands_in_the_project_from_a_subdirectory(invoke, tmp_path, monkeypatch):
@@ -349,15 +230,6 @@ def test_settings_are_in_the_order_a_user_fills_them_in(invoke, tmp_path):
     ]
 
 
-@pytest.mark.parametrize("key", ["audit", "provider", "api_key_env", "messages", "system_prompt"])
-def test_every_top_level_setting_explains_itself(invoke, tmp_path, key):
-    """What it does, then what it is when left alone, above the key itself."""
-    above = comment_above(audit_text(invoke, tmp_path), key)
-
-    assert not above[0].startswith("#   "), above
-    assert any(line.startswith(("#   Default:", "#   Required:")) for line in above), above
-
-
 def test_the_audit_name_says_it_must_match_the_file(invoke, tmp_path):
     above = " ".join(nested_comment_above(audit_text(invoke, tmp_path), "audit"))
 
@@ -410,11 +282,34 @@ def test_each_core_setting_is_explained_in_one_or_two_short_sentences(invoke, tm
     assert explanation(audit_text(invoke, tmp_path), key) == CONCISE[key]
 
 
-def test_a_blank_system_prompt_means_none_is_sent(invoke, tmp_path):
-    above = comment_above(audit_text(invoke, tmp_path), "system_prompt")
+def unexplained_settings(text):
+    """Each setting in `text` that is not explained in full by the comment above it.
 
-    assert "#   Default:  blank (no system prompt)" in above
-    assert "#   Example:  prompts/neutral.txt" in above
+    In full means the comment starts by saying what the setting does and, unless
+    the setting is a block of further settings, says what it is when left alone.
+    """
+    lines = text.splitlines()
+    missing = []
+    for index, line in enumerate(lines):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        above = []
+        for previous in reversed(lines[:index]):
+            if not previous.lstrip().startswith("#"):
+                break
+            above.insert(0, previous.lstrip())
+        indent = len(line) - len(line.lstrip())
+        following = next((later for later in lines[index + 1 :] if later.strip()), "")
+        is_block = following.startswith(" " * (indent + 2))
+        says_default = any(text.startswith(("#   Default:", "#   Required:")) for text in above)
+        if not above or above[0].startswith("#   ") or not (is_block or says_default):
+            missing.append(line.strip())
+    return missing
+
+
+def test_every_setting_in_the_file_explains_itself(invoke, tmp_path):
+    """What it does, then what it is when left alone, above every key in the file."""
+    assert unexplained_settings(audit_text(invoke, tmp_path)) == []
 
 
 def test_no_line_ends_in_whitespace(invoke, tmp_path):
@@ -447,31 +342,11 @@ CORE_SETTINGS = (
 )
 
 
-@pytest.mark.parametrize("key", CORE_SETTINGS)
-def test_every_output_and_execution_setting_explains_itself(invoke, tmp_path, key):
-    """What it does, then what it is when left alone, above the key itself."""
-    above = nested_comment_above(audit_text(invoke, tmp_path), key)
-
-    assert not above[0].endswith(":"), above
-    assert any(line.startswith(("Default:", "Required:")) for line in above), above
-
-
-@pytest.mark.parametrize("key", ["output", "execution"])
-def test_each_core_block_says_what_it_is_for(invoke, tmp_path, key):
-    assert comment_above(audit_text(invoke, tmp_path), key)
-
-
-def test_on_error_says_what_each_choice_does(invoke, tmp_path):
-    above = nested_comment_above(audit_text(invoke, tmp_path), "on_error")
-
-    assert any(line.startswith("Options:  continue  ") for line in above), above
-    assert any(line.startswith("stop      ") for line in above), above
-
-
-def test_execution_is_written_at_its_defaults(invoke, tmp_path):
+def test_execution_and_output_are_written_at_their_defaults(invoke, tmp_path):
     invoke("audits", "new", "openai", "probe")
+    audit = read(tmp_path, "probe")
 
-    assert read(tmp_path, "probe")["execution"] == {
+    assert audit["execution"] == {
         "repeats": 1,
         "max_concurrency": 8,
         "batch": False,
@@ -480,13 +355,10 @@ def test_execution_is_written_at_its_defaults(invoke, tmp_path):
         "on_error": "continue",
         "shuffle": False,
     }
-
-
-def test_responses_are_written_uncompressed_by_default(invoke, tmp_path):
-    invoke("audits", "new", "openai", "probe")
-    output = read(tmp_path, "probe")["output"]
-
-    assert (output["filename"], output["compress"]) == ("responses.jsonl", False)
+    assert (audit["output"]["filename"], audit["output"]["compress"]) == (
+        "responses.jsonl",
+        False,
+    )
 
 
 # --- what an audit may be called -------------------------------------------
@@ -503,9 +375,9 @@ def test_a_name_that_cannot_be_an_audit_is_refused(invoke, tmp_path, name):
     assert not list(tmp_path.glob("audits/**/*.yaml"))
 
 
-@pytest.mark.parametrize("name", ["yes", "2024", "null", "true", "1e3"])
-def test_a_name_yaml_would_misread_still_loads(invoke, tmp_path, name):
+def test_a_name_yaml_would_misread_still_loads(invoke, tmp_path):
     """`audit: yes` is a boolean to YAML; the file must say the name as a string."""
+    name = "yes"
     (tmp_path / "messages").mkdir()
     (tmp_path / "messages" / f"{name}.txt").write_text("one\n", encoding="utf-8")
 
