@@ -53,20 +53,21 @@ way its API takes one. A provider's `model:` block never carries its own.
 Provider APIs call their chat-turn arrays `messages` too. Keep that sense **inside the provider
 adapter** and name the variable `request_messages` so the two never blur.
 
-## TDD is mandatory
+## Testing
 
-No implementation without a failing test first. For every unit of behaviour:
+Run `uv run pytest` at the start of every session. TDD is mandatory: write the test, watch it
+fail for the right reason, write the least code that passes, refactor with it green. Before
+adding a test, name the bug it catches that no other test does; if there is none, do not add
+it. Test at the lowest layer that sees the behaviour, with one CLI test for the wiring; shared
+provider rules go in the conformance suite. Test taxman's rules, not pydantic's, and never
+documentation wording. Never delete, skip or weaken a test without the user's approval. The
+details are in the `writing-tests` skill (`.claude/skills/writing-tests/SKILL.md`).
 
-1. Write the test. Run it. Watch it fail for the right reason.
-2. Write the minimum code to pass.
-3. Refactor with the test green.
-
-Do not write a module and backfill tests. If you are about to, stop and write the test.
-
-**No network in the default test run.** Real API calls, which cost money, go behind
-`@pytest.mark.live`; free fetches, such as the docs link checks, go behind
-`@pytest.mark.network`. `addopts` deselects both. `uv run pytest` must pass offline, with no
-API keys set.
+**No network, no spending.** `live` tests call paid APIs and `network` tests fetch free pages;
+`addopts` deselects both, and pytest-socket fails any other test that opens a socket.
+`uv run pytest` must pass offline, with no API keys set. Never run `live`, set a key variable,
+or re-record `tests/providers/*/fixtures/`: ask, naming the tests and roughly how many calls.
+Any `-m` you pass must include `and not live and not network`.
 
 ## Provider isolation (the core architectural rule)
 
