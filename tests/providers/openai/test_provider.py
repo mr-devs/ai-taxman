@@ -3,6 +3,10 @@ import pytest
 from ai_taxman.providers.openai.provider import PROVIDER, OpenAIProvider
 
 
+def test_declares_the_conventional_openai_variable():
+    assert PROVIDER.default_api_key_env == "OPENAI_API_KEY"
+
+
 def comment_above(key, text=None):
     """The comment above `key:` in the template, at any depth, without its `#`s."""
     lines = (text or PROVIDER.render_template()).splitlines()

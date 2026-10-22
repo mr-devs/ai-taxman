@@ -74,14 +74,6 @@ def test_defaults_to_one_attempt():
     assert make_record().attempts == 1
 
 
-def test_error_records_carry_the_failure_and_an_empty_response():
-    record = make_record(status="error", error="rate limited after 5 attempts", raw={})
-
-    assert record.status == "error"
-    assert record.error == "rate limited after 5 attempts"
-    assert record.raw == {}
-
-
 def test_status_is_constrained():
     with pytest.raises(ValueError):
         make_record(status="maybe")

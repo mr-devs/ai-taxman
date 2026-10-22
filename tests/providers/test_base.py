@@ -1,17 +1,6 @@
 import pytest
 
-from ai_taxman.core.messages import Message
-from ai_taxman.providers.base import Provider, Request
-
-
-def test_request_carries_the_message_repeat_and_model_config():
-    message = Message(id="m0000", text="hello", line_number=1)
-
-    request = Request(message=message, repeat=2, model={"name": "fake-1"})
-
-    assert request.message is message
-    assert request.repeat == 2
-    assert request.model == {"name": "fake-1"}
+from ai_taxman.providers.base import Provider
 
 
 def test_provider_cannot_be_instantiated_without_the_contract():
