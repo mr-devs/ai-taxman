@@ -181,6 +181,10 @@ def test_web_search_gives_claude_the_latest_web_search_tool():
     assert search()["tools"] == [{"type": "web_search_20260318", "name": "web_search"}]
 
 
+def test_web_search_false_adds_no_tools():
+    assert "tools" not in request_for({**BASE, "search": {"web_search": False}})
+
+
 @pytest.mark.parametrize(
     "settings, sent",
     [
