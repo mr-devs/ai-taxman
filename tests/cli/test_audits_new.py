@@ -364,11 +364,9 @@ def test_execution_and_output_are_written_at_their_defaults(invoke, tmp_path):
 # --- what an audit may be called -------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "name", ["sub/bar", "a: b", "_under", ".hidden", "with space", "probe.yaml"]
-)
-def test_a_name_that_cannot_be_an_audit_is_refused(invoke, tmp_path, name):
-    result = invoke("audits", "new", "openai", name)
+def test_a_name_that_cannot_be_an_audit_is_refused(invoke, tmp_path):
+    """Before anything is written; each rule is tested where it lives, in discovery."""
+    result = invoke("audits", "new", "openai", "sub/bar")
 
     assert result.exit_code != 0
     assert "letters, digits" in result.output
@@ -386,16 +384,6 @@ def test_a_name_yaml_would_misread_still_loads(invoke, tmp_path):
 
     assert result.exit_code == 0, result.output
     assert read(tmp_path, name)["audit"] == name
-
-
-@pytest.mark.parametrize("name", ["taxman", "Taxman", "TAXMAN"])
-def test_an_audit_cannot_share_the_markers_name(invoke, tmp_path, name):
-    """`audits/taxman.yaml` would mark the audits folder as a project root."""
-    result = invoke("audits", "new", "openai", name)
-
-    assert result.exit_code != 0
-    assert "taxman.yaml" in result.output
-    assert not list(tmp_path.glob("audits/*.yaml"))
 
 
 def test_an_existing_yml_audit_is_not_shadowed(invoke, tmp_path):

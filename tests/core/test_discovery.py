@@ -18,6 +18,7 @@ from ai_taxman.core.discovery import (
     list_audits,
     read_layout,
     require_project_root,
+    validate_audit_name,
     write_marker,
 )
 from ai_taxman.core.errors import AuditNotFoundError, ConfigError, NotATaxmanProjectError
@@ -247,6 +248,24 @@ def test_two_purposes_cannot_share_a_folder():
 def test_one_folder_cannot_sit_inside_another():
     with pytest.raises(ConfigError, match="audits"):
         Layout(audits="work", data="work/data")
+
+
+# --- what an audit may be called -------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name", ["sub/bar", "a: b", "_under", ".hidden", "with space", "probe.yaml"]
+)
+def test_a_name_that_cannot_name_an_audit_file_is_refused(name):
+    with pytest.raises(ConfigError, match="letters, digits"):
+        validate_audit_name(name)
+
+
+@pytest.mark.parametrize("name", ["taxman", "TAXMAN"])
+def test_an_audit_cannot_share_the_markers_name(name):
+    """`audits/taxman.yaml` would mark the audits folder as a project root."""
+    with pytest.raises(ConfigError, match="taxman.yaml"):
+        validate_audit_name(name)
 
 
 # --- finding one audit ----------------------------------------------------
