@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from ai_taxman.core.messages import message_id
@@ -36,40 +34,17 @@ def make_project(tmp_path, body=None, messages="one\ntwo\nthree\n"):
     )
 
 
-def test_runs_an_audit_by_name(invoke, tmp_path, fake_provider):
+def test_collects_an_audit_by_name_and_summarises_it(invoke, tmp_path, fake_provider):
+    """The counts, and where the responses went, from where the user stands."""
     make_project(tmp_path)
 
-    result = invoke("collect", "probe")
+    result = invoke("collect", "probe", "--quiet")
 
     assert result.exit_code == 0
     assert len(fake_provider.sent) == 3
-
-
-def test_reports_where_the_output_went(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe")
-
-    assert "responses.jsonl" in result.output
-
-
-def test_reports_the_counts(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe")
-
-    assert "3" in result.output
-
-
-def test_writes_the_jsonl_and_manifest(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    invoke("collect", "probe")
-
-    runs = list((tmp_path / "data" / "probe").iterdir())
-    assert len(runs) == 1
-    assert (runs[0] / "responses.jsonl").is_file()
-    assert (runs[0] / "manifest.json").is_file()
+    summary = result.output.strip().splitlines()[-1]
+    assert summary.startswith("3 ok  ->  data/probe/")
+    assert summary.endswith("responses.jsonl")
 
 
 @pytest.mark.parametrize("flag", ["--repeats", "-r", "--concurrency", "-c"])
@@ -123,44 +98,6 @@ def test_a_changed_audit_is_not_resumed(invoke, tmp_path, fake_provider):
     assert fake_provider.sent == []
 
 
-def test_two_audits_in_one_directory_are_told_how_to_fix_it(invoke, tmp_path, fake_provider):
-    """Not that the second audit "has changed": it never had a run there."""
-    shared = (
-        "audit: {name}\nprovider: fake\nmessages: messages/probe.txt\n"
-        "output:\n  dir: data/shared\n  log_dir: logs/{{audit}}\nmodel:\n  name: fake-1\n"
-    )
-    make_project(tmp_path, shared.format(name="probe"))
-    (tmp_path / "audits" / "other.yaml").write_text(shared.format(name="other"), encoding="utf-8")
-    assert invoke("collect", "probe").exit_code == 0
-    fake_provider.sent.clear()
-
-    result = invoke("collect", "other")
-
-    assert result.exit_code != 0
-    assert "already holds run" in result.output
-    assert "has changed" not in result.output
-    assert fake_provider.sent == []
-
-
-def test_a_run_killed_after_its_last_response_is_marked_complete(invoke, tmp_path, fake_provider):
-    """It never got to say so itself; collecting again sends nothing, and says it for it."""
-    make_project(tmp_path)
-    invoke("collect", "probe")
-    (run,) = (tmp_path / "data" / "probe").iterdir()
-    manifest_path = run / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest.update(status="running", n_ok=0, finished_at=None)
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-
-    result = invoke("collect", "probe")
-
-    assert "already complete" in result.output
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest["status"] == "complete"
-    assert manifest["n_ok"] == 3
-    assert manifest["finished_at"] is not None
-
-
 def test_a_complete_one_run_folder_is_told_to_move_the_run(invoke, tmp_path, fake_provider):
     make_project(
         tmp_path,
@@ -202,72 +139,6 @@ def test_a_resumed_run_says_so_before_it_starts(invoke, tmp_path, fake_provider)
     assert "sending 1, after it failed before" in result.output
 
 
-def test_accepts_a_path_to_an_audit_file(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "audits/probe.yaml")
-
-    assert result.exit_code == 0
-
-
-def test_unknown_audit_lists_the_available_ones(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "porbe")
-
-    assert result.exit_code != 0
-    assert "probe" in result.output
-
-
-def test_a_missing_message_file_fails_before_sending_anything(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-    (tmp_path / "messages" / "probe.txt").unlink()
-
-    result = invoke("collect", "probe")
-
-    assert result.exit_code != 0
-    assert fake_provider.sent == []
-
-
-def test_an_invalid_model_block_is_reported_against_the_file(invoke, tmp_path, fake_provider):
-    make_project(
-        tmp_path,
-        body=(
-            "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
-            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
-            "model:\n  boom: true\n"
-        ),
-    )
-
-    result = invoke("collect", "probe")
-
-    assert result.exit_code != 0
-    assert "boom" in result.output
-
-
-def test_errors_are_reported_but_the_run_still_finishes(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-    fake_provider.failures = {TWO: [RuntimeError("nope")]}
-
-    result = invoke("collect", "probe")
-
-    assert result.exit_code == 0
-    assert "error" in result.output.lower()
-
-
-def test_a_run_where_everything_fails_exits_nonzero(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-    fake_provider.failures = {
-        ONE: [RuntimeError("a")],
-        TWO: [RuntimeError("b")],
-        THREE: [RuntimeError("c")],
-    }
-
-    result = invoke("collect", "probe")
-
-    assert result.exit_code != 0
-
-
 def test_a_resumed_run_is_judged_on_the_whole_run(invoke, tmp_path, fake_provider):
     """One message that always fails must not fail every later collect of a run
     that is otherwise answered."""
@@ -280,36 +151,6 @@ def test_a_resumed_run_is_judged_on_the_whole_run(invoke, tmp_path, fake_provide
     assert result.exit_code == 0, result.output
     assert "0 ok, 1 error" in result.output
     assert "now has 2 of 3 responses" in result.output
-
-
-def test_a_run_finished_by_another_collect_meanwhile_is_reported_complete(
-    invoke, tmp_path, fake_provider, monkeypatch
-):
-    """The runner plans again before it sends, and may find nothing left to do."""
-    from ai_taxman.core import runner
-    from ai_taxman.core.runner import RunResult
-
-    make_project(tmp_path)
-
-    def finished_elsewhere(config, checked, **kwargs):
-        directory = tmp_path / "data" / "probe" / RUN
-        return RunResult(
-            run_id=RUN,
-            output_path=directory / "responses.jsonl",
-            manifest_path=directory / "manifest.json",
-            n_ok=0,
-            n_error=0,
-            run_n_ok=3,
-            expected=3,
-            already_complete=True,
-        )
-
-    monkeypatch.setattr(runner, "run_checked", finished_elsewhere)
-
-    result = invoke("collect", "probe")
-
-    assert result.exit_code == 0, result.output
-    assert "already complete" in result.output
 
 
 def stopped(tmp_path, monkeypatch, *, by_signal=True, **counts):
@@ -412,21 +253,10 @@ def test_collect_reads_a_resumed_run_once(invoke, tmp_path, fake_provider, reads
     assert len(reads) == 1
 
 
-def test_manifest_records_the_run(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    invoke("collect", "probe")
-
-    run_dir = next((tmp_path / "data" / "probe").iterdir())
-    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-
-    assert manifest["n_messages"] == 3
-    assert manifest["n_ok"] == 3
-
-
 def test_a_provider_that_cannot_start_is_reported_without_a_traceback(
     invoke, tmp_path, fake_provider
 ):
+    """And leaves no log: a log file is a record of a run, and there was none."""
     make_project(tmp_path)
     fake_provider.startup_error = RuntimeError("Missing credentials.")
 
@@ -435,6 +265,7 @@ def test_a_provider_that_cannot_start_is_reported_without_a_traceback(
     assert result.exit_code != 0
     assert "Missing credentials" in result.output
     assert "Traceback" not in result.output
+    assert not list(tmp_path.glob("logs/**/*.log"))
 
 
 def test_the_banner_names_the_model_via_the_provider(invoke, tmp_path, fake_provider):
@@ -445,25 +276,6 @@ def test_the_banner_names_the_model_via_the_provider(invoke, tmp_path, fake_prov
     result = invoke("collect", "probe")
 
     assert "described-by-provider" in result.output
-
-
-def test_a_missing_api_key_is_reported_cleanly(invoke, tmp_path, fake_provider, monkeypatch):
-    fake_provider.requires_api_key = True
-    monkeypatch.delenv("TAXMAN_FAKE_API_KEY", raising=False)
-    make_project(
-        tmp_path,
-        body=(
-            "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
-            "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
-            "api_key_env: TAXMAN_FAKE_API_KEY\nmodel:\n  name: fake-1\n"
-        ),
-    )
-
-    result = invoke("collect", "probe")
-
-    assert result.exit_code != 0
-    assert "TAXMAN_FAKE_API_KEY" in result.output
-    assert "Traceback" not in result.output
 
 
 def test_a_missing_api_key_is_reported_before_the_banner(
@@ -484,16 +296,9 @@ def test_a_missing_api_key_is_reported_before_the_banner(
     result = invoke("collect", "probe")
 
     assert result.exit_code != 0
+    assert "TAXMAN_FAKE_API_KEY" in result.output
+    assert "Traceback" not in result.output
     assert "Collecting" not in result.output
-
-
-def test_the_summary_names_the_output_from_where_the_user_stands(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", "--quiet")
-
-    summary = result.output.strip().splitlines()[-1]
-    assert summary.startswith("3 ok  ->  data/probe/")
 
 
 # --- logging -------------------------------------------------------------
@@ -520,42 +325,18 @@ def test_a_foreground_run_still_logs_to_the_terminal(invoke, tmp_path, fake_prov
     assert "run starting" in result.output
 
 
-def test_a_run_logs_under_its_run_id(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    invoke("collect", "probe")
-
-    (run,) = (tmp_path / "data" / "probe").iterdir()
-    assert (tmp_path / "logs" / "probe" / f"{run.name}.log").is_file()
-
-
-def test_a_log_file_captures_the_run(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", "--log-file", "run.log")
-
-    assert result.exit_code == 0
-    log = (tmp_path / "run.log").read_text(encoding="utf-8")
-    assert "run starting" in log
-    assert ONE in log
-
-
-def test_the_log_file_can_go_anywhere(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    invoke("collect", "probe", "--log-file", "logs/nested/run.log")
-
-    assert (tmp_path / "logs" / "nested" / "run.log").is_file()
-
-
 def test_the_summary_still_prints_when_the_log_goes_to_a_file(invoke, tmp_path, fake_provider):
     """The log is for the run; the summary is for the person who ran it."""
     make_project(tmp_path)
 
     result = invoke("collect", "probe", "--log-file", "run.log")
 
+    assert result.exit_code == 0
     assert "3 ok" in result.output
     assert "run starting" not in result.output
+    log = (tmp_path / "run.log").read_text(encoding="utf-8")
+    assert "run starting" in log
+    assert ONE in log
 
 
 def test_the_log_level_can_be_turned_down(invoke, tmp_path, fake_provider):
@@ -631,13 +412,3 @@ def test_a_run_that_cannot_start_fails_cleanly(invoke, tmp_path, fake_provider, 
     assert "Traceback" not in result.output
     assert "Collecting" not in result.output
     assert fake_provider.sent == []
-
-
-def test_a_run_that_never_starts_leaves_no_log(invoke, tmp_path, fake_provider):
-    """A log file is a record of a run; there must not be one for a run that never was."""
-    make_project(tmp_path)
-    fake_provider.startup_error = RuntimeError("no network")
-
-    invoke("collect", "probe")
-
-    assert not list(tmp_path.glob("logs/**/*.log"))

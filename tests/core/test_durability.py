@@ -228,6 +228,7 @@ async def test_two_audits_never_share_a_run_directory(project, fake_provider):
         await run_audit_async(load_audit(other))
 
     message = str(caught.value)
+    assert "already holds run" in message
     assert "run_id" in message
     assert "output.dir" in message
 

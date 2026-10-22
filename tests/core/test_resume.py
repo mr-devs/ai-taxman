@@ -313,12 +313,16 @@ async def test_a_run_killed_after_its_last_response_is_marked_complete(project, 
     """Every response is on disk, so the manifest stops saying otherwise."""
     first = await run_audit_async(audit(project))
     keep_only(first, (ONE, 0), (TWO, 0), (THREE, 0))
+    killed = json.loads(first.manifest_path.read_text(encoding="utf-8"))
+    killed.update(status="running", n_ok=0, finished_at=None)
+    first.manifest_path.write_text(json.dumps(killed), encoding="utf-8")
 
     await run_audit_async(audit(project))
 
     manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
     assert manifest["status"] == "complete"
     assert manifest["n_ok"] == 3
+    assert manifest["finished_at"] is not None
 
 
 # --- what a killed run left behind is made whole before it is added to -------------
