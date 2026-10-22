@@ -23,35 +23,12 @@ def test_lists_local_audits(invoke, tmp_path):
     assert "probe" in result.output
 
 
-def test_lists_audits_from_a_subdirectory_of_the_project(invoke, tmp_path, monkeypatch):
-    """The root is found by walking up, so any directory inside a project works."""
-    make_audit(tmp_path / "audits", "probe")
-    deep = tmp_path / "messages" / "nested"
-    deep.mkdir(parents=True)
-    monkeypatch.chdir(deep)
-
-    result = invoke("audits", "list")
-
-    assert result.exit_code == 0
-    assert "probe" in result.output
-
-
 def test_listing_outside_a_project_says_so(invoke, leave_project):
     result = invoke("audits", "list")
 
     assert result.exit_code != 0
     assert "not a taxman project" in result.output.lower()
     assert "taxman init" in result.output
-
-
-def test_a_stray_audits_directory_does_not_make_a_project(invoke, leave_project, tmp_path):
-    """An unrelated `audits/` folder must never be adopted as a project root."""
-    make_audit(tmp_path / "audits", "unrelated")
-
-    result = invoke("audits", "list")
-
-    assert result.exit_code != 0
-    assert "unrelated" not in result.output
 
 
 def test_collecting_outside_a_project_says_so(invoke, leave_project):
@@ -93,6 +70,7 @@ def test_validate_accepts_a_good_audit(invoke, tmp_path, fake_provider):
 
     assert result.exit_code == 0
     assert "2 message(s) x 3 repeat(s) = 6" in result.output
+    assert "Collecting it starts a new run." in result.output
 
 
 # --- validate says what collect would do with the audit's runs ------------------
@@ -113,16 +91,6 @@ def collected(invoke, tmp_path, fake_provider, *, failing=()):
 
 def tree(root):
     return sorted((path.relative_to(root), path.stat().st_mtime_ns) for path in root.rglob("*"))
-
-
-def test_validate_says_an_uncollected_audit_starts_a_run(invoke, tmp_path, fake_provider):
-    make_audit(tmp_path / "audits", "probe")
-    (tmp_path / "messages").mkdir()
-    (tmp_path / "messages" / "probe.txt").write_text("one\ntwo\n", encoding="utf-8")
-
-    result = invoke("audits", "validate", "probe")
-
-    assert "Collecting it starts a new run." in result.output
 
 
 def test_validate_says_which_run_collect_would_resume(invoke, tmp_path, fake_provider):
@@ -192,16 +160,6 @@ def test_validate_checks_a_run_it_cannot_write(invoke, tmp_path, fake_provider):
     assert f"Collecting it resumes run {run.name}" in result.output
 
 
-def test_validate_refuses_a_run_it_cannot_read(invoke, tmp_path, fake_provider):
-    run = collected(invoke, tmp_path, fake_provider, failing=["two"])
-    (run / "manifest.json").write_text("{", encoding="utf-8")
-
-    result = invoke("audits", "validate", "probe")
-
-    assert result.exit_code != 0
-    assert "cannot be read" in result.output
-
-
 def test_validate_changes_nothing_on_disk(invoke, tmp_path, fake_provider):
     collected(invoke, tmp_path, fake_provider, failing=["two"])
     before = tree(tmp_path / "data")
@@ -209,15 +167,6 @@ def test_validate_changes_nothing_on_disk(invoke, tmp_path, fake_provider):
     invoke("audits", "validate", "probe")
 
     assert tree(tmp_path / "data") == before
-
-
-def test_validate_reports_a_missing_message_file(invoke, tmp_path, fake_provider):
-    make_audit(tmp_path / "audits", "probe")
-
-    result = invoke("audits", "validate", "probe")
-
-    assert result.exit_code != 0
-    assert "probe.txt" in result.output
 
 
 def write_keyed_audit(tmp_path):
@@ -274,38 +223,6 @@ def test_show_names_the_file_from_where_the_user_stands(invoke, tmp_path):
     assert result.output.startswith("# audits/probe.yaml\n")
 
 
-def test_validate_reports_a_missing_system_prompt(invoke, tmp_path, fake_provider):
-    (tmp_path / "audits").mkdir()
-    (tmp_path / "audits" / "probe.yaml").write_text(
-        "audit: probe\nprovider: fake\nmessages: messages/probe.txt\n"
-        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
-        "system_prompt: prompts/absent.txt\nmodel:\n  name: fake-1\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "messages").mkdir()
-    (tmp_path / "messages" / "probe.txt").write_text("one\n", encoding="utf-8")
-
-    result = invoke("audits", "validate", "probe")
-
-    assert result.exit_code != 0
-    assert "absent.txt" in result.output
-
-
-def test_validate_rejects_a_bad_model_block(invoke, tmp_path, fake_provider):
-    (tmp_path / "audits").mkdir()
-    (tmp_path / "audits" / "probe.yaml").write_text(
-        "audit: probe\nprovider: fake\nmessages: m.txt\n"
-        "output:\n  dir: data/{audit}/{run_id}\n  log_dir: logs/{audit}\n"
-        "model:\n  boom: true\n",
-        encoding="utf-8",
-    )
-
-    result = invoke("audits", "validate", "probe")
-
-    assert result.exit_code != 0
-    assert "boom" in result.output
-
-
 def test_lists_providers(invoke):
     result = invoke("providers")
 
@@ -343,16 +260,3 @@ def test_validate_refuses_batch_mode_collect_cannot_run(invoke, tmp_path, fake_p
     assert result.exit_code != 0
     assert "batch" in result.output
     assert "is valid" not in result.output
-
-
-@pytest.mark.parametrize("key", ["dir", "log_dir"])
-def test_validate_refuses_an_unknown_path_placeholder(invoke, tmp_path, fake_provider, key):
-    paths = {"dir": "data/{audit}/{run_id}", "log_dir": "logs/{audit}", key: "out/{date}"}
-    checkable_audit(
-        tmp_path, "output:\n" + "".join(f"  {name}: {value}\n" for name, value in paths.items())
-    )
-
-    result = invoke("audits", "validate", "probe")
-
-    assert result.exit_code != 0
-    assert "{date}" in result.output

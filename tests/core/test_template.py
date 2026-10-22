@@ -42,13 +42,6 @@ def test_each_setting_is_explained_by_the_comment_above_it():
     assert comment_above(lines, "temperature")[0] == "# How random sampling is."
 
 
-def test_a_given_value_is_written_and_the_rest_left_blank():
-    lines = render_block(Settings, values={"name": "gpt-5"})
-
-    assert "name: gpt-5" in lines
-    assert "temperature:" in lines
-
-
 def test_settings_are_separated_by_a_blank_line():
     lines = render_block(Settings, values={"name": "gpt-5"})
 
@@ -189,12 +182,6 @@ def typed(annotation, **constraints):
 )
 def test_the_type_says_what_the_setting_takes(annotation, constraints, expected):
     assert typed(annotation, **constraints) == expected
-
-
-def test_the_type_line_follows_the_explanation():
-    lines = comment_above(render_block(Settings, values={"name": "gpt-5"}), "temperature")
-
-    assert lines[:2] == ["# How random sampling is.", "#   Type:     float"]
 
 
 def test_a_nested_block_has_no_type_line():

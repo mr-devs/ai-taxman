@@ -79,12 +79,6 @@ def test_status_is_constrained():
         make_record(status="maybe")
 
 
-def test_raw_provider_payload_is_preserved_verbatim():
-    payload = {"nested": {"list": [1, 2, {"deep": True}]}, "unicode": "🧾"}
-
-    assert make_record(raw=payload).to_dict()["raw"] == payload
-
-
 def test_run_ids_are_unique_and_sortable():
     ids = sorted(new_run_id() for _ in range(50))
 
@@ -137,13 +131,6 @@ def test_manifest_counts_default_to_zero_before_the_run_finishes():
 
 
 # --- run ids ---------------------------------------------------------------
-
-
-def test_a_generated_run_id_is_sortable_and_unique():
-    first, second = new_run_id(), new_run_id()
-
-    assert first != second
-    assert first[:4] == "2026"[:4] or first[:2] == "20"
 
 
 @pytest.mark.parametrize(

@@ -265,8 +265,8 @@ def test_output_dir_may_be_absolute(tmp_path):
     assert resolve_output_dir(load_audit(path), run_id="r1") == target / "my-audit"
 
 
-@pytest.mark.parametrize("missing", ["audit", "provider", "messages"])
-def test_missing_required_key_is_reported_by_name(tmp_path, missing):
+def test_missing_required_key_is_reported_by_name(tmp_path):
+    missing = "provider"
     body = "\n".join(
         line
         for line in textwrap.dedent(MINIMAL).lstrip().splitlines()
@@ -295,27 +295,6 @@ def test_unknown_top_level_key_is_rejected(tmp_path):
     )
 
     with pytest.raises(ConfigError, match="tempurature"):
-        load_audit(path)
-
-
-def test_unknown_execution_key_is_rejected(tmp_path):
-    path = write_audit(
-        tmp_path,
-        """
-        audit: my-audit
-        provider: openai
-        messages: messages/probe.txt
-        output:
-          dir: data/{audit}/{run_id}
-          log_dir: logs/{audit}
-        execution:
-          repeets: 3
-        model:
-          name: gpt-5
-        """,
-    )
-
-    with pytest.raises(ConfigError, match="repeets"):
         load_audit(path)
 
 

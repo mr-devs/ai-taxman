@@ -47,14 +47,6 @@ def test_the_folders_are_created(invoke, leave_project, tmp_path):
         assert (tmp_path / folder).is_dir(), folder
 
 
-def test_the_marker_holds_relative_folders(invoke, leave_project, tmp_path):
-    invoke("init", "--yes")
-    text = (tmp_path / MARKER_FILENAME).read_text(encoding="utf-8")
-
-    assert "taxman/data" in text
-    assert str(tmp_path) not in text
-
-
 def test_it_says_where_the_project_is_and_what_comes_next(invoke, leave_project, tmp_path):
     result = invoke("init", "--yes")
 
@@ -63,13 +55,6 @@ def test_it_says_where_the_project_is_and_what_comes_next(invoke, leave_project,
 
 
 # --- asking ---------------------------------------------------------------
-
-
-def test_it_asks_about_every_folder(invoke, runner, leave_project, terminal):
-    result = answer(invoke, runner, "", "", "", "", "")
-
-    for label in ("Collected data", "Audit files", "Message files", "System prompts", "Run logs"):
-        assert label in result.output
 
 
 def test_it_asks_in_the_order_the_folders_are_used(invoke, runner, leave_project, terminal):

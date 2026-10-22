@@ -64,11 +64,13 @@ def test_reports_a_healthy_machine(invoke, env, actions, confirm):
 
 
 def test_reports_that_taxman_is_not_on_the_path(invoke, env, actions, confirm):
+    """And, declined, touches nothing."""
     confirm(False, False)
 
     result = invoke("doctor")
 
     assert "PATH" in result.output
+    assert actions == []
 
 
 def test_offers_to_fix_the_path_and_does_so_when_accepted(invoke, env, actions, confirm):
@@ -77,14 +79,6 @@ def test_offers_to_fix_the_path_and_does_so_when_accepted(invoke, env, actions, 
     invoke("doctor")
 
     assert "path" in actions
-
-
-def test_does_not_touch_anything_when_declined(invoke, env, actions, confirm):
-    confirm(False, False)
-
-    invoke("doctor")
-
-    assert actions == []
 
 
 def test_offers_to_install_completion(invoke, env, actions, confirm):
@@ -151,12 +145,4 @@ def test_a_remembered_decline_stops_the_prompt(invoke, env, actions, confirm):
 
     assert result.exit_code == 0
     assert actions == []
-
-
-def test_doctor_always_reports_even_when_prompts_are_skipped(invoke, env, actions, confirm):
-    save_state(load_state().with_skips(path=True, completion=True))
-    confirm()
-
-    result = invoke("doctor")
-
-    assert "PATH" in result.output
+    assert "PATH" in result.output  # it still reports, though it does not ask

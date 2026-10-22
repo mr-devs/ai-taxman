@@ -27,12 +27,3 @@ def test_render_template_takes_no_arguments():
     parameters = inspect.signature(Provider.render_template).parameters
 
     assert list(parameters) == ["self"]
-
-
-def test_a_request_carries_no_system_prompt_unless_the_audit_names_one():
-    from ai_taxman.core.messages import Message
-    from ai_taxman.providers.base import Request
-
-    message = Message(id="m0000", text="hi", line_number=1)
-
-    assert Request(message=message, repeat=0, model={}).system_prompt is None

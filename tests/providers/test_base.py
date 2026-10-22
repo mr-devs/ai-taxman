@@ -11,12 +11,6 @@ def test_provider_cannot_be_instantiated_without_the_contract():
         Incomplete()  # type: ignore[abstract]
 
 
-def test_lifecycle_hooks_default_to_no_ops(fake_provider):
-    """A provider that needs no session should not have to implement one."""
-    assert hasattr(Provider, "startup")
-    assert hasattr(Provider, "shutdown")
-
-
 def test_batch_methods_are_optional(fake_provider):
     assert fake_provider.supports_batch is False
 

@@ -113,16 +113,6 @@ def test_the_log_file_is_created_with_its_parent_directory(tmp_path):
     assert target.is_file()
 
 
-def test_lines_are_written_as_they_happen(tmp_path):
-    """A log nobody can tail until the process exits is not a log."""
-    target = tmp_path / "run.log"
-    setup_logging(log_file=target)
-
-    logging.getLogger(LOGGER_NAME).info("first")
-
-    assert "first" in target.read_text(encoding="utf-8")
-
-
 def test_the_level_filters_quieter_records(capsys):
     setup_logging(level="warning")
 

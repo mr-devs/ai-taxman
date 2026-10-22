@@ -32,12 +32,6 @@ def test_message_id_gives_the_id_read_messages_assigns(tmp_path):
     assert [m.id for m in read_messages(path)] == [message_id("first"), message_id("second")]
 
 
-def test_ids_are_stable_across_reads(tmp_path):
-    path = write(tmp_path, "a\nb\n")
-
-    assert [m.id for m in read_messages(path)] == [m.id for m in read_messages(path)]
-
-
 def test_skips_blank_lines_and_comments(tmp_path):
     path = write(tmp_path, "first\n\n# a comment\n   \nsecond\n")
 

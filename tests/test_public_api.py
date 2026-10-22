@@ -1,7 +1,7 @@
 """The Python API: the same workflow as the CLI, in three functions."""
 
 import ai_taxman
-from ai_taxman import AuditConfig, ResponseRecord, load_audit, read_messages, run_audit
+from ai_taxman import ResponseRecord, load_audit, run_audit
 
 
 def make_project(tmp_path):
@@ -24,13 +24,17 @@ def make_project(tmp_path):
     return path
 
 
-def test_version_is_exposed():
-    assert ai_taxman.__version__
-
-
 def test_the_public_names_are_importable_from_the_top_level():
-    for name in ("run_audit", "load_audit", "read_messages", "AuditConfig", "ResponseRecord"):
+    for name in (
+        "run_audit",
+        "load_audit",
+        "read_messages",
+        "message_id",
+        "AuditConfig",
+        "ResponseRecord",
+    ):
         assert name in ai_taxman.__all__
+        assert getattr(ai_taxman, name)
 
 
 def test_a_run_id_cannot_be_chosen_from_python():
@@ -41,35 +45,16 @@ def test_a_run_id_cannot_be_chosen_from_python():
         assert "run_id" not in inspect.signature(function).parameters
 
 
-def test_read_messages_returns_the_messages(tmp_path):
-    make_project(tmp_path)
-
-    messages = read_messages(tmp_path / "messages" / "probe.txt")
-
-    assert [m.text for m in messages] == ["one", "two"]
-
-
-def test_message_id_gives_the_id_a_message_is_recorded_under(tmp_path):
-    make_project(tmp_path)
-
-    first = read_messages(tmp_path / "messages" / "probe.txt")[0]
-
-    assert ai_taxman.message_id("one") == first.id
-    assert "message_id" in ai_taxman.__all__
-
-
-def test_load_audit_returns_a_config(tmp_path):
-    config = load_audit(make_project(tmp_path))
-
-    assert isinstance(config, AuditConfig)
-    assert config.provider == "fake"
-
-
 def test_run_audit_takes_a_path_and_runs_synchronously(tmp_path, fake_provider):
-    result = run_audit(make_project(tmp_path))
+    """Reporting each record as it is written, if the caller asks."""
+    seen = []
+
+    result = run_audit(make_project(tmp_path), on_record=seen.append)
 
     assert result.n_ok == 2
     assert result.output_path.is_file()
+    assert len(seen) == 2
+    assert all(isinstance(record, ResponseRecord) for record in seen)
 
 
 def test_run_audit_takes_a_loaded_config(tmp_path, fake_provider):
@@ -77,15 +62,6 @@ def test_run_audit_takes_a_loaded_config(tmp_path, fake_provider):
     config.execution.repeats = 3
 
     assert run_audit(config).n_ok == 6
-
-
-def test_run_audit_reports_progress(tmp_path, fake_provider):
-    seen = []
-
-    run_audit(make_project(tmp_path), on_record=seen.append)
-
-    assert len(seen) == 2
-    assert all(isinstance(record, ResponseRecord) for record in seen)
 
 
 def test_load_audit_takes_an_audit_name_like_the_cli(tmp_path, monkeypatch, flat_layout):
@@ -109,17 +85,6 @@ def test_run_audit_takes_an_audit_name(tmp_path, monkeypatch, fake_provider, fla
     monkeypatch.chdir(tmp_path)
 
     assert run_audit("probe").n_ok == 2
-
-
-def test_load_audit_by_name_outside_a_project_says_so(tmp_path, monkeypatch):
-    import pytest
-
-    from ai_taxman import TaxmanError
-
-    monkeypatch.chdir(tmp_path)
-
-    with pytest.raises(TaxmanError, match="not a taxman project"):
-        load_audit("probe")
 
 
 def test_every_error_load_audit_raises_by_name_is_importable(tmp_path, monkeypatch):

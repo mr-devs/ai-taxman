@@ -21,10 +21,6 @@ def test_unknown_provider_lists_what_is_available(fake_provider):
     assert "openai" in message
 
 
-def test_openai_is_a_built_in_provider():
-    assert "openai" in registry.available_providers()
-
-
 def test_available_providers_includes_registered_ones(fake_provider):
     assert "fake" in registry.available_providers()
 

@@ -17,12 +17,6 @@ def clean_environment(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_reads_an_exported_environment_variable(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env")
-
-    assert resolve_api_key("OPENAI_API_KEY") == "sk-from-env"
-
-
 def test_each_audit_gets_the_variable_it_named(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-anthropic")
@@ -39,31 +33,19 @@ def test_keys_with_awkward_characters_come_back_unchanged(monkeypatch):
 
 
 def test_an_unset_variable_is_an_error_naming_the_variable():
-    with pytest.raises(MissingApiKeyError) as exc:
-        resolve_api_key("OPENAI_API_KEY")
-
-    assert "OPENAI_API_KEY" in str(exc.value)
-
-
-def test_the_error_says_how_to_fix_it():
     """The user is at a prompt: tell them to export it and where the name lives."""
     with pytest.raises(MissingApiKeyError) as exc:
         resolve_api_key("OPENAI_API_KEY")
 
     message = str(exc.value)
+    assert "OPENAI_API_KEY" in message
     assert "export" in message.lower()
     assert "api_key_env" in message
 
 
-def test_an_empty_variable_counts_as_unset(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "")
-
-    with pytest.raises(MissingApiKeyError):
-        resolve_api_key("OPENAI_API_KEY")
-
-
-def test_a_whitespace_only_variable_counts_as_unset(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "   ")
+@pytest.mark.parametrize("value", ["", "   "], ids=["empty", "spaces"])
+def test_an_empty_variable_counts_as_unset(monkeypatch, value):
+    monkeypatch.setenv("OPENAI_API_KEY", value)
 
     with pytest.raises(MissingApiKeyError):
         resolve_api_key("OPENAI_API_KEY")
