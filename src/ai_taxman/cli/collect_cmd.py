@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import sys
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Annotated, Any
 
@@ -16,8 +17,6 @@ from ai_taxman.core.discovery import find_audit
 from ai_taxman.core.registry import get_provider
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runtime
-    from datetime import datetime
-
     from tqdm import tqdm
 
     from ai_taxman.core.config import AuditConfig
@@ -163,6 +162,8 @@ class _Progress:
         self._bar: tqdm[Any] | None = None
         self._ok = 0
         self._error = 0
+        #: When the latest pause ends: until then nothing new is sent.
+        self._paused_until: datetime | None = None
 
     def start(
         self, total: int, *, disable: bool | None = None, file: IO[str] | None = None
@@ -190,15 +191,24 @@ class _Progress:
         if self._bar is None:
             return
         with self._or_drop():
-            self._bar.set_postfix(ok=self._ok, error=self._error, refresh=False)
+            self._bar.set_postfix(self._postfix(), refresh=False)
             self._bar.update(1)
 
     def paused(self, until: datetime) -> None:
-        """Say why the bar has stopped: a pause, until the next response clears it."""
+        """Say why the bar has stopped: a pause, shown until it ends."""
+        self._paused_until = until
         if self._bar is None:
             return
         with self._or_drop():
-            self._bar.set_postfix(ok=self._ok, error=self._error, paused=f"until {until:%H:%M:%S}")
+            self._bar.set_postfix(self._postfix())
+
+    def _postfix(self) -> dict[str, object]:
+        postfix: dict[str, object] = {"ok": self._ok, "error": self._error}
+        # A response can land mid-pause, from a request sent before it began.
+        until = self._paused_until
+        if until is not None and until > datetime.now().astimezone():
+            postfix["paused"] = f"until {until:%H:%M:%S}"
+        return postfix
 
     def close(self) -> None:
         if self._bar is not None:

@@ -352,6 +352,26 @@ def test_a_pause_shows_on_the_bar(invoke, tmp_path, fake_provider, monkeypatch):
     assert "paused=until" in result.output
 
 
+def test_a_response_landing_during_a_pause_keeps_it_on_the_bar():
+    """A request already in flight can come back mid-pause; nothing new is sent
+    until the pause ends, so the bar still says so."""
+    import io
+    from datetime import datetime, timedelta
+
+    from ai_taxman.cli.collect_cmd import _Progress
+    from ai_taxman.core.records import ResponseRecord
+
+    terminal = io.StringIO()
+    progress = _Progress()
+    progress.start(2, disable=False, file=terminal)
+    progress.paused(datetime.now().astimezone() + timedelta(minutes=1))
+
+    progress.record(ResponseRecord.model_construct(status="ok"))
+    progress.close()  # draws the bar as it stands, as a later update would
+
+    assert "paused=until" in terminal.getvalue().rstrip("\n").split("\r")[-1]
+
+
 def test_a_bar_that_cannot_be_drawn_does_not_stop_the_run(
     invoke, tmp_path, fake_provider, monkeypatch
 ):
