@@ -113,8 +113,12 @@ def test_times_are_written_in_local_time_with_their_offset(in_new_york):
     assert re.match(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}-0[45]:00$", timestamp())
 
 
-def test_run_id_starts_with_a_utc_timestamp():
-    assert re.match(r"^\d{8}T\d{6}Z-[0-9a-f]{6}$", new_run_id())
+def test_a_run_id_starts_with_the_local_time(in_new_york):
+    run_id = new_run_id()
+
+    assert re.match(r"^\d{8}T\d{6}-[0-9a-f]{6}$", run_id)
+    named = datetime.strptime(run_id[:15], "%Y%m%dT%H%M%S")
+    assert abs((datetime.now() - named).total_seconds()) < 5
 
 
 def test_manifest_round_trips():

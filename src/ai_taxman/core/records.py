@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,7 +32,7 @@ Status = Literal["ok", "error"]
 #: behind, and is the signal that a directory holds a partial audit.
 RunStatus = Literal["running", "complete", "stopped_early", "interrupted", "failed"]
 
-RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
+RUN_ID_FORMAT = "%Y%m%dT%H%M%S"
 
 
 class ResponseRecord(BaseModel):
@@ -130,11 +130,13 @@ class RunManifest(BaseModel):
 
 
 def new_run_id() -> str:
-    """A fresh run id: a sortable UTC timestamp plus a short random suffix.
+    """A fresh run id: the local time it started, plus a short random suffix.
 
-    The suffix keeps two runs started in the same second distinct.
+    The suffix keeps two runs started in the same second distinct. Runs are
+    ordered by their manifests' `started_at`, which carries the offset, so a
+    clock change between two runs cannot misorder them.
     """
-    return f"{datetime.now(timezone.utc).strftime(RUN_ID_FORMAT)}-{secrets.token_hex(3)}"
+    return f"{now().strftime(RUN_ID_FORMAT)}-{secrets.token_hex(3)}"
 
 
 #: A run id becomes a directory name and is written into every row, so it is
