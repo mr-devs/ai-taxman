@@ -170,7 +170,6 @@ run: move that folder elsewhere and collect again to start over.
 |---|---|
 | `--new-run` | Start a new run, instead of finishing the latest one |
 | `--log-file PATH` | Write the log to this file only |
-| `--log-level LEVEL` | `debug`, `info` (default), `warning`, or `error` |
 
 ### Logs
 

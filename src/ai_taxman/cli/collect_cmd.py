@@ -18,10 +18,6 @@ if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runt
     from ai_taxman.core.runs import RunPlan
     from ai_taxman.providers.base import Provider
 
-#: Duplicated from `core.logging` as a plain string so that importing this module
-#: - which shell completion does on every Tab press - stays free.
-DEFAULT_LEVEL = "info"
-
 
 @handles_taxman_errors
 def collect(
@@ -45,10 +41,6 @@ def collect(
             help="Write the run log here instead of the terminal. Parent directories are created.",
         ),
     ] = None,
-    log_level: Annotated[
-        str,
-        typer.Option("--log-level", help="debug | info | warning | error."),
-    ] = DEFAULT_LEVEL,
 ) -> None:
     """Send every message in an audit to its provider and record the responses.
 
@@ -66,15 +58,8 @@ def collect(
     # Imported here, not at module scope: shell completion imports this module on
     # every Tab press and must not pay for the config parser or the runner.
     from ai_taxman.core.config import load_audit, resolve_log_file
-    from ai_taxman.core.logging import describe_level, setup_logging
+    from ai_taxman.core.logging import setup_logging
     from ai_taxman.core.runner import preflight
-
-    # Before anything else, so a typo in the level is not discovered an hour into
-    # a run.
-    try:
-        describe_level(log_level)
-    except ValueError as exc:
-        fail(str(exc))
 
     config = load_audit(find_audit(audit))
     provider = get_provider(config.provider)
@@ -86,13 +71,12 @@ def collect(
 
     # The log is named after the run, which is known only once the runner has
     # claimed it. Until then, anything logged goes to the terminal alone.
-    setup_logging(level=log_level, log_file=log_file)
+    setup_logging(log_file=log_file)
 
     def announce(plan: RunPlan) -> None:
         """The run is claimed: open its log, and say which run it is."""
         if log_file is None:
             setup_logging(
-                level=log_level,
                 log_file=resolve_log_file(config, run_id=plan.run_id),
                 also_terminal=True,
             )

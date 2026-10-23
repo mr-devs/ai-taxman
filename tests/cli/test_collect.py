@@ -318,26 +318,6 @@ def test_the_summary_still_prints_when_the_log_goes_to_a_file(invoke, tmp_path, 
     assert ONE in log
 
 
-def test_the_log_level_can_be_turned_down(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    invoke("collect", "probe", "--log-file", "run.log", "--log-level", "warning")
-
-    # Nothing reached the level, so nothing was written - not even an empty file.
-    log = tmp_path / "run.log"
-    assert not log.exists() or "run starting" not in log.read_text(encoding="utf-8")
-
-
-def test_an_unknown_log_level_is_refused_by_name(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", "--log-level", "loud")
-
-    assert result.exit_code != 0
-    assert "loud" in result.output
-    assert len(fake_provider.sent) == 0
-
-
 # --- what collect takes --------------------------------------------------
 
 
@@ -358,7 +338,6 @@ def test_collect_takes_only_its_own_options():
         ("argument", "audit"),
         ("option", "--new-run"),
         ("option", "--log-file"),
-        ("option", "--log-level"),
     }
     assert [p.name for p in params if getattr(p, "hidden", False)] == []
 

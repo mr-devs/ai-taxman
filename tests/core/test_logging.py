@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from ai_taxman.core.logging import LOGGER_NAME, describe_level, setup_logging
+from ai_taxman.core.logging import LOGGER_NAME, setup_logging
 from ai_taxman.core.messages import message_id
 
 #: The ids of the three messages each test project starts with.
@@ -88,22 +88,6 @@ def test_the_log_file_is_created_with_its_parent_directory(tmp_path):
     assert target.is_file()
 
 
-def test_the_level_filters_quieter_records(capsys):
-    setup_logging(level="warning")
-
-    logging.getLogger(LOGGER_NAME).info("chatter")
-    logging.getLogger(LOGGER_NAME).warning("trouble")
-
-    captured = capsys.readouterr()
-    assert "chatter" not in captured.err
-    assert "trouble" in captured.err
-
-
-def test_an_unknown_level_is_rejected_by_name():
-    with pytest.raises(ValueError, match="loud"):
-        setup_logging(level="loud")
-
-
 def test_configuring_twice_does_not_double_every_line(capsys):
     setup_logging()
     setup_logging()
@@ -132,11 +116,6 @@ def test_taxman_logs_do_not_leak_into_the_root_logger(capsys):
     assert logging.getLogger(LOGGER_NAME).propagate is False
 
 
-def test_the_level_names_are_the_ones_the_cli_offers():
-    assert describe_level("info") == logging.INFO
-    assert describe_level("DEBUG") == logging.DEBUG
-
-
 # --- what a run actually says --------------------------------------------
 
 
@@ -148,7 +127,7 @@ def read_log(path):
 def logged(tmp_path, restore_logger):
     """Capture a real run's log into a file, the way --log-file does."""
     target = tmp_path / "run.log"
-    setup_logging(level="debug", log_file=target)
+    setup_logging(log_file=target)
     return target
 
 

@@ -32,30 +32,10 @@ from pathlib import Path
 #: The package logger. Every logger in taxman is a child of this one.
 LOGGER_NAME = "ai_taxman"
 
-#: Level names `--log-level` accepts, quietest last in the CLI's help.
-LEVELS: dict[str, int] = {
-    "debug": logging.DEBUG,
-    "info": logging.INFO,
-    "warning": logging.WARNING,
-    "error": logging.ERROR,
-}
-
-DEFAULT_LEVEL = "info"
-
 LINE_FORMAT = "%(asctime)s %(levelname)-7s %(name)s  %(message)s"
 
 
-def describe_level(name: str) -> int:
-    """Turn a `--log-level` name into a logging level, or say what was allowed."""
-    try:
-        return LEVELS[name.strip().lower()]
-    except KeyError:
-        allowed = " | ".join(LEVELS)
-        raise ValueError(f"Unknown log level {name!r}. Choose one of: {allowed}.") from None
-
-
 def setup_logging(
-    level: str = DEFAULT_LEVEL,
     log_file: str | Path | None = None,
     *,
     also_terminal: bool = False,
@@ -68,10 +48,8 @@ def setup_logging(
     Safe to call twice: the handlers this attached last time are replaced rather
     than added to, so a line is never printed twice.
     """
-    resolved = describe_level(level)
-
     logger = logging.getLogger(LOGGER_NAME)
-    logger.setLevel(resolved)
+    logger.setLevel(logging.INFO)
     # A caller's root logger configuration is theirs; taxman does not post into it.
     logger.propagate = False
 
@@ -93,7 +71,6 @@ def setup_logging(
         handlers.append(logging.StreamHandler(sys.stderr))
 
     for handler in handlers:
-        handler.setLevel(resolved)
         handler.setFormatter(_Formatter(LINE_FORMAT))
         logger.addHandler(handler)
 
