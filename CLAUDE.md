@@ -215,6 +215,10 @@ Changes are **additive** — auditors depend on old data staying readable. Remov
 field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
 "Schema versions" table.
 
+**Every time taxman writes is the user's local time**, with its offset, through
+`records.timestamp()`: rows, manifests, log lines, and run ids. Never UTC: a time is read by
+the person who collected it, and the offset already makes it exact.
+
 **Until the first public release, the schema stays at version 1.** taxman is in development
 and not yet published or shared, so there is no data in the wild to keep readable. Change the
 row in place — breaking changes included — with no version bump, no README row, and no code

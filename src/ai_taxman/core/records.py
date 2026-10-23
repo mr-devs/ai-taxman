@@ -32,7 +32,6 @@ Status = Literal["ok", "error"]
 #: behind, and is the signal that a directory holds a partial audit.
 RunStatus = Literal["running", "complete", "stopped_early", "interrupted", "failed"]
 
-TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
 
 
@@ -135,7 +134,7 @@ def new_run_id() -> str:
 
     The suffix keeps two runs started in the same second distinct.
     """
-    return f"{utc_now().strftime(RUN_ID_FORMAT)}-{secrets.token_hex(3)}"
+    return f"{datetime.now(timezone.utc).strftime(RUN_ID_FORMAT)}-{secrets.token_hex(3)}"
 
 
 #: A run id becomes a directory name and is written into every row, so it is
@@ -183,10 +182,16 @@ def validate_run_id(value: str) -> str:
     return cleaned
 
 
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+def now() -> datetime:
+    """This moment, in the user's local time zone."""
+    return datetime.now().astimezone()
 
 
 def timestamp(moment: datetime | None = None) -> str:
-    """Format a moment the way every timestamp field in the schema is formatted."""
-    return (moment or utc_now()).strftime(TIMESTAMP_FORMAT)
+    """Write a moment the way every time taxman records is written.
+
+    In the user's local time, which is how they read it, with the offset that
+    keeps it exact across time zones and clock changes:
+    `2026-10-23T10:15:02.123456-04:00`.
+    """
+    return (moment or now()).astimezone().isoformat(timespec="microseconds")

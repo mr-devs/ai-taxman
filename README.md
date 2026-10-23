@@ -210,7 +210,9 @@ One JSON object per line, the same shape for every provider:
   "repeat": 2,
   "provider": "openai",
   "model": "gpt-5",
-  "requested_at": "…", "received_at": "…", "latency_ms": 812,
+  "requested_at": "2026-08-30T10:22:01.004512-04:00",
+  "received_at": "2026-08-30T10:22:01.816730-04:00",
+  "latency_ms": 812,
   "status": "ok",
   "error": null,
   "attempts": 1,
@@ -220,6 +222,9 @@ One JSON object per line, the same shape for every provider:
 
 `raw` is the provider's response, verbatim. taxman does not parse it; extracting text,
 token counts, or citations is a separate step run on the data afterward.
+
+Every time taxman writes, in rows, manifests and logs, is your local time with its offset from
+UTC, so each stays exact if you compare across time zones.
 
 ### Message ids
 

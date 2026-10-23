@@ -47,8 +47,8 @@ from ai_taxman.core.records import (
     RESPONSE_SCHEMA_VERSION,
     ResponseRecord,
     RunManifest,
+    now,
     timestamp,
-    utc_now,
 )
 from ai_taxman.core.registry import get_provider
 from ai_taxman.core.runs import (
@@ -617,7 +617,7 @@ async def _attempt(
     backoff_base: float,
 ) -> ResponseRecord:
     """Send one request, retrying transient failures, and build its record."""
-    started = utc_now()
+    started = now()
     attempts = 0
     last_error: BaseException | None = None
 
@@ -688,7 +688,7 @@ def _record(
     raw: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> ResponseRecord:
-    finished = utc_now()
+    finished = now()
     return ResponseRecord(
         audit=config.audit,
         run_id=run_id,

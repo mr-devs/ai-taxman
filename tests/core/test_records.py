@@ -1,4 +1,7 @@
 import json
+import re
+import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -8,8 +11,19 @@ from ai_taxman.core.records import (
     ResponseRecord,
     RunManifest,
     new_run_id,
+    timestamp,
     validate_run_id,
 )
+
+
+@pytest.fixture
+def in_new_york(monkeypatch):
+    """Run the test in a known time zone, then put the machine's back."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
 
 
 def make_record(**overrides):
@@ -21,8 +35,8 @@ def make_record(**overrides):
         repeat=2,
         provider="openai",
         model="gpt-5",
-        requested_at="2026-08-30T14:22:01.000000Z",
-        received_at="2026-08-30T14:22:01.812000Z",
+        requested_at="2026-08-30T14:22:01.000000-04:00",
+        received_at="2026-08-30T14:22:01.812000-04:00",
         latency_ms=812,
         status="ok",
         raw={"id": "resp_1", "usage": {"input_tokens": 42, "output_tokens": 310}},
@@ -90,9 +104,16 @@ def test_run_ids_are_unique_and_sortable():
     assert all(len(run_id) == len(ids[0]) for run_id in ids)
 
 
-def test_run_id_starts_with_a_utc_timestamp():
-    import re
+def test_times_are_written_in_local_time_with_their_offset(in_new_york):
+    """Times read in the user's own zone; the offset keeps each one exact across
+    zones and clock changes."""
+    four_pm_in_london = datetime(2026, 7, 1, 16, 0, tzinfo=timezone(timedelta(hours=1)))
 
+    assert timestamp(four_pm_in_london) == "2026-07-01T11:00:00.000000-04:00"
+    assert re.match(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}-0[45]:00$", timestamp())
+
+
+def test_run_id_starts_with_a_utc_timestamp():
     assert re.match(r"^\d{8}T\d{6}Z-[0-9a-f]{6}$", new_run_id())
 
 
