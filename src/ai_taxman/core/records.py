@@ -18,7 +18,7 @@ import secrets
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ai_taxman.core.errors import ConfigError
 
@@ -120,6 +120,19 @@ class RunManifest(BaseModel):
 
     n_ok: int = 0
     n_error: int = 0
+
+    @field_validator("started_at")
+    @classmethod
+    def _a_time(cls, value: str | None) -> str | None:
+        """Runs are ordered by when they started, so it has to read as a time."""
+        if value is not None:
+            try:
+                datetime.fromisoformat(value)
+            except ValueError:
+                raise ValueError(
+                    f"{value!r} is not a time as taxman writes one, like {timestamp()!r}"
+                ) from None
+        return value
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")

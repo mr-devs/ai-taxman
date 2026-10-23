@@ -26,7 +26,7 @@ from typing import IO, Any
 
 from pydantic import ValidationError
 
-from ai_taxman.core.config import AuditConfig, resolve_output_dir
+from ai_taxman.core.config import AuditConfig, format_validation_error, resolve_output_dir
 from ai_taxman.core.errors import (
     AuditChangedError,
     ConfigError,
@@ -571,5 +571,9 @@ def _read_manifest(path: Path) -> RunManifest:
     """
     try:
         return RunManifest.from_dict(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, ValueError, TypeError, ValidationError) as exc:
+    except ValidationError as exc:
+        raise ResponseFileError(
+            f"The run manifest at {path} cannot be read:\n{format_validation_error(exc)}"
+        ) from exc
+    except (OSError, ValueError, TypeError) as exc:
         raise ResponseFileError(f"The run manifest at {path} cannot be read: {exc}") from exc

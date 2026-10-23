@@ -101,3 +101,18 @@ def test_an_unreadable_manifest_is_an_error_not_a_missing_run(project, audit):
 
     with pytest.raises(ResponseFileError, match="manifest"):
         find_runs(config)
+
+
+def test_a_manifest_whose_start_is_not_a_time_is_an_error(project, audit):
+    """Runs are ordered by when they started, so a start that cannot be read
+    says which manifest it is in rather than ending in a traceback."""
+    from ai_taxman.core.errors import ResponseFileError
+
+    config = audit()
+    path = fake_run(project / "data/probe/edited", "edited", "2026-10-01T00:00:00-04:00")
+    manifest = json.loads((path / MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    manifest["started_at"] = "yesterday"
+    (path / MANIFEST_FILENAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ResponseFileError, match="started_at"):
+        find_runs(config)
