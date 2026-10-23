@@ -9,6 +9,7 @@ its caller, and the API key never reaches a log record.
 """
 
 import logging
+import re
 
 import pytest
 
@@ -112,15 +113,16 @@ def test_configuring_twice_does_not_double_every_line(capsys):
     assert capsys.readouterr().err.count("once") == 1
 
 
-def test_records_carry_the_time_the_level_and_the_source(capsys):
-    setup_logging()
+def test_records_carry_the_local_time_the_level_and_the_source(tmp_path, in_new_york):
+    target = tmp_path / "run.log"
+    setup_logging(log_file=target)
 
     logging.getLogger(f"{LOGGER_NAME}.runner").info("hello")
 
-    line = capsys.readouterr().err
-    assert "INFO" in line
+    line = target.read_text(encoding="utf-8")
+    # The user's own time with its offset, written the way the records write theirs.
+    assert re.match(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}-0[45]:00 INFO ", line)
     assert f"{LOGGER_NAME}.runner" in line
-    assert line.startswith("20")  # an ISO timestamp, matching the record schema
 
 
 def test_taxman_logs_do_not_leak_into_the_root_logger(capsys):

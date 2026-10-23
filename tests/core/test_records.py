@@ -1,6 +1,5 @@
 import json
 import re
-import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -14,16 +13,6 @@ from ai_taxman.core.records import (
     timestamp,
     validate_run_id,
 )
-
-
-@pytest.fixture
-def in_new_york(monkeypatch):
-    """Run the test in a known time zone, then put the machine's back."""
-    monkeypatch.setenv("TZ", "America/New_York")
-    time.tzset()
-    yield
-    monkeypatch.undo()
-    time.tzset()
 
 
 def make_record(**overrides):

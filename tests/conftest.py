@@ -18,6 +18,17 @@ from ai_taxman.core.config import load_audit
 from ai_taxman.core.discovery import Layout, write_marker
 from ai_taxman.providers.base import Provider, Request
 
+
+@pytest.fixture
+def in_new_york(monkeypatch):
+    """Run the test in a known time zone, then put the machine's back."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
 #: Every folder directly under the project root. Most tests build a project by
 #: hand, and short paths keep them readable; the defaults are tested on their own.
 FLAT = Layout(data="data", audits="audits", messages="messages", prompts="prompts", logs="logs")

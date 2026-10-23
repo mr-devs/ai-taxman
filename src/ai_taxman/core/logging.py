@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import sys
-import time
+from datetime import datetime
 from pathlib import Path
 
 #: The package logger. Every logger in taxman is a child of this one.
@@ -42,10 +42,7 @@ LEVELS: dict[str, int] = {
 
 DEFAULT_LEVEL = "info"
 
-#: Timestamps match the record schema's format, so a log line and a JSONL row
-#: can be lined up against each other.
-TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
-LINE_FORMAT = "%(asctime)s.%(msecs)03dZ %(levelname)-7s %(name)s  %(message)s"
+LINE_FORMAT = "%(asctime)s %(levelname)-7s %(name)s  %(message)s"
 
 
 def describe_level(name: str) -> int:
@@ -97,7 +94,7 @@ def setup_logging(
 
     for handler in handlers:
         handler.setLevel(resolved)
-        handler.setFormatter(_Formatter(LINE_FORMAT, datefmt=TIME_FORMAT))
+        handler.setFormatter(_Formatter(LINE_FORMAT))
         logger.addHandler(handler)
 
 
@@ -107,7 +104,9 @@ def get_logger(name: str) -> logging.Logger:
 
 
 class _Formatter(logging.Formatter):
-    """UTC timestamps, so a log written on a machine in another timezone still
-    lines up with the `requested_at` in the records beside it."""
+    """Times written the way the records write theirs - the user's local time,
+    with its offset - to the millisecond, so a log line and a JSONL row line up."""
 
-    converter = staticmethod(time.gmtime)
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
+        moment = datetime.fromtimestamp(record.created).astimezone()
+        return moment.isoformat(timespec="milliseconds")
