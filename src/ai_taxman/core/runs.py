@@ -20,6 +20,7 @@ import os
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import IO, Any
 
@@ -93,7 +94,15 @@ def find_runs(config: AuditConfig) -> list[ExistingRun]:
         if _output_dir(config, manifest.run_id) != path.parent:
             continue
         runs.append(ExistingRun(manifest.run_id, path.parent, manifest))
-    return sorted(runs, key=lambda run: (run.manifest.started_at or "", run.run_id))
+    return sorted(runs, key=_started)
+
+
+def _started(run: ExistingRun) -> tuple[float, str]:
+    """When `run` began, as a moment rather than as text: local times either side
+    of a clock change sort the wrong way as strings. A run with no start sorts first."""
+    started = run.manifest.started_at
+    moment = datetime.fromisoformat(started).timestamp() if started else float("-inf")
+    return (moment, run.run_id)
 
 
 def _check_run_id(manifest: RunManifest, path: Path) -> None:

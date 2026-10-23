@@ -36,9 +36,11 @@ def test_an_audit_never_collected_has_no_runs(audit):
 
 
 def test_the_latest_run_is_the_one_started_last(project, audit):
+    """By the moment each started, not by its text: local times either side of a
+    clock change sort the wrong way as strings (01:10 EST comes after 01:30 EDT)."""
     config = audit()
-    fake_run(project / "data/probe/b-run", "b-run", "2026-10-01T00:00:00.000000Z")
-    fake_run(project / "data/probe/a-run", "a-run", "2026-10-02T00:00:00.000000Z")
+    fake_run(project / "data/probe/b-run", "b-run", "2026-11-01T01:30:00.000000-04:00")
+    fake_run(project / "data/probe/a-run", "a-run", "2026-11-01T01:10:00.000000-05:00")
 
     latest = latest_run(config)
 
@@ -50,15 +52,15 @@ def test_the_latest_run_is_the_one_started_last(project, audit):
 
 def test_runs_of_another_audit_in_a_shared_folder_are_not_this_audits(project, audit):
     config = audit("output:\n  dir: data/{run_id}\n  log_dir: logs/{audit}")
-    fake_run(project / "data/mine", "mine", "2026-10-01T00:00:00.000000Z")
-    fake_run(project / "data/theirs", "theirs", "2026-10-02T00:00:00.000000Z", "other")
+    fake_run(project / "data/mine", "mine", "2026-10-01T00:00:00.000000-04:00")
+    fake_run(project / "data/theirs", "theirs", "2026-10-02T00:00:00.000000-04:00", "other")
 
     assert [run.run_id for run in find_runs(config)] == ["mine"]
 
 
 def test_runs_are_found_wherever_the_run_id_sits_in_the_path(project, audit):
     config = audit("output:\n  dir: data/{run_id}/{audit}\n  log_dir: logs/{audit}")
-    fake_run(project / "data/r1/probe", "r1", "2026-10-01T00:00:00.000000Z")
+    fake_run(project / "data/r1/probe", "r1", "2026-10-01T00:00:00.000000-04:00")
 
     assert [run.run_id for run in find_runs(config)] == ["r1"]
 
@@ -82,7 +84,7 @@ def test_a_manifest_whose_run_id_taxman_would_never_make_is_an_error(
     from ai_taxman.core.errors import ResponseFileError
 
     config = audit()
-    fake_run(project / "data/probe" / folder, run_id, "2026-10-01T00:00:00.000000Z")
+    fake_run(project / "data/probe" / folder, run_id, "2026-10-01T00:00:00.000000-04:00")
 
     with pytest.raises(ResponseFileError, match="run id"):
         find_runs(config)
