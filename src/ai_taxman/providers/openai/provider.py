@@ -46,6 +46,10 @@ RETRYABLE_ERRORS = frozenset(
     }
 )
 
+#: A 408, the server's own timeout. The SDK has no class for it but retries it,
+#: and taxman's retries stand in for the SDK's.
+REQUEST_TIMEOUT = 408
+
 #: The 429s for billing, spend and quota - no credit left, a spend or usage limit
 #: reached - by `error.code`, and the `error.type` they can all still carry.
 #: OpenAI: retrying them "won't restore API access", so the run stops instead.
@@ -81,7 +85,10 @@ class OpenAIProvider(Provider):
 
     def is_retryable(self, exc: BaseException) -> bool:
         return (
-            type(exc).__name__ in RETRYABLE_ERRORS
+            (
+                type(exc).__name__ in RETRYABLE_ERRORS
+                or getattr(exc, "status_code", None) == REQUEST_TIMEOUT
+            )
             and _is_openai_error(exc)
             and not self.is_quota_exhausted(exc)
         )

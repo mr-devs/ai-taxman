@@ -24,6 +24,22 @@ def test_retryability_matches_the_sdk_error_class(exc_name, retryable):
     assert PROVIDER.is_retryable(exc) is retryable
 
 
+@pytest.mark.parametrize("status, retryable", [(408, True), (413, False)])
+def test_a_status_with_no_class_of_its_own_is_retried_only_if_the_sdk_would(status, retryable):
+    """The SDK raises a plain APIStatusError for both, and retries a 408 - the
+    server's own timeout - itself. taxman's retries stand in for the SDK's."""
+    import httpx2
+    import openai
+
+    request = httpx2.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx2.Response(status, request=request)
+    exc = openai.AsyncOpenAI(api_key="sk-test")._make_status_error(
+        "no", body=None, response=response
+    )
+
+    assert PROVIDER.is_retryable(exc) is retryable
+
+
 def _make_openai_error(name):
     """An instance of a real SDK error class, built without an HTTP round trip.
 
