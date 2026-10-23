@@ -281,7 +281,7 @@ count what this call sent; `run_n_ok` and `run_n_error` count the whole run.
 taxman --install-completion      # or accept the offer from `taxman doctor`
 ```
 
-Restart your shell. Completion covers commands, providers, models, and audit names.
+Restart your shell. Completion covers commands, providers, and audit names.
 
 **zsh: check startup time.** The installer appends
 `fpath+=~/.zfunc; autoload -Uz compinit; compinit` to `~/.zshrc`. If your setup already runs
