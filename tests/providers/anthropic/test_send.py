@@ -169,6 +169,39 @@ async def test_a_failure_is_one_http_call_so_attempts_stay_true(wire):
     assert len(wire.requests) == 1
 
 
+#: Anthropic's own words, from its rate limits page.
+SPEND_CAP = {
+    "type": "rate_limit_error",
+    "message": "You have reached your API usage limits: your organization has crossed its "
+    "monthly API usage threshold, set based on your organization's API tier. You will "
+    "regain access on 2026-09-01 at 00:00 UTC.",
+    "details": {"error_code": "enforced_spend_limit_reached"},
+}
+RATE_LIMIT = {
+    "type": "rate_limit_error",
+    "message": "Number of requests has exceeded your rate limit",
+}
+
+
+@pytest.mark.parametrize(
+    "status, error, used_up",
+    [(429, SPEND_CAP, True), (429, RATE_LIMIT, False)],
+    ids=["spend-cap", "rate-limit"],
+)
+async def test_what_will_fail_until_it_is_resolved_stops_the_run(wire, status, error, used_up):
+    """The tier's monthly spend cap is a 429 like a rate limit, without a
+    `retry-after`, and "keeps failing until access resumes" - the 1st of the
+    next month. Retried, it fails again, as does every other request."""
+    wire.status = status
+    wire.body = {"type": "error", "error": error, "request_id": "req_01"}
+
+    with pytest.raises(anthropic.APIStatusError) as caught:
+        await send(a_request())
+
+    assert AnthropicProvider().is_quota_exhausted(caught.value) is used_up
+    assert AnthropicProvider().is_retryable(caught.value) is not used_up
+
+
 async def test_a_large_max_tokens_is_sent_rather_than_refused(wire):
     """Without an explicit timeout the SDK refuses this as 'may take over 10 minutes'."""
     await send(a_request({"name": "claude-opus-5-5", "max_tokens": 128000}))

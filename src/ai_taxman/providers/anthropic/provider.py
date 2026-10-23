@@ -59,6 +59,11 @@ RETRYABLE_ERRORS = frozenset(
     }
 )
 
+#: The `error.details.error_code` of the 429 at the usage tier's monthly spend cap:
+#: a `rate_limit_error` with no `retry-after`, failing until the 1st of the next
+#: month. Anthropic gives the code "to tell this response apart from a rate limit".
+SPEND_CAP = "enforced_spend_limit_reached"
+
 
 class AnthropicProvider(Provider):
     """Audit Claude models through the Messages API."""
@@ -79,7 +84,17 @@ class AnthropicProvider(Provider):
         return model.name
 
     def is_retryable(self, exc: BaseException) -> bool:
-        return type(exc).__name__ in RETRYABLE_ERRORS and _is_anthropic_error(exc)
+        return (
+            type(exc).__name__ in RETRYABLE_ERRORS
+            and _is_anthropic_error(exc)
+            and not self.is_quota_exhausted(exc)
+        )
+
+    def is_quota_exhausted(self, exc: BaseException) -> bool:
+        if not _is_anthropic_error(exc):
+            return False
+        details = _error(exc).get("details")
+        return isinstance(details, dict) and details.get("error_code") == SPEND_CAP
 
     def retry_after(self, exc: BaseException) -> float | None:
         response = getattr(exc, "response", None) if _is_anthropic_error(exc) else None
@@ -259,6 +274,13 @@ def _split_by_sdk_signature(
     named = {key: value for key, value in payload.items() if key in known}
     unnamed = {key: value for key, value in payload.items() if key not in known}
     return named, unnamed
+
+
+def _error(exc: BaseException) -> dict[str, Any]:
+    """The `error` object of a failed request's body, or {} if it has none."""
+    body = getattr(exc, "body", None)
+    error = body.get("error") if isinstance(body, dict) else None
+    return error if isinstance(error, dict) else {}
 
 
 def _is_anthropic_error(exc: BaseException) -> bool:

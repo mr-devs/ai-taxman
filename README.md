@@ -182,13 +182,14 @@ the key was read from.
 
 A request that fails with a rate limit, a timeout, or a server error is retried, up to
 `execution.max_retries` times. When the provider says how long to wait (a `Retry-After`
-header, which OpenAI and Anthropic send), every request pauses for that long, not just the one
-that was told, and the progress bar and the log say when it resumes. A wait over 5 minutes, or a used-up quota
-(Gemini's daily `quota_exceeded`, OpenAI's billing and spend limits), fails the request and
-stops the run, since anything else sent meanwhile would fail the same way; collecting again
-later finishes it.
-Otherwise each retry waits a little longer than the last, up to 30 seconds. Every wait also
-gets a random extra of up to a second, so the requests it held back do not all go out at once.
+header, which OpenAI and Anthropic send), every request pauses for that long, not just the
+one that was told, and the progress bar and the log say when it resumes. Otherwise each retry
+waits a little longer than the last, up to 30 seconds. Every wait also gets a random extra of
+up to a second, so the requests it held back do not all go out at once.
+
+A wait over 5 minutes, or a used-up quota (Gemini's daily `quota_exceeded`, OpenAI's billing
+and spend limits, Anthropic's monthly spend cap), fails the request and stops the run, since
+anything else sent meanwhile would fail the same way; collecting again later finishes it.
 
 ### Stopping a run
 
