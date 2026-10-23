@@ -1,6 +1,6 @@
 import pytest
 
-from ai_taxman.providers.base import Provider
+from ai_taxman.providers.base import Provider, parse_retry_after
 
 
 def test_provider_cannot_be_instantiated_without_the_contract():
@@ -34,3 +34,10 @@ def test_retryability_defaults_to_false():
             return {}
 
     assert Minimal().is_retryable(RuntimeError("boom")) is False
+
+
+@pytest.mark.parametrize("value", ["0", "0.0", "-1"])
+def test_a_retry_after_of_no_time_is_no_answer(value):
+    """A wait of nothing would send every retry at once, with no backoff between
+    them; the OpenAI and Anthropic SDKs read it as no answer too."""
+    assert parse_retry_after(value) is None

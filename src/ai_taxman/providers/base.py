@@ -52,13 +52,15 @@ def parse_retry_after(value: str | None) -> float | None:
     """A `retry-after` header's wait, in seconds, or None if there is none to read.
 
     Whole seconds are the only form OpenAI and Anthropic document; anything else
-    is no answer, and the runner falls back to its own backoff.
+    is no answer, and the runner falls back to its own backoff. So is a wait of
+    no time at all, as their SDKs read it: honoured, it would send every retry
+    at once.
     """
     try:
         seconds = float(value) if value is not None else math.nan
     except ValueError:
         return None
-    return seconds if math.isfinite(seconds) and seconds >= 0 else None
+    return seconds if math.isfinite(seconds) and seconds > 0 else None
 
 
 class Provider(ABC):
