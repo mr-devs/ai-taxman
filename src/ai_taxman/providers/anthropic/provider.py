@@ -44,8 +44,11 @@ INSTALL_HINT = (
 )
 
 #: SDK error class names worth retrying. Matched by name so this module still
-#: imports cleanly when the SDK is absent. 529 (`OverloadedError`), 503 and 504
-#: are siblings of `InternalServerError`, not subclasses, so each is listed.
+#: imports cleanly when the SDK is absent. Each 429 and 5xx class is a sibling of
+#: `InternalServerError`, not a subclass, so each is listed. The client taxman
+#: builds raises `OverloadedError` for a 529 and `InternalServerError` for every
+#: other 5xx; `ServiceUnavailableError` (503) and `DeadlineExceededError` (504)
+#: come only from the SDK's Bedrock and Vertex clients today.
 RETRYABLE_ERRORS = frozenset(
     {
         "APIConnectionError",

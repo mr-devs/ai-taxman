@@ -47,8 +47,10 @@ Anthropic's request differs from OpenAI's in four ways that matter to the adapte
 | Client construction, `max_retries=0`, explicit `timeout=` per call | `provider.py` `_new_client()`, `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 
 `OverloadedError`, `ServiceUnavailableError` and `DeadlineExceededError` are siblings of
-`InternalServerError` in SDK v1, not subclasses, so each is listed. A test fails if the SDK
-grows another 429 or 5xx class that the set misses.
+`InternalServerError` in SDK v1, not subclasses, so each is listed. The client taxman builds
+raises `OverloadedError` for a 529 and `InternalServerError` for every other 5xx, 503 and 504
+included; the other two come only from the SDK's Bedrock and Vertex clients today. A test
+fails if the SDK grows another 429 or 5xx class that the set misses.
 
 The explicit timeout matters for another reason. Without one, the SDK refuses a
 non-streaming request whose `max_tokens` it estimates would take more than 10 minutes. With
