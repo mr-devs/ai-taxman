@@ -570,16 +570,15 @@ class _RunState:
             provider,
         )
 
-    async def wait_to_send(self) -> bool:
-        """Wait out any pause, plus a random extra of this worker's own, so the
-        workers a pause held back do not all send in the same instant. False if
-        the run was stopped during it."""
+    async def wait_to_send(self, not_before: float = 0.0) -> bool:
+        """Wait until `not_before` - the event loop's time this request's own
+        backoff ends - and out any pause, plus a random extra of this worker's
+        own, so the workers a pause held back do not all send in the same
+        instant. False if the run was stopped first: a stop does not wait."""
         loop = asyncio.get_running_loop()
-        if self.resume_at <= loop.time():
-            return True
         extra = _jitter(self.max_jitter)
         # Measured from `resume_at` each time round, which a longer pause can move.
-        while (left := self.resume_at + extra - loop.time()) > 0:
+        while (left := max(not_before, self.resume_at + extra) - loop.time()) > 0:
             if self.stop.is_set():
                 return False
             with contextlib.suppress(asyncio.TimeoutError):
@@ -677,17 +676,20 @@ async def _attempt(
     None if the run was stopped while this waited out a pause, before it was
     ever sent: there is nothing to record.
     """
+    loop = asyncio.get_running_loop()
     started = now()
     attempts = 0
     last_error: BaseException | None = None
     #: Why the request was given up on, when it is not the error alone.
     giving_up = ""
+    #: The event loop's time this request's backoff ends.
+    retry_at = 0.0
 
     while attempts <= config.execution.max_retries:
-        if not await state.wait_to_send():
+        if not await state.wait_to_send(retry_at):
             if last_error is None:
                 return None
-            giving_up = " stopped during a pause;"
+            giving_up = " stopped while waiting to retry;"
             break
         attempts += 1
         try:
@@ -715,6 +717,7 @@ async def _attempt(
             if asked is None:
                 backoff = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
                 wait, source = backoff + _jitter(state.max_jitter), "backoff"
+                retry_at = loop.time() + wait
             else:
                 wait, source = asked, "retry-after"
             log.warning(
@@ -727,8 +730,6 @@ async def _attempt(
                 source,
                 _describe(exc, provider),
             )
-            if asked is None:
-                await asyncio.sleep(wait)
             continue
 
         return _record(

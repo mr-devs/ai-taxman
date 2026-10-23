@@ -641,6 +641,28 @@ async def test_a_stop_ends_a_pause_early(audit, fake_provider):
     assert statuses == {ONE: "error", TWO: "error"}
 
 
+async def test_a_stop_ends_a_backoff_early(audit, fake_provider):
+    """The same for a request backing off: once the run is stopped, it is not
+    sent again."""
+    import time
+
+    fake_provider.retryable = (TimeoutError,)
+    fake_provider.delay = 0.05  # ONE and TWO are both in flight when they fail
+    fake_provider.failures = {ONE: [TimeoutError("slow")], TWO: [RuntimeError("no")]}
+    began = time.monotonic()
+
+    result = await run_audit_async(
+        audit("execution:\n  max_concurrency: 2\n  max_retries: 1\n  on_error: stop"),
+        backoff_base=12,
+        max_jitter=0,
+    )
+
+    assert time.monotonic() - began < 10
+    assert len(sends_of(fake_provider, ONE)) == 1
+    statuses = {r.message_id: r.status for r in read_jsonl(result.output_path)}
+    assert statuses == {ONE: "error", TWO: "error"}
+
+
 @pytest.fixture
 def jitter(monkeypatch):
     """A random extra that is not random: the most it may be, every time."""

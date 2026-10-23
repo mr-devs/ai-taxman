@@ -191,7 +191,8 @@ gets a random extra of up to a second, so the requests it held back do not all g
 ### Stopping a run
 
 `kill <pid>` stops a run gracefully: in-flight requests finish and the manifest is set to
-`stopped_early`. Collecting the audit again finishes the run. After `kill -9` the responses on
+`stopped_early`. A request waiting to retry is not sent again, but recorded as failed.
+Collecting the audit again finishes the run. After `kill -9` the responses on
 disk survive, but the manifest still says `running`.
 
 While a run is being collected, the pid of the process collecting it is in `collect.pid` in
