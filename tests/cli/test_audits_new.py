@@ -275,7 +275,7 @@ def nested_comment_above(text, key):
 
 CORE_SETTINGS = (
     *("dir", "filename", "compress", "log_dir"),
-    *("repeats", "max_concurrency", "batch", "timeout_s", "max_retries", "on_error", "shuffle"),
+    *("repeats", "max_concurrency", "batch", "timeout_s", "max_retries", "on_error"),
 )
 
 
@@ -290,7 +290,6 @@ def test_execution_and_output_are_written_at_their_defaults(invoke, tmp_path):
         "timeout_s": 120,
         "max_retries": 5,
         "on_error": "continue",
-        "shuffle": False,
     }
     assert (audit["output"]["filename"], audit["output"]["compress"]) == (
         "responses.jsonl",

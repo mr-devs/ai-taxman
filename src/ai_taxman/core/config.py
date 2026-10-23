@@ -111,10 +111,6 @@ class ExecutionConfig(_Strict):
             }
         },
     )
-    shuffle: bool = Field(
-        default=False,
-        description="Send requests in random order instead of file order.",
-    )
 
 
 class AuditConfig(_Strict):

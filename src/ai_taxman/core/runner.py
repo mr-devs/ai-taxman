@@ -19,7 +19,6 @@ import asyncio
 import contextlib
 import json
 import os
-import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -128,7 +127,6 @@ async def run_audit_async(
     on_record: OnRecord | None = None,
     new_run: bool = False,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
-    seed: int | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit and return what it produced.
@@ -152,7 +150,6 @@ async def run_audit_async(
         new_run=new_run,
         on_record=on_record,
         backoff_base=backoff_base,
-        seed=seed,
         stop_signals=stop_signals,
     )
 
@@ -188,7 +185,6 @@ async def run_checked_async(
     on_claim: OnClaim | None = None,
     on_record: OnRecord | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
-    seed: int | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Collect an audit that has passed `preflight`: plan its run, claim it, send.
@@ -250,8 +246,6 @@ async def run_checked_async(
             )
             state.answered, state.failed = set(plan.answered), set(plan.failed)
             tasks = list(plan.tasks)
-            if config.execution.shuffle:
-                random.Random(seed).shuffle(tasks)
             if plan.needs_repair and repair_tail(writer.path):
                 log.warning(
                     "repaired  the end of %s, which a killed run left unfinished", writer.path

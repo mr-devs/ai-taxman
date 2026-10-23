@@ -94,7 +94,6 @@ execution:
   timeout_s: 120
   max_retries: 5
   on_error: continue
-  shuffle: false
 
 model:                   # provider-specific; this is OpenAI's
   name: gpt-5

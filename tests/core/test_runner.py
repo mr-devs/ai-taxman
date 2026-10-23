@@ -1,6 +1,5 @@
 import asyncio
 import json
-import shutil
 import textwrap
 
 import pytest
@@ -67,21 +66,6 @@ async def test_concurrency_is_actually_used(audit, fake_provider):
     await run_audit_async(audit("execution:\n  repeats: 5\n  max_concurrency: 4"))
 
     assert fake_provider.peak_concurrency > 1
-
-
-async def test_shuffle_changes_the_dispatch_order(project, audit, fake_provider):
-    ordered = audit("execution:\n  repeats: 20\n  max_concurrency: 1")
-    await run_audit_async(ordered)
-    in_order = [(r.message.id, r.repeat) for r in fake_provider.sent]
-
-    fake_provider.sent.clear()
-    shutil.rmtree(project / "data")  # a fresh run, not the first one resumed
-    shuffled = audit("execution:\n  repeats: 20\n  max_concurrency: 1\n  shuffle: true")
-    await run_audit_async(shuffled, seed=1234)
-    after = [(r.message.id, r.repeat) for r in fake_provider.sent]
-
-    assert sorted(after) == sorted(in_order)
-    assert after != in_order
 
 
 async def test_records_carry_the_audit_envelope(audit, fake_provider):

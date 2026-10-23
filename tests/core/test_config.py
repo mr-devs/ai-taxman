@@ -93,7 +93,6 @@ def test_execution_defaults(tmp_path):
     assert execution.max_concurrency == 4
     assert execution.batch is False
     assert execution.on_error == "continue"
-    assert execution.shuffle is False
 
 
 def test_output_defaults(tmp_path):
