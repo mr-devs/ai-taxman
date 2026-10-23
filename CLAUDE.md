@@ -405,7 +405,7 @@ and deprecate, and a wrong field name in an adapter fails silently at audit time
 completes, the JSONL fills up, and the data is wrong.
 
 Consult it when you: change `build_request()` or `send()`; add a key to a `model:` block;
-touch retry or error handling; refresh `known_models()`; or implement a new provider.
+touch retry or error handling; or implement a new provider.
 
 Every provider we target serves a markdown twin of its docs. Fetch that, not the HTML page:
 
@@ -438,13 +438,15 @@ and update `docs/provider-apis/` if the URL moved.
 2. `mkdir src/ai_taxman/providers/<name>/` — mirror the `openai/` layout exactly.
 3. Add the SDK as an optional extra in `pyproject.toml` (and to the `all` extra), then `uv sync --all-extras`.
 4. Write failing tests first: `build_request` for each `model:` key, the template parses and
-   validates, `is_retryable` against the SDK's own error classes.
+   validates once its model is named, `is_retryable` against the SDK's own error classes.
 5. Implement `Provider` from `providers/base.py`, building the config from
    `providers/settings.py`; export `PROVIDER` at module level.
-6. Implement `known_models()`, `render_template()`, `describe_model()` and
-   `default_api_key_env` — these feed `taxman audits new` and shell completion. `render_template()`
-   takes no arguments and renders the config model with `core.template.render_block`, every
-   parameter blank. Document each field on the field itself (see "Every setting documents itself").
+6. Implement `render_template()`, `describe_model()` and `default_api_key_env` — these feed
+   `taxman audits new`. `render_template()` takes no arguments and renders the config model with
+   `core.template.render_block`, every parameter blank and the model's name
+   `MODEL_NAME_PLACEHOLDER`, typed `ModelName` so a run refuses it. There is no list of known
+   models: which are current changes faster than taxman could ship one. Document each field on
+   the field itself (see "Every setting documents itself").
 7. Confirm the conformance suite (`tests/providers/test_conformance.py`) passes. It is
    parametrized over the registry, so a new folder is checked with nothing to add to it.
 8. Change **nothing** under `core/` or `cli/`. If you need to, the seam is wrong — fix the seam.

@@ -44,7 +44,7 @@ Start here — the request and response schema:
 | **Citations / search results** — no OpenAI analogue | `search_results`, citations | [Web Search](https://docs.perplexity.ai/docs/agent-api/tools/web-search.md), [Domain filtering](https://docs.perplexity.ai/docs/search/filters/domain-filter.md), [Date filters](https://docs.perplexity.ai/docs/search/filters/date-time-filters.md) |
 | `extract_usage` | `usage`, incl. per-request search fees | [Pricing](https://docs.perplexity.ai/docs/getting-started/pricing.md) |
 | Retry semantics | 429 and 5xx | [Error Handling](https://docs.perplexity.ai/docs/sdk/error-handling.md), [Rate Limits & Usage Tiers](https://docs.perplexity.ai/docs/admin/rate-limits-usage-tiers.md) |
-| `known_models()` | | [Agent API Models](https://docs.perplexity.ai/docs/agent-api/models.md), [Router Models & Pricing](https://docs.perplexity.ai/docs/router/models.md), [List Models](https://docs.perplexity.ai/api-reference/models-get.md) |
+| Model names | | [Agent API Models](https://docs.perplexity.ai/docs/agent-api/models.md), [Router Models & Pricing](https://docs.perplexity.ai/docs/router/models.md), [List Models](https://docs.perplexity.ai/api-reference/models-get.md) |
 | API key setup | `Authorization: Bearer` | [Quickstart](https://docs.perplexity.ai/docs/getting-started/quickstart.md), [API Key Management](https://docs.perplexity.ai/docs/admin/api-key-management.md) |
 | SDK client | official Python SDK | [SDK overview](https://docs.perplexity.ai/docs/sdk/overview.md), [Performance](https://docs.perplexity.ai/docs/sdk/performance.md) |
 

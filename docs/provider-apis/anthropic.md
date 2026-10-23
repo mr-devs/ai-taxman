@@ -71,10 +71,11 @@ Nothing here is about *reading* a response. taxman writes Anthropic's answer ver
 | **`ANTHROPIC_BASE_URL`**: read by the SDK and not pinned, as with OpenAI's base URL | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 | **Thinking troubleshooting**: per-model `type` and `effort` rules | [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting.md) |
 
-## Keeping the model list current
+## Model names
 
-`models.py` hardcodes `KNOWN_MODELS`, as pinned snapshot IDs. Refresh it against the
-[Models overview](https://platform.claude.com/docs/en/models/overview.md), and check
-[Model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations.md)
-before removing a name. An audit YAML in the wild may still reference it, and unknown names
-are allowed on purpose.
+taxman keeps no list of models. `audits new` writes `<insert_model_name_here>`, under a comment
+linking the [Models overview](https://platform.claude.com/docs/en/models/overview.md), and any
+other name is sent as written. For models before the 4.6 generation the dateless name is an
+alias that moves (`claude-haiku-4-5`), so an audit should name the dated snapshot
+(`claude-haiku-4-5-20251001`). Retired names are in
+[Model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations.md).

@@ -66,13 +66,6 @@ def test_names_the_variable_its_sdk_conventionally_reads(provider):
         assert provider.default_api_key_env
 
 
-def test_offers_some_model_names(provider):
-    models = provider.known_models()
-
-    assert models
-    assert all(isinstance(name, str) and name for name in models)
-
-
 def test_render_template_takes_no_arguments(provider):
     parameters = inspect.signature(type(provider).render_template).parameters
 
@@ -204,7 +197,7 @@ def test_an_inline_comment_is_not_an_explanation():
 
 
 def test_a_model_it_does_not_know_is_accepted(provider):
-    """Providers ship models faster than `known_models()` is updated."""
+    """Providers ship models faster than taxman could list them."""
     template = template_block(provider)
     named = provider.describe_model(provider.validate_model_config(template))
     key = next(key for key, value in template.items() if value == named)

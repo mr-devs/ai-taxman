@@ -61,10 +61,10 @@ in the collected data, waiting for whatever reads it.
 | **`Retry-After` / `x-ratelimit-*` headers** (ignored; core uses fixed backoff) | [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
 | **`base_url`, `organization`, `project`** (not surfaced) | [Admin APIs](https://developers.openai.com/api/docs/guides/admin-apis.md) |
 
-## Keeping the model list current
+## Model names
 
-`models.py` hardcodes `KNOWN_MODELS`. Refresh it against
-[All models](https://developers.openai.com/api/docs/models/all.md) and check
+taxman keeps no list of models. `audits new` writes `<insert_model_name_here>`, under a comment
+linking the models page, and any other name is sent as written. Current names are in
+[All models](https://developers.openai.com/api/docs/models/all.md); retired ones in
 [Deprecations](https://developers.openai.com/api/docs/deprecations.md) and the
-[API changelog](https://developers.openai.com/api/docs/changelog.md) before removing a name —
-an audit YAML in the wild may still reference it, and unknown names are allowed on purpose.
+[API changelog](https://developers.openai.com/api/docs/changelog.md).

@@ -24,7 +24,6 @@ from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.core.template import render_block
 from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
-from ai_taxman.providers.openai.models import KNOWN_MODELS
 from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
 if TYPE_CHECKING:
@@ -56,9 +55,6 @@ class OpenAIProvider(Provider):
     default_api_key_env = "OPENAI_API_KEY"
 
     # -- pure ---------------------------------------------------------------
-
-    def known_models(self) -> list[str]:
-        return list(KNOWN_MODELS)
 
     def validate_model_config(self, block: dict[str, Any]) -> OpenAIModelConfig:
         return OpenAIModelConfig(**block)

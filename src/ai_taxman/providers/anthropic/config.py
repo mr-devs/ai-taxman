@@ -280,7 +280,7 @@ class AnthropicSearchConfig(SettingsBlock):
 class AnthropicModelConfig(SettingsBlock):
     """Validated Anthropic settings for one audit."""
 
-    #: Any model name is allowed; `known_models()` is only a convenience list.
+    #: Any model name is allowed: the API is what knows which models exist.
     name: ModelName = Field(
         description="The model to send every message to.",
         json_schema_extra={"docs": MODELS_DOCS},

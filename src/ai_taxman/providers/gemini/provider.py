@@ -27,7 +27,6 @@ from ai_taxman.providers.gemini.config import (
     GENERATION_CONFIG_KEYS,
     GeminiModelConfig,
 )
-from ai_taxman.providers.gemini.models import KNOWN_MODELS
 from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
 if TYPE_CHECKING:
@@ -60,9 +59,6 @@ class GeminiProvider(Provider):
     default_api_key_env = "GEMINI_API_KEY"
 
     # -- pure ---------------------------------------------------------------
-
-    def known_models(self) -> list[str]:
-        return list(KNOWN_MODELS)
 
     def validate_model_config(self, block: dict[str, Any]) -> GeminiModelConfig:
         return GeminiModelConfig(**block)

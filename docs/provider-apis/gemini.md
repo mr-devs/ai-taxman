@@ -95,10 +95,9 @@ and derives nothing from it. With `store: false`, the response carries no `id`, 
 | **Schema changes**: the May 2026 `steps` schema replaced `outputs`. Responses recorded before the change have the old shape | [Breaking changes, May 2026](https://ai.google.dev/gemini-api/docs/interactions-breaking-changes-may-2026.md.txt), [Migrating to the Interactions API](https://ai.google.dev/gemini-api/docs/migrate-to-interactions.md.txt) |
 | **Free-tier logging**: free-tier messages may be used for product improvement, which bears on an audit's claims about where data went | [Pricing](https://ai.google.dev/gemini-api/docs/pricing.md.txt) |
 
-## Keeping the model list current
+## Model names
 
-`models.py` hardcodes `KNOWN_MODELS`, limited to the models the Interactions overview lists.
-Refresh it against [Models](https://ai.google.dev/gemini-api/docs/models.md.txt) and the
-[Release notes](https://ai.google.dev/gemini-api/docs/changelog.md.txt) before removing a
-name. An audit YAML in the wild may still reference it, and unknown names are allowed on
-purpose.
+taxman keeps no list of models. `audits new` writes `<insert_model_name_here>`, under a comment
+linking [Models](https://ai.google.dev/gemini-api/docs/models.md.txt), and any other name is sent
+as written; only models the Interactions overview lists can answer. Changes are in the
+[Release notes](https://ai.google.dev/gemini-api/docs/changelog.md.txt).

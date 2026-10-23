@@ -1,26 +1,8 @@
-"""Known OpenAI model names and reasoning levels.
-
-A convenience list for `taxman audits new` and shell completion only — an unlisted
-model is still accepted, because OpenAI ships models faster than this file is
-updated.
-"""
+"""The fixed sets of values OpenAI's settings take."""
 
 from __future__ import annotations
 
 from typing import Literal
-
-#: A convenience list; nothing checks a model name against it.
-KNOWN_MODELS: tuple[str, ...] = (
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-4.1",
-    "gpt-4.1-mini",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "o4-mini",
-    "o3",
-)
 
 #: The levels the Responses API documents for `reasoning.effort`, ascending. Not
 #: every reasoning model accepts every one, and non-reasoning models accept

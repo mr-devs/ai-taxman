@@ -31,7 +31,6 @@ from ai_taxman.providers.anthropic.config import (
 from ai_taxman.providers.anthropic.models import (
     DEFAULT_WEB_SEARCH_VERSION,
     DISPLAY_UPDATES_BETA,
-    KNOWN_MODELS,
 )
 from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
@@ -69,9 +68,6 @@ class AnthropicProvider(Provider):
     default_api_key_env = "ANTHROPIC_API_KEY"
 
     # -- pure ---------------------------------------------------------------
-
-    def known_models(self) -> list[str]:
-        return list(KNOWN_MODELS)
 
     def validate_model_config(self, block: dict[str, Any]) -> AnthropicModelConfig:
         return AnthropicModelConfig(**block)

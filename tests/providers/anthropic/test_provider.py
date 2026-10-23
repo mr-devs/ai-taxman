@@ -10,12 +10,6 @@ def test_declares_the_conventional_anthropic_variable():
     assert PROVIDER.default_api_key_env == "ANTHROPIC_API_KEY"
 
 
-def test_known_models_are_pinned_snapshots_not_moving_aliases():
-    """`claude-haiku-4-5` resolves to whatever is current; an audit wants the snapshot."""
-    assert "claude-haiku-4-5-20251001" in PROVIDER.known_models()
-    assert "claude-haiku-4-5" not in PROVIDER.known_models()
-
-
 def comment_above(key):
     """The comment above `key:` in the template, at any depth, without its `#`s."""
     lines = PROVIDER.render_template().splitlines()

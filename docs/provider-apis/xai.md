@@ -31,7 +31,7 @@ Start here — the request and response schema:
 | Reasoning tokens | `usage.completion_tokens_details.reasoning_tokens` | [Reasoning](https://docs.x.ai/developers/model-capabilities/text/reasoning.md) |
 | `cached_tokens` | `usage.prompt_tokens_details.cached_tokens` | [Prompt caching](https://docs.x.ai/developers/advanced-api-usage/prompt-caching.md), [Usage and pricing](https://docs.x.ai/developers/advanced-api-usage/prompt-caching/usage-and-pricing.md) |
 | Retry semantics | 429 and 5xx | [Debugging errors](https://docs.x.ai/developers/debugging.md), [Rate limits](https://docs.x.ai/developers/rate-limits.md) |
-| `known_models()` | | [Models](https://docs.x.ai/developers/models.md), [Models endpoint](https://docs.x.ai/developers/rest-api-reference/inference/models.md), [Model comparison](https://docs.x.ai/developers/model-capabilities/text/comparison.md) |
+| Model names | | [Models](https://docs.x.ai/developers/models.md), [Models endpoint](https://docs.x.ai/developers/rest-api-reference/inference/models.md), [Model comparison](https://docs.x.ai/developers/model-capabilities/text/comparison.md) |
 | API key setup | `Authorization: Bearer` | [Quickstart](https://docs.x.ai/developers/quickstart.md) |
 | SDK client | OpenAI SDK with `base_url="https://api.x.ai/v1"` | [Quickstart](https://docs.x.ai/developers/quickstart.md) |
 

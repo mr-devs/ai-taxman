@@ -77,14 +77,6 @@ class Provider(ABC):
     # -- pure ---------------------------------------------------------------
 
     @abstractmethod
-    def known_models(self) -> list[str]:
-        """Model names offered by `taxman audits new` and shell completion.
-
-        A best-effort list for convenience — an unknown model is still allowed
-        through, because providers ship new ones faster than we can.
-        """
-
-    @abstractmethod
     def validate_model_config(self, block: dict[str, Any]) -> Any:
         """Validate the audit's `model:` block and return the provider's own config.
 

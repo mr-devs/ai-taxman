@@ -24,9 +24,6 @@ def test_retryability_defaults_to_false():
     class Minimal(Provider):
         name = "minimal"
 
-        def known_models(self):
-            return []
-
         def validate_model_config(self, block):
             return block
 

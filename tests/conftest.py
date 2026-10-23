@@ -96,9 +96,6 @@ class FakeProvider(Provider):
     peak_concurrency: int = 0
     _in_flight: int = 0
 
-    def known_models(self) -> list[str]:
-        return ["fake-1", "fake-2"]
-
     def validate_model_config(self, block: dict[str, Any]) -> dict[str, Any]:
         if "boom" in block:
             raise ValueError("the fake provider rejects `boom`")

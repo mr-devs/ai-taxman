@@ -39,9 +39,6 @@ class EchoProvider(Provider):
     name = "echo"
     requires_api_key = False
 
-    def known_models(self):
-        return ["echo-1"]
-
     def validate_model_config(self, block):
         return {"name": block.get("name", "echo-1")}
 
