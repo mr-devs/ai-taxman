@@ -1,6 +1,7 @@
 import asyncio
 import json
 import textwrap
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -574,6 +575,24 @@ async def test_a_retry_after_holds_back_every_request_not_just_its_own(audit, fa
     assert sends_of(fake_provider, THREE)[0] >= limited + 0.29
     assert sends_of(fake_provider, ONE)[1] >= limited + 0.29
     assert result.n_ok == 3
+
+
+async def test_a_request_held_back_by_a_pause_is_timed_from_when_it_was_sent(audit, fake_provider):
+    """TWO waits out ONE's pause before it is ever sent, then is answered at
+    once: its latency is the provider's, not the pause's."""
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.failures = {ONE: [RateLimited(0.3)]}
+
+    result = await run_audit_async(
+        audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0
+    )
+
+    rows = {r.message_id: r for r in read_jsonl(result.output_path)}
+    held = rows[TWO]
+    assert held.attempts == 1
+    assert held.latency_ms < 100
+    sent = datetime.fromisoformat(held.requested_at)
+    assert sent >= datetime.fromisoformat(rows[ONE].requested_at) + timedelta(seconds=0.29)
 
 
 async def test_a_longer_retry_after_extends_the_pause(audit, fake_provider):

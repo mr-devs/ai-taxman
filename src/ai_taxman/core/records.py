@@ -52,6 +52,8 @@ class ResponseRecord(BaseModel):
     provider: str
     model: str
 
+    #: When the request was first sent - not when it began waiting out a pause
+    #: to be - and when its last answer came; the waits between retries count.
     requested_at: str
     received_at: str
     latency_ms: int

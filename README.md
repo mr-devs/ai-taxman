@@ -235,6 +235,9 @@ One JSON object per line, the same shape for every provider:
 `raw` is the provider's response, verbatim. taxman does not parse it; extracting text,
 token counts, or citations is a separate step run on the data afterward.
 
+`requested_at` is when the request was first sent, and `latency_ms` runs from then to the
+last answer, the waits between retries included.
+
 Every time taxman writes, in rows, manifests and logs, is your local time with its offset from
 UTC, so each stays exact if you compare across time zones.
 

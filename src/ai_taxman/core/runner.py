@@ -683,7 +683,9 @@ async def _attempt(
     ever sent: there is nothing to record.
     """
     loop = asyncio.get_running_loop()
-    started = now()
+    #: When the request was first sent, set then: a pause it waited out before
+    #: that is no part of the provider's latency.
+    started: datetime | None = None
     attempts = 0
     last_error: BaseException | None = None
     #: Why the request was given up on, when it is not the error alone.
@@ -698,6 +700,7 @@ async def _attempt(
                 return None
             giving_up = " stopped while waiting to retry;"
             break
+        started = started or now()
         attempts += 1
         try:
             raw = await provider.send(request, timeout_s=config.execution.timeout_s)
@@ -751,6 +754,8 @@ async def _attempt(
             raw=raw,
         )
 
+    # Only a request that was sent is recorded: one stopped first returned None.
+    assert started is not None
     log.error(
         "giving up  message=%s repeat=%d attempts=%d%s %s",
         request.message.id,
