@@ -64,6 +64,10 @@ RETRYABLE_ERRORS = frozenset(
 #: month. Anthropic gives the code "to tell this response apart from a rate limit".
 SPEND_CAP = "enforced_spend_limit_reached"
 
+#: A 402: "an issue with your billing or payment information". Every request
+#: fails until it is fixed in the Console.
+BILLING_ERROR = "billing_error"
+
 
 class AnthropicProvider(Provider):
     """Audit Claude models through the Messages API."""
@@ -93,7 +97,10 @@ class AnthropicProvider(Provider):
     def is_quota_exhausted(self, exc: BaseException) -> bool:
         if not _is_anthropic_error(exc):
             return False
-        details = _error(exc).get("details")
+        error = _error(exc)
+        if getattr(exc, "status_code", None) == 402 or error.get("type") == BILLING_ERROR:
+            return True
+        details = error.get("details")
         return isinstance(details, dict) and details.get("error_code") == SPEND_CAP
 
     def retry_after(self, exc: BaseException) -> float | None:

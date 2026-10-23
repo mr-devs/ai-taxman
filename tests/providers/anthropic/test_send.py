@@ -181,17 +181,19 @@ RATE_LIMIT = {
     "type": "rate_limit_error",
     "message": "Number of requests has exceeded your rate limit",
 }
+BILLING = {"type": "billing_error", "message": "There is an issue with your billing."}
 
 
 @pytest.mark.parametrize(
     "status, error, used_up",
-    [(429, SPEND_CAP, True), (429, RATE_LIMIT, False)],
-    ids=["spend-cap", "rate-limit"],
+    [(429, SPEND_CAP, True), (429, RATE_LIMIT, False), (402, BILLING, True)],
+    ids=["spend-cap", "rate-limit", "billing"],
 )
 async def test_what_will_fail_until_it_is_resolved_stops_the_run(wire, status, error, used_up):
     """The tier's monthly spend cap is a 429 like a rate limit, without a
     `retry-after`, and "keeps failing until access resumes" - the 1st of the
-    next month. Retried, it fails again, as does every other request."""
+    next month. Retried, it fails again, as does every other request. So does
+    every request after a 402, until the billing details are fixed."""
     wire.status = status
     wire.body = {"type": "error", "error": error, "request_id": "req_01"}
 

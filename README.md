@@ -188,8 +188,9 @@ waits a little longer than the last, up to 30 seconds. Every wait also gets a ra
 up to a second, so the requests it held back do not all go out at once.
 
 A wait over 5 minutes, or a used-up quota (Gemini's daily `quota_exceeded`, OpenAI's billing
-and spend limits, Anthropic's monthly spend cap), fails the request and stops the run, since
-anything else sent meanwhile would fail the same way; collecting again later finishes it.
+and spend limits, Anthropic's monthly spend cap and billing errors), fails the request and
+stops the run, since anything else sent meanwhile would fail the same way; collecting again
+later finishes it.
 
 ### Stopping a run
 
