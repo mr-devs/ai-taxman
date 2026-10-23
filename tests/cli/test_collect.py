@@ -133,7 +133,8 @@ def test_a_resumed_run_is_judged_on_the_whole_run(invoke, tmp_path, fake_provide
 
 
 def stopped(tmp_path, monkeypatch, *, by_signal=True, **counts):
-    """Stand in for a run stopped early, by SIGTERM or by an error, with these counts."""
+    """Stand in for a run stopped early, by SIGTERM or by an error, with these
+    counts and anything else its result says."""
     import signal
 
     from ai_taxman.core import runner
@@ -191,6 +192,20 @@ def test_a_run_stopped_by_its_first_error_does_not_say_every_message_failed(
     assert result.exit_code != 0
     assert "every message failed" not in result.output
     assert "1 of 3 failed, and the run stopped before sending the rest" in result.output
+
+
+def test_a_run_that_stopped_itself_says_why(invoke, tmp_path, fake_provider, monkeypatch):
+    """Not a signal, and not `on_error: stop`: the provider's quota is used up."""
+    make_project(tmp_path)
+    reason = "fake asked to wait 3600s, over the 300s limit"
+    stopped(
+        tmp_path, monkeypatch, by_signal=False, stop_reason=reason, n_ok=1, n_error=0, run_n_ok=1
+    )
+
+    result = invoke("collect", "probe")
+
+    assert reason in result.output
+    assert "on_error" not in result.output
 
 
 def test_a_run_whose_every_message_failed_says_so(invoke, tmp_path, fake_provider):

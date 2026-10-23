@@ -620,11 +620,10 @@ async def test_a_shorter_retry_after_never_cuts_a_longer_pause_short():
     assert state.resume_at == longer
 
 
-async def test_a_wait_over_the_limit_fails_the_request_and_pauses_nothing(
-    audit, fake_provider, monkeypatch
-):
-    """A daily quota can ask for hours. The request is recorded as failed, to be
-    retried by collecting again, and the rest of the run goes on."""
+async def test_a_wait_over_the_limit_stops_the_run(audit, fake_provider, monkeypatch):
+    """A daily quota can ask for hours, and every request sent meanwhile would
+    only fail the same way. The request is recorded as failed, and the run
+    stops, for collecting again later to finish."""
     from ai_taxman.core import runner
 
     monkeypatch.setattr(runner, "MAX_RETRY_AFTER", 1.0)
@@ -632,12 +631,15 @@ async def test_a_wait_over_the_limit_fails_the_request_and_pauses_nothing(
     fake_provider.failures = {ONE: [RateLimited(60)]}
 
     result = await run_audit_async(
-        audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0
+        audit("execution:\n  max_concurrency: 1"), backoff_base=0, max_jitter=0
     )
 
-    (failed,) = [r for r in read_jsonl(result.output_path) if r.status == "error"]
-    assert (failed.message_id, failed.attempts) == (ONE, 1)
-    assert sends_of(fake_provider, THREE)[0] < sends_of(fake_provider, ONE)[0] + 1.0
+    assert [request.message.id for request in fake_provider.sent] == [ONE]
+    (failed,) = read_jsonl(result.output_path)
+    assert (failed.message_id, failed.status, failed.attempts) == (ONE, "error", 1)
+    assert result.stopped_early
+    assert result.stop_signal is None
+    assert "60s" in (result.stop_reason or "")
 
 
 async def test_a_stop_ends_a_pause_early(audit, fake_provider):

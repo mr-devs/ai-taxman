@@ -126,6 +126,11 @@ def collect(
             "collect again to finish it.",
             fg=typer.colors.YELLOW,
         )
+    elif result.stop_reason is not None:
+        typer.secho(
+            f"Run stopped: {result.stop_reason}. Collect again later to finish it.",
+            fg=typer.colors.YELLOW,
+        )
     elif result.stopped_early:
         typer.secho(
             "Run stopped early because execution.on_error is `stop`.",

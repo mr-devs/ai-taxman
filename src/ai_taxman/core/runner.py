@@ -76,7 +76,8 @@ MAX_BACKOFF = 30.0
 MAX_JITTER = 1.0
 
 #: The longest a provider's Retry-After is waited out, in seconds. A longer one -
-#: a daily quota, say - fails the request instead, for the next collect to retry.
+#: a daily quota, say - fails the request and stops the run, for the next collect
+#: to finish.
 MAX_RETRY_AFTER = 300.0
 
 OnRecord = Callable[[ResponseRecord], None]
@@ -101,6 +102,9 @@ class RunResult:
     stopped_early: bool = False
     #: The signal that stopped the run early, or None if a signal did not.
     stop_signal: int | None = None
+    #: Why the run stopped itself, when nothing more could be sent - a used-up
+    #: quota - or None if it did not.
+    stop_reason: str | None = None
     #: True when this call finished an existing run rather than starting one.
     resumed: bool = False
     #: True when the run already had every response, so nothing was sent.
@@ -346,6 +350,7 @@ async def run_checked_async(
         expected=plan.expected,
         stopped_early=state.stop.is_set(),
         stop_signal=state.stop_signal,
+        stop_reason=state.stop_reason,
         resumed=plan.resuming,
     )
 
@@ -551,6 +556,8 @@ class _RunState:
     stop: asyncio.Event = dataclass_field(default_factory=asyncio.Event)
     #: The signal that set `stop`, if one did before an error could.
     stop_signal: int | None = None
+    #: Why the run set `stop` itself, if it did first.
+    stop_reason: str | None = None
     #: The event loop's time before which no request is sent: a provider's
     #: Retry-After holds back every worker, not only the one it answered.
     resume_at: float = 0.0
@@ -590,6 +597,13 @@ class _RunState:
         """The event loop's time a request backing off until `not_before` may go,
         before its random extra."""
         return max(not_before, self.resume_at)
+
+    def stop_for(self, reason: str) -> None:
+        """Stop the run: nothing more can be sent until later, for `reason`."""
+        if not self.stop.is_set():
+            self.stop_reason = reason
+            log.error("stopping  %s; collect again later to finish the run", reason)
+        self.stop.set()
 
     def record(self, record: ResponseRecord) -> None:
         pair = (record.message_id, record.repeat)
@@ -712,9 +726,10 @@ async def _attempt(
                 break
             asked = _retry_after(provider, exc)
             if asked is not None and asked > MAX_RETRY_AFTER:
-                giving_up = (
-                    f" {provider.name} asked to wait {asked:.0f}s, over the "
-                    f"{MAX_RETRY_AFTER:.0f}s limit; collect again later to retry;"
+                # A quota, not a rate: whatever else is sent meanwhile fails too.
+                state.stop_for(
+                    f"{provider.name} asked to wait {asked:.0f}s, over the "
+                    f"{MAX_RETRY_AFTER:.0f}s limit"
                 )
                 break
             if asked is not None:
