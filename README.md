@@ -107,8 +107,8 @@ Relative paths resolve against the project root.
 
 ### API keys
 
-`api_key_env:` names one environment variable, and taxman reads only that one. It never
-stores a key. Export the variable however you like (shell profile, `direnv`, CI secret).
+`api_key_env:` names one environment variable, in capitals (`OPENAI_API_KEY`), and taxman
+reads only that one. It never stores a key. Export the variable however you like (shell profile, `direnv`, CI secret).
 Because each audit names its own variable, one machine can hold several keys for the same
 provider.
 

@@ -135,7 +135,7 @@ class AuditConfig(_Strict):
     api_key_env: str | None = Field(
         default=None,
         description="The name of the environment variable that holds the API key to use "
-        "for this audit.",
+        "for this audit. A name in capitals, never the key itself.",
         json_schema_extra={"required": True},
     )
 

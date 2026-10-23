@@ -496,10 +496,10 @@ def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
     if not VARIABLE_NAME.match(config.api_key_env.strip()):
         # The value is left out: it is most likely the key itself.
         raise ConfigError(
-            f"`api_key_env:` in {config.source_path} is not an environment variable name. "
-            f"It takes the name of the variable that holds your {provider.name} API key"
-            f"{_for_example(provider)}, never the key itself. Its value is not shown here "
-            "in case it is a key."
+            f"`api_key_env:` in {config.source_path} is not an environment variable name "
+            "in capitals. It takes the name of the variable that holds your "
+            f"{provider.name} API key{_for_example(provider)}, never the key itself. Its "
+            "value is not shown here in case it is a key."
         )
 
     return resolve_api_key(config.api_key_env.strip())

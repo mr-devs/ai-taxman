@@ -22,9 +22,11 @@ from ai_taxman.core.errors import MissingApiKeyError
 #: variable name, so an unedited audit fails loudly instead of reading something.
 API_KEY_ENV_PLACEHOLDER = "<insert_api_key_env_var_here>"
 
-#: What a shell accepts as a variable name. Anything else in `api_key_env:` is
-#: not a name at all - most often it is the key itself, pasted in.
-VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+#: A variable name as they are written: capitals, digits and underscores.
+#: Anything else in `api_key_env:` is most often the key itself, pasted in - and
+#: every provider's keys have a lowercase letter or a `-`, even the Google keys a
+#: shell would take for a name.
+VARIABLE_NAME = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 
 def resolve_api_key(env_name: str) -> str:

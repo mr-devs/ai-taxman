@@ -464,15 +464,23 @@ async def test_the_unedited_placeholder_stops_the_run(audit, fake_provider):
     assert fake_provider.sent == []
 
 
-async def test_a_key_pasted_into_api_key_env_is_never_printed_back(audit, fake_provider):
+@pytest.mark.parametrize(
+    "key",
+    [
+        "sk-proj-abc123",
+        # A Google key, often with no `-`: as a shell sees it, a variable name.
+        "AIzaSyD3x9QkLmNoPqRsTuVwXyZ0123456789ab",
+    ],
+)
+async def test_a_key_pasted_into_api_key_env_is_never_printed_back(audit, fake_provider, key):
     """`api_key_env:` names a variable. A value that cannot be one is most often
     the key itself, and an error repeating it puts the key on screen and in CI logs."""
     fake_provider.requires_api_key = True
 
     with pytest.raises(ConfigError, match="api_key_env") as caught:
-        await run_audit_async(audit("api_key_env: sk-proj-abc123"))
+        await run_audit_async(audit(f"api_key_env: {key}"))
 
-    assert "sk-proj-abc123" not in str(caught.value)
+    assert key not in str(caught.value)
     assert fake_provider.sent == []
 
 
