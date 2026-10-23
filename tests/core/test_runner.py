@@ -587,6 +587,20 @@ async def test_a_longer_retry_after_extends_the_pause(audit, fake_provider):
     assert sends_of(fake_provider, THREE)[0] >= first + 0.05 + 0.39
 
 
+async def test_a_shorter_retry_after_never_cuts_a_longer_pause_short():
+    """Two 429s can land in either order; the second asking for less than is
+    left of the first must not let every request go early."""
+    from ai_taxman.core.runner import _RunState
+
+    state = _RunState(on_error="continue")
+    state.pause(10, provider="fake")
+    longer = state.resume_at
+
+    state.pause(1, provider="fake")
+
+    assert state.resume_at == longer
+
+
 async def test_a_wait_over_the_limit_fails_the_request_and_pauses_nothing(
     audit, fake_provider, monkeypatch
 ):
