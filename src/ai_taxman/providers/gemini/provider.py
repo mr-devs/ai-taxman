@@ -51,8 +51,9 @@ RETRYABLE_ERRORS = frozenset(
 )
 
 #: The `error.code` of a 429 for a used-up daily quota, which resets only at
-#: midnight Pacific time: retried within a run, it fails again. Other 429 codes
-#: (`rate_limit_exceeded`, `too_many_requests`) pass in seconds and are retried.
+#: midnight Pacific time: until then every request fails, so the run stops. Other
+#: 429 codes (`rate_limit_exceeded`, `too_many_requests`) pass in seconds and are
+#: retried.
 DAILY_QUOTA = "quota_exceeded"
 
 
@@ -80,6 +81,9 @@ class GeminiProvider(Provider):
             and _is_genai_error(exc)
             and _error_code(exc) != DAILY_QUOTA
         )
+
+    def is_quota_exhausted(self, exc: BaseException) -> bool:
+        return _is_genai_error(exc) and _error_code(exc) == DAILY_QUOTA
 
     def error_details(self, exc: BaseException) -> dict[str, str]:
         # Google documents no request id header; its own code for the error says more.

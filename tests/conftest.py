@@ -98,6 +98,8 @@ class FakeProvider(Provider):
     #: nothing answered, for exactly as long as the test needs to look at it.
     gate: asyncio.Event | None = None
     retryable: tuple[type[BaseException], ...] = ()
+    #: Exceptions that say the account's quota is used up.
+    exhausted: tuple[type[BaseException], ...] = ()
 
     sent: list[Request] = field(default_factory=list)
     #: When each request was sent, by `time.monotonic()`, beside its message id.
@@ -137,6 +139,9 @@ class FakeProvider(Provider):
 
     def is_retryable(self, exc: BaseException) -> bool:
         return isinstance(exc, self.retryable)
+
+    def is_quota_exhausted(self, exc: BaseException) -> bool:
+        return isinstance(exc, self.exhausted)
 
     def retry_after(self, exc: BaseException) -> float | None:
         """Whatever wait the failure carries, as a provider would read its header."""

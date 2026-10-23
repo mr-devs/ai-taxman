@@ -444,7 +444,8 @@ and update `docs/provider-apis/` if the URL moved.
 2. `mkdir src/ai_taxman/providers/<name>/` — mirror the `openai/` layout exactly.
 3. Add the SDK as an optional extra in `pyproject.toml` (and to the `all` extra), then `uv sync --all-extras`.
 4. Write failing tests first: `build_request` for each `model:` key, the template parses and
-   validates once its model is named, `is_retryable` against the SDK's own error classes.
+   validates once its model is named, `is_retryable` and `is_quota_exhausted` against the
+   SDK's own error classes (the provider's docs say which errors are a used-up quota).
 5. Implement `Provider` from `providers/base.py`, building the config from
    `providers/settings.py`; export `PROVIDER` at module level.
 6. Implement `render_template()`, `describe_model()` and `default_api_key_env` — these feed

@@ -119,7 +119,8 @@ async def test_an_error_status_is_one_http_call_so_attempts_stay_true(wire, stat
 )
 async def test_a_daily_quota_is_not_retried_but_a_rate_limit_is(wire, code, retried):
     """Both are a 429. A daily quota resets only at midnight Pacific time, so a
-    retry within the run fails again; a later collect retries it instead."""
+    retry within the run fails again - as does every other request: the run
+    stops, and a later collect finishes it."""
     wire.status = 429
     wire.body = {"error": {"code": code, "message": "no"}}
 
@@ -127,6 +128,7 @@ async def test_a_daily_quota_is_not_retried_but_a_rate_limit_is(wire, code, retr
         await send(a_request())
 
     assert GeminiProvider().is_retryable(caught.value) is retried
+    assert GeminiProvider().is_quota_exhausted(caught.value) is not retried
     assert GeminiProvider().error_details(caught.value) == {"status": "429", "code": code}
 
 

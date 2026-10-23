@@ -318,6 +318,11 @@ def test_an_unrelated_exception_has_no_details_to_log_and_no_wait(provider):
     assert provider.retry_after(unrelated) is None
 
 
+def test_an_unrelated_exception_does_not_say_the_quota_is_used_up(provider):
+    """That stops the whole run, so only the provider's own SDK error can say it."""
+    assert provider.is_quota_exhausted(RuntimeError("quota_exceeded")) is False
+
+
 def test_claims_batch_support_only_if_it_implements_it(provider):
     """`execution.batch` trusts the claim; without the methods a run would fail at its first."""
     implements = type(provider).submit_batch is not Provider.submit_batch

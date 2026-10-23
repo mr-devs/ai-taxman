@@ -642,6 +642,27 @@ async def test_a_wait_over_the_limit_stops_the_run(audit, fake_provider, monkeyp
     assert "60s" in (result.stop_reason or "")
 
 
+class QuotaUsedUp(Exception):
+    """A provider saying the account can send nothing more until it resets."""
+
+
+async def test_a_used_up_quota_stops_the_run(audit, fake_provider):
+    """Whatever else is sent would fail the same way until the quota resets."""
+    fake_provider.retryable = (QuotaUsedUp,)  # however its status reads, not retried
+    fake_provider.exhausted = (QuotaUsedUp,)
+    fake_provider.failures = {ONE: [QuotaUsedUp("daily quota")]}
+
+    result = await run_audit_async(
+        audit("execution:\n  max_concurrency: 1"), backoff_base=0, max_jitter=0
+    )
+
+    assert [request.message.id for request in fake_provider.sent] == [ONE]
+    (failed,) = read_jsonl(result.output_path)
+    assert (failed.status, failed.attempts) == ("error", 1)
+    assert result.stopped_early
+    assert "quota" in (result.stop_reason or "")
+
+
 async def test_a_stop_ends_a_pause_early(audit, fake_provider):
     """`kill <pid>` - here, `on_error: stop` - must not wait out a five-minute
     pause. The request waiting to retry is recorded as failed, for the next collect."""
