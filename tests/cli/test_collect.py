@@ -333,6 +333,34 @@ def test_a_progress_bar_counts_the_responses_and_how_they_went(
     assert "error=1" in result.output
 
 
+def test_a_bar_that_cannot_be_drawn_does_not_stop_the_run(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """A terminal that went away - a pipe closed early - is no reason to stop
+    collecting, or to lose the requests already sent."""
+    import errno
+    import io
+
+    from ai_taxman.cli import collect_cmd
+
+    class ClosedPipe(io.StringIO):
+        def write(self, text):
+            raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+    start = collect_cmd._Progress.start
+    monkeypatch.setattr(
+        collect_cmd._Progress,
+        "start",
+        lambda self, total: start(self, total, disable=False, file=ClosedPipe()),
+    )
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe")
+
+    assert result.exit_code == 0, result.output
+    assert "3 ok" in result.output
+
+
 def test_the_log_stays_out_of_the_terminal(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 

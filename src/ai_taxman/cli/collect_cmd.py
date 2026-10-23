@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import IO, TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -145,37 +147,57 @@ def collect(
 
 class _Progress:
     """What the terminal shows while a run goes: a bar of the responses this
-    session sends, with how many came back and how many failed."""
+    session sends, with how many came back and how many failed.
+
+    A bar that cannot be drawn - a terminal gone, a pipe closed early - is
+    dropped, and the run goes on: the terminal is never a reason to stop
+    collecting, or to lose requests already sent."""
 
     def __init__(self) -> None:
         self._bar: tqdm[Any] | None = None
         self._ok = 0
         self._error = 0
 
-    def start(self, total: int, *, disable: bool | None = None) -> None:
-        """Show the bar. `disable=None` leaves it off when stderr is not a
-        terminal - under `nohup`, or redirected to a file - where it would only
+    def start(
+        self, total: int, *, disable: bool | None = None, file: IO[str] | None = None
+    ) -> None:
+        """Show the bar on stderr. `disable=None` leaves it off when that is not
+        a terminal - under `nohup`, or redirected to a file - where it would only
         write a line per update."""
         # Imported here: shell completion imports this module on every Tab press.
         from tqdm import tqdm
 
-        self._bar = tqdm(
-            total=total, unit="response", file=sys.stderr, disable=disable, dynamic_ncols=True
-        )
+        with self._or_drop():
+            self._bar = tqdm(
+                total=total,
+                unit="response",
+                file=file or sys.stderr,
+                disable=disable,
+                dynamic_ncols=True,
+            )
 
     def record(self, record: ResponseRecord) -> None:
-        if self._bar is None:
-            return
         if record.status == "ok":
             self._ok += 1
         else:
             self._error += 1
-        self._bar.set_postfix(ok=self._ok, error=self._error, refresh=False)
-        self._bar.update(1)
+        if self._bar is None:
+            return
+        with self._or_drop():
+            self._bar.set_postfix(ok=self._ok, error=self._error, refresh=False)
+            self._bar.update(1)
 
     def close(self) -> None:
         if self._bar is not None:
-            self._bar.close()
+            with self._or_drop():
+                self._bar.close()
+
+    @contextlib.contextmanager
+    def _or_drop(self) -> Iterator[None]:
+        try:
+            yield
+        except (OSError, ValueError):  # ValueError: a write to a closed file
+            self._bar = None
 
 
 def _nothing_collected(result: RunResult) -> str:
