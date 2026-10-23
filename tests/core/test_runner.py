@@ -595,6 +595,29 @@ async def test_a_request_held_back_by_a_pause_is_timed_from_when_it_was_sent(aud
     assert sent >= datetime.fromisoformat(rows[ONE].requested_at) + timedelta(seconds=0.29)
 
 
+async def test_the_caller_hears_of_a_pause_and_when_it_ends(audit, fake_provider):
+    """How `collect` puts a pause on its bar, rather than seem to hang for it."""
+    from ai_taxman.core.runner import preflight, run_checked_async
+
+    config = audit("execution:\n  max_concurrency: 2")
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.failures = {ONE: [RateLimited(0.3)]}
+    heard = []
+
+    before = datetime.now().astimezone()
+    await run_checked_async(
+        config,
+        preflight(config, fake_provider),
+        provider=fake_provider,
+        on_pause=heard.append,
+        backoff_base=0,
+        max_jitter=0,
+    )
+
+    (until,) = heard
+    assert before + timedelta(seconds=0.29) <= until <= before + timedelta(seconds=1)
+
+
 async def test_a_longer_retry_after_extends_the_pause(audit, fake_provider):
     fake_provider.retryable = (RateLimited,)
     fake_provider.delay = 0.05  # ONE and TWO are both in flight when the limits land

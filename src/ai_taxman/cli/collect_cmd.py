@@ -16,11 +16,13 @@ from ai_taxman.core.discovery import find_audit
 from ai_taxman.core.registry import get_provider
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runtime
+    from datetime import datetime
+
     from tqdm import tqdm
 
     from ai_taxman.core.config import AuditConfig
     from ai_taxman.core.records import ResponseRecord
-    from ai_taxman.core.runner import OnClaim, OnRecord, Preflight, RunResult
+    from ai_taxman.core.runner import OnClaim, OnPause, OnRecord, Preflight, RunResult
     from ai_taxman.core.runs import RunPlan
     from ai_taxman.providers.base import Provider
 
@@ -99,6 +101,7 @@ def collect(
             new_run=new_run,
             on_claim=announce,
             on_record=progress.record,
+            on_pause=progress.paused,
         )
     finally:
         progress.close()
@@ -190,6 +193,13 @@ class _Progress:
             self._bar.set_postfix(ok=self._ok, error=self._error, refresh=False)
             self._bar.update(1)
 
+    def paused(self, until: datetime) -> None:
+        """Say why the bar has stopped: a pause, until the next response clears it."""
+        if self._bar is None:
+            return
+        with self._or_drop():
+            self._bar.set_postfix(ok=self._ok, error=self._error, paused=f"until {until:%H:%M:%S}")
+
     def close(self) -> None:
         if self._bar is not None:
             with self._or_drop():
@@ -251,6 +261,7 @@ def _run(
     new_run: bool,
     on_claim: OnClaim,
     on_record: OnRecord,
+    on_pause: OnPause,
 ) -> RunResult:
     """Run in this process, stopping gracefully on SIGTERM.
 
@@ -272,5 +283,6 @@ def _run(
         new_run=new_run,
         on_claim=on_claim,
         on_record=on_record,
+        on_pause=on_pause,
         stop_signals=stop_signals,
     )

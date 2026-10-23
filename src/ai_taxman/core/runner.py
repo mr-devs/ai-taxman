@@ -82,6 +82,8 @@ MAX_RETRY_AFTER = 300.0
 
 OnRecord = Callable[[ResponseRecord], None]
 OnClaim = Callable[[RunPlan], None]
+#: Called with the local time a pause ends, each time a Retry-After makes it later.
+OnPause = Callable[[datetime], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +189,7 @@ def run_checked(
     new_run: bool = False,
     on_claim: OnClaim | None = None,
     on_record: OnRecord | None = None,
+    on_pause: OnPause | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """`run_checked_async`, synchronously."""
@@ -198,6 +201,7 @@ def run_checked(
             new_run=new_run,
             on_claim=on_claim,
             on_record=on_record,
+            on_pause=on_pause,
             stop_signals=stop_signals,
         )
     )
@@ -211,6 +215,7 @@ async def run_checked_async(
     new_run: bool = False,
     on_claim: OnClaim | None = None,
     on_record: OnRecord | None = None,
+    on_pause: OnPause | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
     max_jitter: float = MAX_JITTER,
     stop_signals: tuple[int, ...] = (),
@@ -225,7 +230,8 @@ async def run_checked_async(
 
     `on_claim` is called with the plan once the run is claimed, before the run's
     first log line: how `taxman collect` names its log after a run it only now
-    knows, and announces it.
+    knows, and announces it. `on_pause` hears when a Retry-After pause will
+    end, so a progress bar can say why it has stopped moving.
     """
     messages, system_prompt, model, api_key = (
         checked.messages,
@@ -236,7 +242,7 @@ async def run_checked_async(
     system_text = checked.system_text
 
     limit = config.execution.max_concurrency
-    state = _RunState(on_error=config.execution.on_error, max_jitter=max_jitter)
+    state = _RunState(on_error=config.execution.on_error, max_jitter=max_jitter, on_pause=on_pause)
     plan: RunPlan | None = None
     #: Set once the run is claimed: its manifest is on disk and its lock held.
     manifest: RunManifest | None = None
@@ -563,6 +569,7 @@ class _RunState:
     resume_at: float = 0.0
     #: The most random extra added to a wait before a retry.
     max_jitter: float = MAX_JITTER
+    on_pause: OnPause | None = None
 
     def pause(self, seconds: float, *, provider: str) -> None:
         """Hold back every request for `seconds`, unless a longer pause already does."""
@@ -570,12 +577,15 @@ class _RunState:
         if until <= self.resume_at:
             return
         self.resume_at = until
+        ends = now() + timedelta(seconds=seconds)
         log.warning(
             "pausing  every request for %.1fs, until %s, as %s asked (Retry-After)",
             seconds,
-            (now() + timedelta(seconds=seconds)).strftime("%H:%M:%S"),
+            ends.strftime("%H:%M:%S"),
             provider,
         )
+        if self.on_pause is not None:
+            self.on_pause(ends)
 
     async def wait_to_send(self, not_before: float = 0.0, extra: float | None = None) -> bool:
         """Wait until `not_before` - the event loop's time this request's own

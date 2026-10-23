@@ -333,6 +333,25 @@ def test_a_progress_bar_counts_the_responses_and_how_they_went(
     assert "error=1" in result.output
 
 
+def test_a_pause_shows_on_the_bar(invoke, tmp_path, fake_provider, monkeypatch):
+    """Up to five minutes with nothing sent: the bar says why it is not moving."""
+    from ai_taxman.cli import collect_cmd
+
+    start = collect_cmd._Progress.start
+    monkeypatch.setattr(
+        collect_cmd._Progress, "start", lambda self, total: start(self, total, disable=False)
+    )
+    limited = TimeoutError("slow down")
+    limited.retry_after = 0.2  # read by the fake as a provider reads its header
+    fake_provider.retryable = (TimeoutError,)
+    fake_provider.failures = {ONE: [limited]}
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe")
+
+    assert "paused=until" in result.output
+
+
 def test_a_bar_that_cannot_be_drawn_does_not_stop_the_run(
     invoke, tmp_path, fake_provider, monkeypatch
 ):
