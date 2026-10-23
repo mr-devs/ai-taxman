@@ -56,6 +56,10 @@ RETRYABLE_ERRORS = frozenset(
 #: retried.
 DAILY_QUOTA = "quota_exceeded"
 
+#: The status of `payment_required`: the prepaid credit is spent, and nothing is
+#: answered until more is bought. Google says not to retry it.
+PAYMENT_REQUIRED = 402
+
 
 class GeminiProvider(Provider):
     """Audit Gemini models through the Interactions API."""
@@ -83,7 +87,9 @@ class GeminiProvider(Provider):
         )
 
     def is_quota_exhausted(self, exc: BaseException) -> bool:
-        return _is_genai_error(exc) and _error_code(exc) == DAILY_QUOTA
+        return _is_genai_error(exc) and (
+            getattr(exc, "status_code", None) == PAYMENT_REQUIRED or _error_code(exc) == DAILY_QUOTA
+        )
 
     def error_details(self, exc: BaseException) -> dict[str, str]:
         # Google documents no request id header; its own code for the error says more.

@@ -115,13 +115,21 @@ async def test_an_error_status_is_one_http_call_so_attempts_stay_true(wire, stat
 
 
 @pytest.mark.parametrize(
-    "code, retried", [("quota_exceeded", False), ("rate_limit_exceeded", True)]
+    "status, code, retried",
+    [
+        (429, "quota_exceeded", False),
+        (429, "rate_limit_exceeded", True),
+        (402, "payment_required", False),
+    ],
 )
-async def test_a_daily_quota_is_not_retried_but_a_rate_limit_is(wire, code, retried):
-    """Both are a 429. A daily quota resets only at midnight Pacific time, so a
-    retry within the run fails again - as does every other request: the run
-    stops, and a later collect finishes it."""
-    wire.status = 429
+async def test_a_used_up_quota_or_credit_is_not_retried_but_a_rate_limit_is(
+    wire, status, code, retried
+):
+    """A daily quota resets only at midnight Pacific time, and spent prepaid
+    credit comes back only when more is bought, so a retry within the run fails
+    again - as does every other request: the run stops, and a later collect
+    finishes it."""
+    wire.status = status
     wire.body = {"error": {"code": code, "message": "no"}}
 
     with pytest.raises(Exception) as caught:
@@ -129,7 +137,7 @@ async def test_a_daily_quota_is_not_retried_but_a_rate_limit_is(wire, code, retr
 
     assert GeminiProvider().is_retryable(caught.value) is retried
     assert GeminiProvider().is_quota_exhausted(caught.value) is not retried
-    assert GeminiProvider().error_details(caught.value) == {"status": "429", "code": code}
+    assert GeminiProvider().error_details(caught.value) == {"status": str(status), "code": code}
 
 
 async def test_a_dropped_connection_is_one_http_call_too(wire):

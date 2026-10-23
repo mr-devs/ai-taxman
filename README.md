@@ -187,10 +187,10 @@ one that was told, and the progress bar and the log say when it resumes. Otherwi
 waits a little longer than the last, up to 30 seconds. Every wait also gets a random extra of
 up to a second, so the requests it held back do not all go out at once.
 
-A wait over 5 minutes, or a used-up quota (Gemini's daily `quota_exceeded`, OpenAI's billing
-and spend limits, Anthropic's monthly spend cap, spend limits and billing errors), fails the
-request and stops the run, since anything else sent meanwhile would fail the same way;
-collecting again later finishes it.
+A wait over 5 minutes, or a used-up quota (Gemini's daily `quota_exceeded` and spent prepaid
+credit, OpenAI's billing and spend limits, Anthropic's monthly spend cap, spend limits and
+billing errors), fails the request and stops the run, since anything else sent meanwhile
+would fail the same way; collecting again later finishes it.
 
 ### Stopping a run
 
