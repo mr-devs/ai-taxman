@@ -202,6 +202,27 @@ async def test_the_api_key_never_reaches_the_log(audit, fake_provider, logged, m
     assert fake_provider.api_key == "sk-do-not-log-me"
 
 
+async def test_each_session_opens_its_log_with_the_variable_it_read_the_key_from(
+    audit, fake_provider, logged, monkeypatch
+):
+    """Which key a run billed is the first thing each session of it says, before
+    any word about resuming - by the variable's name, never its value."""
+    from ai_taxman.core.runner import run_audit_async
+
+    monkeypatch.setenv("PROBE_KEY", "sk-do-not-log-me")
+    fake_provider.requires_api_key = True
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+    await run_audit_async(audit("api_key_env: PROBE_KEY"))
+    await run_audit_async(audit("api_key_env: PROBE_KEY"))  # resumes, to retry TWO
+
+    lines = read_log(logged).splitlines()
+    opened = [index for index, line in enumerate(lines) if "api_key_env=PROBE_KEY" in line]
+    resumed = next(index for index, line in enumerate(lines) if "resuming" in line)
+    assert opened[0] == 0
+    assert len(opened) == 2
+    assert opened[1] < resumed
+
+
 async def test_message_text_is_not_logged(audit, fake_provider, logged):
     """Ids, not bodies: the text is already in the JSONL, and a log of it is unusable."""
     from ai_taxman.core.runner import run_audit_async

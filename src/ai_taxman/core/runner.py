@@ -253,6 +253,23 @@ async def run_checked_async(
             )
             state.answered, state.failed = set(plan.answered), set(plan.failed)
             tasks = list(plan.tasks)
+            # First, every session: which key the run bills, by the variable's
+            # name, is the first thing anyone reading the log needs to know.
+            log.info(
+                "run starting  run_id=%s audit=%s provider=%s model=%s api_key_env=%s "
+                "messages=%d repeats=%d expected=%d sending=%d concurrency=%d output=%s",
+                run_id,
+                config.audit,
+                provider.name,
+                manifest.model,
+                config.api_key_env if provider.requires_api_key else "none",
+                len(messages),
+                config.execution.repeats,
+                plan.expected,
+                len(tasks),
+                limit,
+                writer.path,
+            )
             if plan.needs_repair and repair_tail(writer.path):
                 log.warning(
                     "repaired  the end of %s, which a killed run left unfinished", writer.path
@@ -270,20 +287,6 @@ async def run_checked_async(
                     len(tasks),
                     len(plan.failed),
                 )
-            log.info(
-                "run starting  run_id=%s audit=%s provider=%s model=%s "
-                "messages=%d repeats=%d expected=%d sending=%d concurrency=%d output=%s",
-                run_id,
-                config.audit,
-                provider.name,
-                manifest.model,
-                len(messages),
-                config.execution.repeats,
-                plan.expected,
-                len(tasks),
-                limit,
-                writer.path,
-            )
             with writer:
                 await _dispatch(
                     tasks,
