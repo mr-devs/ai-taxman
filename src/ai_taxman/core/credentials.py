@@ -14,12 +14,17 @@ no copy to go stale.
 from __future__ import annotations
 
 import os
+import re
 
 from ai_taxman.core.errors import MissingApiKeyError
 
 #: What `api_key_env:` says until the user replaces it. Deliberately not a valid
 #: variable name, so an unedited audit fails loudly instead of reading something.
 API_KEY_ENV_PLACEHOLDER = "<insert_api_key_env_var_here>"
+
+#: What a shell accepts as a variable name. Anything else in `api_key_env:` is
+#: not a name at all - most often it is the key itself, pasted in.
+VARIABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def resolve_api_key(env_name: str) -> str:
