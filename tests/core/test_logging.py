@@ -200,6 +200,34 @@ async def test_the_provider_s_details_of_an_error_are_logged(
     assert read_log(logged).count("status=503 request_id=req_9") == 2
 
 
+async def test_a_retry_logs_the_wait_it_will_take(audit, fake_provider, logged, monkeypatch):
+    """TWO would back off for no time at all, but ONE's Retry-After holds every
+    request for 0.4s: that is the wait TWO takes, and the one its line gives."""
+    import asyncio
+    import re
+
+    from ai_taxman.core.runner import run_audit_async
+
+    limited = TimeoutError("slow down")
+    limited.retry_after = 0.4  # read by the fake as a provider reads its header
+    fake_provider.retryable = (TimeoutError,)
+    fake_provider.delay = 0.05  # ONE and TWO are both in flight when ONE is limited
+    fake_provider.failures = {ONE: [limited], TWO: [TimeoutError("slow")]}
+    send = fake_provider.send
+
+    async def two_lands_later(request, *, timeout_s):
+        if request.message.id == TWO:
+            await asyncio.sleep(0.1)
+        return await send(request, timeout_s=timeout_s)
+
+    monkeypatch.setattr(fake_provider, "send", two_lands_later)
+
+    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0)
+
+    (line,) = [line for line in read_log(logged).splitlines() if f"retrying  message={TWO}" in line]
+    assert re.search(r"wait=0\.[23]s \(retry-after\)", line), line
+
+
 async def test_a_failed_message_is_logged_as_an_error(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 

@@ -570,20 +570,26 @@ class _RunState:
             provider,
         )
 
-    async def wait_to_send(self, not_before: float = 0.0) -> bool:
+    async def wait_to_send(self, not_before: float = 0.0, extra: float | None = None) -> bool:
         """Wait until `not_before` - the event loop's time this request's own
-        backoff ends - and out any pause, plus a random extra of this worker's
-        own, so the workers a pause held back do not all send in the same
+        backoff ends - and out any pause, then a random `extra` of this worker's
+        own, so the requests one wait held back do not all go out in the same
         instant. False if the run was stopped first: a stop does not wait."""
         loop = asyncio.get_running_loop()
-        extra = _jitter(self.max_jitter)
+        if extra is None:
+            extra = _jitter(self.max_jitter)
         # Measured from `resume_at` each time round, which a longer pause can move.
-        while (left := max(not_before, self.resume_at + extra) - loop.time()) > 0:
+        while (left := self.send_at(not_before) + extra - loop.time()) > 0:
             if self.stop.is_set():
                 return False
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self.stop.wait(), timeout=left)
         return True
+
+    def send_at(self, not_before: float) -> float:
+        """The event loop's time a request backing off until `not_before` may go,
+        before its random extra."""
+        return max(not_before, self.resume_at)
 
     def record(self, record: ResponseRecord) -> None:
         pair = (record.message_id, record.repeat)
@@ -682,11 +688,12 @@ async def _attempt(
     last_error: BaseException | None = None
     #: Why the request was given up on, when it is not the error alone.
     giving_up = ""
-    #: The event loop's time this request's backoff ends.
-    retry_at = 0.0
+    #: The event loop's time this request's backoff ends, and the random extra
+    #: on its wait: drawn here, so the wait logged is the wait taken.
+    retry_at, extra = 0.0, None
 
     while attempts <= config.execution.max_retries:
-        if not await state.wait_to_send(retry_at):
+        if not await state.wait_to_send(retry_at, extra):
             if last_error is None:
                 return None
             giving_up = " stopped while waiting to retry;"
@@ -714,12 +721,13 @@ async def _attempt(
                 state.pause(asked, provider=provider.name)
             if attempts > config.execution.max_retries:
                 break
-            if asked is None:
-                backoff = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
-                wait, source = backoff + _jitter(state.max_jitter), "backoff"
-                retry_at = loop.time() + wait
-            else:
-                wait, source = asked, "retry-after"
+            backoff = (
+                0.0 if asked is not None else min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
+            )
+            retry_at, extra = loop.time() + backoff, _jitter(state.max_jitter)
+            # A pause - this request's, or another's - can outlast the backoff.
+            source = "backoff" if retry_at > state.resume_at else "retry-after"
+            wait = max(0.0, state.send_at(retry_at) + extra - loop.time())
             log.warning(
                 "retrying  message=%s repeat=%d attempt=%d/%d wait=%.1fs (%s) %s",
                 request.message.id,
