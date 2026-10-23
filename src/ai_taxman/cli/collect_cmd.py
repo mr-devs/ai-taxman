@@ -38,7 +38,6 @@ def collect(
             help="Start a new run of the audit, even if its latest run is unfinished.",
         ),
     ] = False,
-    quiet: Annotated[bool, typer.Option("--quiet", "-q", help="Only print the summary.")] = False,
     log_file: Annotated[
         Path | None,
         typer.Option(
@@ -97,20 +96,17 @@ def collect(
                 log_file=resolve_log_file(config, run_id=plan.run_id),
                 also_terminal=True,
             )
-        if not quiet:
-            # The provider names its own model; core has no business reading that block.
-            typer.echo(
-                f"Collecting {config.audit}: {config.provider} "
-                f"({model or 'unspecified'}), {config.execution.repeats} repeat(s) per message."
-            )
+        # The provider names its own model; core has no business reading that block.
+        typer.echo(
+            f"Collecting {config.audit}: {config.provider} "
+            f"({model or 'unspecified'}), {config.execution.repeats} repeat(s) per message."
+        )
         if plan.left_unfinished is not None:
             typer.secho(
                 f"Leaving run {plan.left_unfinished} unfinished; starting run {plan.run_id}.",
                 fg=typer.colors.YELLOW,
             )
         if plan.resuming:
-            # Even with --quiet: a run that picks up where another left off must
-            # never be mistaken for a fresh one.
             typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
 
     result = _run(config, checked, provider=provider, new_run=new_run, on_claim=announce)

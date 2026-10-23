@@ -28,7 +28,7 @@ def test_collects_an_audit_by_name_and_summarises_it(invoke, tmp_path, fake_prov
     """The counts, and where the responses went, from where the user stands."""
     make_project(tmp_path)
 
-    result = invoke("collect", "probe", "--quiet")
+    result = invoke("collect", "probe")
 
     assert result.exit_code == 0
     assert len(fake_provider.sent) == 3
@@ -111,7 +111,7 @@ def test_a_resumed_run_says_so_before_it_starts(invoke, tmp_path, fake_provider)
     invoke("collect", "probe")
     (run,) = (tmp_path / "data" / "probe").iterdir()
 
-    result = invoke("collect", "probe", "--quiet")
+    result = invoke("collect", "probe")
 
     assert f"Resuming run {run.name}" in result.output
     assert "2 of 3 responses already collected" in result.output
@@ -357,7 +357,6 @@ def test_collect_takes_only_its_own_options():
     assert taken == {
         ("argument", "audit"),
         ("option", "--new-run"),
-        ("option", "--quiet", "-q"),
         ("option", "--log-file"),
         ("option", "--log-level"),
     }

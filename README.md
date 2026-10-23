@@ -168,7 +168,6 @@ run: move that folder elsewhere and collect again to start over.
 | Option | Effect |
 |---|---|
 | `--new-run` | Start a new run, instead of finishing the latest one |
-| `-q`, `--quiet` | Print only the summary |
 | `--log-file PATH` | Write the log to this file only |
 | `--log-level LEVEL` | `debug`, `info` (default), `warning`, or `error` |
 
@@ -191,8 +190,8 @@ again.
 taxman has no background mode of its own; the shell's works. To collect several audits at once:
 
 ```bash
-taxman collect openai-probe -q --log-file openai.log &
-taxman collect anthropic-probe -q --log-file anthropic.log &
+taxman collect openai-probe --log-file openai.log &
+taxman collect anthropic-probe --log-file anthropic.log &
 wait
 ```
 
