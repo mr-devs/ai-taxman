@@ -16,16 +16,16 @@ by default, the way a library should be.
 error. Nothing in this package writes it, and a test asserts as much - a log is
 a file users pipe into issues and share with colleagues.
 
-Log records go to a file, to stderr, or to both - never to stdout, which is the
-command's own summary. `taxman collect` keeps every run's log in the audit's
-`output.log_dir` and echoes it to the terminal, so `taxman collect probe >
-summary.txt` still separates the two.
+Log records go to one file only: the run's own, in the audit's
+`output.log_dir`. The terminal is the command's - a progress bar on stderr and
+the summary on stdout - and a log line printed between them would only break
+the bar.
 """
 
 from __future__ import annotations
 
 import logging
-import sys
+import logging.handlers
 from datetime import datetime
 from pathlib import Path
 
@@ -34,45 +34,49 @@ LOGGER_NAME = "ai_taxman"
 
 LINE_FORMAT = "%(asctime)s %(levelname)-7s %(name)s  %(message)s"
 
+#: How many records are held while the log file is not yet known. A collect
+#: logs a line or two before its run is claimed, so this is never reached.
+_HELD = 1000
 
-def setup_logging(
-    log_file: str | Path | None = None,
-    *,
-    also_terminal: bool = False,
-) -> None:
-    """Send taxman's log to the terminal, or to `log_file` instead.
 
-    `also_terminal` keeps the terminal as well as the file, for a run with a
-    person watching it.
+def setup_logging(log_file: str | Path | None = None) -> None:
+    """Send taxman's log to `log_file`, or hold it until there is one.
+
+    A run's log is named after the run, which `collect` learns only once the
+    run is claimed, and a warning from before then - a lock that cannot be
+    taken - belongs in that log too. So, called without a file, this holds what
+    is logged; called with one, it writes what it held, then everything after.
 
     Safe to call twice: the handlers this attached last time are replaced rather
-    than added to, so a line is never printed twice.
+    than added to, so a line is never written twice.
     """
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.INFO)
     # A caller's root logger configuration is theirs; taxman does not post into it.
     logger.propagate = False
 
-    for existing in logger.handlers[:]:
-        if isinstance(existing, logging.NullHandler):
-            continue
-        logger.removeHandler(existing)
-        existing.close()
-
-    handlers: list[logging.Handler] = []
-    if log_file is not None:
+    handler: logging.Handler
+    if log_file is None:
+        handler = logging.handlers.MemoryHandler(_HELD, flushLevel=logging.CRITICAL + 1)
+    else:
         path = Path(log_file)
         path.parent.mkdir(parents=True, exist_ok=True)
         # Append, so a resumed or restarted run adds to the log rather than
         # erasing the evidence of the run before it. Delayed, so a run that fails
         # before its first line leaves no empty log claiming it existed.
-        handlers.append(logging.FileHandler(path, mode="a", encoding="utf-8", delay=True))
-    if log_file is None or also_terminal:
-        handlers.append(logging.StreamHandler(sys.stderr))
-
-    for handler in handlers:
+        handler = logging.FileHandler(path, mode="a", encoding="utf-8", delay=True)
         handler.setFormatter(_Formatter(LINE_FORMAT))
-        logger.addHandler(handler)
+
+    for existing in logger.handlers[:]:
+        if isinstance(existing, logging.NullHandler):
+            continue
+        if isinstance(existing, logging.handlers.MemoryHandler) and log_file is not None:
+            existing.setTarget(handler)
+            existing.flush()
+        logger.removeHandler(existing)
+        existing.close()
+
+    logger.addHandler(handler)
 
 
 def get_logger(name: str) -> logging.Logger:

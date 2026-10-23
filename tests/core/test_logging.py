@@ -46,18 +46,8 @@ def test_the_library_is_silent_until_someone_configures_it():
     assert any(isinstance(handler, logging.NullHandler) for handler in logger.handlers)
 
 
-def test_logs_go_to_stderr_by_default(capsys):
-    """stdout stays the summary's, so `taxman collect x > out` separates them."""
-    setup_logging()
-
-    logging.getLogger(f"{LOGGER_NAME}.runner").info("hello")
-
-    captured = capsys.readouterr()
-    assert "hello" in captured.err
-    assert "hello" not in captured.out
-
-
-def test_a_log_file_takes_the_log_instead_of_the_terminal(tmp_path, capsys):
+def test_the_log_goes_to_its_file_and_nowhere_else(tmp_path, capsys):
+    """The terminal has the progress bar and the summary; the detail is in the file."""
     target = tmp_path / "run.log"
     setup_logging(log_file=target)
 
@@ -65,18 +55,22 @@ def test_a_log_file_takes_the_log_instead_of_the_terminal(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert "hello" in target.read_text(encoding="utf-8")
-    assert "hello" not in captured.err
+    assert "hello" not in captured.err + captured.out
 
 
-def test_a_log_file_can_also_echo_to_the_terminal(tmp_path, capsys):
-    """A foreground run keeps a log on disk and still narrates at the prompt."""
+def test_what_is_logged_before_the_file_is_known_lands_in_it(tmp_path, capsys):
+    """A log is named after its run, which is known only once claimed; a warning
+    from before then - a lock that could not be taken - belongs in it all the same."""
     target = tmp_path / "run.log"
-    setup_logging(log_file=target, also_terminal=True)
+    setup_logging()
+    logging.getLogger(LOGGER_NAME).warning("early")
 
-    logging.getLogger(f"{LOGGER_NAME}.runner").info("hello")
+    setup_logging(log_file=target)
+    logging.getLogger(LOGGER_NAME).info("late")
 
-    assert "hello" in target.read_text(encoding="utf-8")
-    assert "hello" in capsys.readouterr().err
+    log = target.read_text(encoding="utf-8")
+    assert log.index("early") < log.index("late")
+    assert "early" not in capsys.readouterr().err
 
 
 def test_the_log_file_is_created_with_its_parent_directory(tmp_path):
@@ -88,13 +82,14 @@ def test_the_log_file_is_created_with_its_parent_directory(tmp_path):
     assert target.is_file()
 
 
-def test_configuring_twice_does_not_double_every_line(capsys):
-    setup_logging()
-    setup_logging()
+def test_configuring_twice_does_not_double_every_line(tmp_path):
+    target = tmp_path / "run.log"
+    setup_logging(log_file=target)
+    setup_logging(log_file=target)
 
     logging.getLogger(LOGGER_NAME).info("once")
 
-    assert capsys.readouterr().err.count("once") == 1
+    assert target.read_text(encoding="utf-8").count("once") == 1
 
 
 def test_records_carry_the_local_time_the_level_and_the_source(tmp_path, in_new_york):

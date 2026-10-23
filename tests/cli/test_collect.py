@@ -287,21 +287,22 @@ def run_dir(tmp_path):
     return next((tmp_path / "data" / "probe").iterdir())
 
 
-def test_every_run_keeps_its_log_in_the_logs_folder(invoke, tmp_path, fake_provider):
-    make_project(tmp_path)
-
-    invoke("collect", "probe")
-
-    log = tmp_path / "logs" / "probe" / f"{run_dir(tmp_path).name}.log"
-    assert "run starting" in log.read_text(encoding="utf-8")
-
-
-def test_a_foreground_run_still_logs_to_the_terminal(invoke, tmp_path, fake_provider):
+def test_every_run_keeps_its_log_in_the_logs_folder_and_says_where(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 
     result = invoke("collect", "probe")
 
-    assert "run starting" in result.output
+    log = f"logs/probe/{run_dir(tmp_path).name}.log"
+    assert "run starting" in (tmp_path / log).read_text(encoding="utf-8")
+    assert log in result.output
+
+
+def test_the_log_stays_out_of_the_terminal(invoke, tmp_path, fake_provider):
+    make_project(tmp_path)
+
+    result = invoke("collect", "probe")
+
+    assert "run starting" not in result.output
 
 
 # --- what collect takes --------------------------------------------------

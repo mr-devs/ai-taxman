@@ -40,8 +40,8 @@ def collect(
     Collecting an audit again finishes its latest run: only the responses that
     run is missing, or that failed, are sent. --new-run starts a new run instead.
 
-    Progress is logged as the run happens - one line per response - to the
-    terminal and to the audit's log folder, as <run_id>.log.
+    The run's log - one line per response, every retry and why - is written to
+    the audit's log folder, as <run_id>.log.
 
     kill <pid> stops a run gracefully: what is in flight finishes, and
     collecting again picks up where it stopped. The pid is in the run's
@@ -62,20 +62,19 @@ def collect(
     model = provider.describe_model(checked.model)
 
     # The log is named after the run, which is known only once the runner has
-    # claimed it. Until then, anything logged goes to the terminal alone.
+    # claimed it. Until then, anything logged is held, and written to it then.
     setup_logging()
 
     def announce(plan: RunPlan) -> None:
         """The run is claimed: open its log, and say which run it is."""
-        setup_logging(
-            log_file=resolve_log_file(config, run_id=plan.run_id),
-            also_terminal=True,
-        )
+        log_file = resolve_log_file(config, run_id=plan.run_id)
+        setup_logging(log_file)
         # The provider names its own model; core has no business reading that block.
         typer.echo(
             f"Collecting {config.audit}: {config.provider} "
             f"({model or 'unspecified'}), {config.execution.repeats} repeat(s) per message."
         )
+        typer.echo(f"Log: {display_path(log_file)}")
         if plan.left_unfinished is not None:
             typer.secho(
                 f"Leaving run {plan.left_unfinished} unfinished; starting run {plan.run_id}.",
