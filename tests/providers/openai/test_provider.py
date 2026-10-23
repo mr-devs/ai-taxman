@@ -50,14 +50,15 @@ async def test_the_client_is_the_one_startup_was_given():
         await provider.shutdown()
 
 
-def rate_limited(headers):
-    """A 429 as the SDK raises it, around a response that never crossed a network."""
+def rate_limited(headers=None, error=None):
+    """A 429 as the SDK raises it, around a response that never crossed a network.
+    `error` is the body's `error` object, which is what the SDK hands the class."""
     import httpx2
     import openai
 
     request = httpx2.Request("POST", "https://api.openai.com/v1/responses")
-    response = httpx2.Response(429, headers=headers, request=request)
-    return openai.RateLimitError("Rate limit reached", response=response, body=None)
+    response = httpx2.Response(429, headers=headers or {}, request=request)
+    return openai.RateLimitError("Rate limit reached", response=response, body=error)
 
 
 def test_an_error_gives_its_status_and_the_request_id_support_asks_for():
@@ -78,3 +79,25 @@ def test_an_error_gives_its_status_and_the_request_id_support_asks_for():
 )
 def test_a_retry_after_is_read_in_the_seconds_the_docs_promise(headers, wait):
     assert PROVIDER.retry_after(rate_limited(headers)) == wait
+
+
+@pytest.mark.parametrize(
+    "error, used_up",
+    [
+        ({"type": "insufficient_quota", "code": "insufficient_quota"}, True),
+        ({"type": "insufficient_quota", "code": "credit_balance_exhausted"}, True),
+        ({"code": "organization_spend_limit_exceeded"}, True),
+        ({"code": "project_spend_limit_exceeded"}, True),
+        ({"code": "organization_usage_limit_exceeded"}, True),
+        ({"type": "rate_limit_error", "code": "slow_down"}, False),
+        ({"type": "requests", "code": "rate_limit_exceeded"}, False),
+    ],
+)
+def test_a_billing_429_stops_the_run_and_a_rate_limit_is_retried(error, used_up):
+    """OpenAI's docs: "Retrying billing, spend, or quota errors won't restore API
+    access" - and every other request would fail the same way until it is fixed."""
+    exc = rate_limited(error={"message": "no", **error})
+
+    assert PROVIDER.is_quota_exhausted(exc) is used_up
+    assert PROVIDER.is_retryable(exc) is not used_up
+    assert PROVIDER.error_details(exc)["code"] == error["code"]

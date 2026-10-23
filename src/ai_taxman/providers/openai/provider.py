@@ -46,6 +46,20 @@ RETRYABLE_ERRORS = frozenset(
     }
 )
 
+#: The 429s for billing, spend and quota - no credit left, a spend or usage limit
+#: reached - by `error.code`, and the `error.type` they can all still carry.
+#: OpenAI: retrying them "won't restore API access", so the run stops instead.
+QUOTA_CODES = frozenset(
+    {
+        "credit_balance_exhausted",
+        "insufficient_quota",
+        "organization_spend_limit_exceeded",
+        "organization_usage_limit_exceeded",
+        "project_spend_limit_exceeded",
+    }
+)
+QUOTA_TYPE = "insufficient_quota"
+
 
 class OpenAIProvider(Provider):
     """Audit OpenAI models through the Responses API."""
@@ -66,7 +80,16 @@ class OpenAIProvider(Provider):
         return model.name
 
     def is_retryable(self, exc: BaseException) -> bool:
-        return type(exc).__name__ in RETRYABLE_ERRORS and _is_openai_error(exc)
+        return (
+            type(exc).__name__ in RETRYABLE_ERRORS
+            and _is_openai_error(exc)
+            and not self.is_quota_exhausted(exc)
+        )
+
+    def is_quota_exhausted(self, exc: BaseException) -> bool:
+        if not _is_openai_error(exc) or getattr(exc, "status_code", None) != 429:
+            return False
+        return getattr(exc, "code", None) in QUOTA_CODES or getattr(exc, "type", None) == QUOTA_TYPE
 
     def retry_after(self, exc: BaseException) -> float | None:
         response = getattr(exc, "response", None) if _is_openai_error(exc) else None
@@ -83,6 +106,9 @@ class OpenAIProvider(Provider):
         # The SDK reads it from the response's request id header.
         if request_id := getattr(exc, "request_id", None):
             details["request_id"] = str(request_id)
+        # The body's `error.code`: which 429 it was, a rate or a quota.
+        if code := getattr(exc, "code", None):
+            details["code"] = str(code)
         return details
 
     # -- I/O ----------------------------------------------------------------
