@@ -636,14 +636,13 @@ async def _attempt(
                 break
             delay = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
             log.warning(
-                "retrying  message=%s repeat=%d attempt=%d/%d in=%.1fs %s: %s",
+                "retrying  message=%s repeat=%d attempt=%d/%d in=%.1fs %s",
                 request.message.id,
                 request.repeat,
                 attempts,
                 config.execution.max_retries,
                 delay,
-                type(exc).__name__,
-                exc,
+                _describe(exc),
             )
             await asyncio.sleep(delay)
             continue
@@ -660,12 +659,11 @@ async def _attempt(
         )
 
     log.error(
-        "giving up  message=%s repeat=%d attempts=%d %s: %s",
+        "giving up  message=%s repeat=%d attempts=%d %s",
         request.message.id,
         request.repeat,
         attempts,
-        type(last_error).__name__,
-        last_error,
+        _describe(last_error),
     )
     return _record(
         request,
@@ -677,6 +675,25 @@ async def _attempt(
         status="error",
         error=f"{type(last_error).__name__}: {last_error}",
     )
+
+
+#: How far down an error's chain of causes the log follows it.
+_MAX_CAUSES = 5
+
+
+def _describe(error: BaseException | None) -> str:
+    """`error` and what it was raised from, outermost first, for the log.
+
+    An SDK's own message is often vague - "Connection error." - and the cause
+    underneath it is what says what went wrong: `APIConnectionError: Connection
+    error. <- ConnectError: [Errno 8] nodename nor servname provided`.
+    """
+    parts: list[str] = []
+    while error is not None and len(parts) < _MAX_CAUSES:
+        text = str(error)
+        parts.append(f"{type(error).__name__}: {text}" if text else type(error).__name__)
+        error = error.__cause__ or (None if error.__suppress_context__ else error.__context__)
+    return " <- ".join(parts)
 
 
 def _record(

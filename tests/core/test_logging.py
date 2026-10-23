@@ -167,6 +167,27 @@ async def test_a_retry_is_logged_as_a_warning(audit, fake_provider, logged):
     assert "TimeoutError" in log
 
 
+def failure_with_a_cause():
+    """An error as SDKs raise them: a vague one of their own, over the real cause."""
+    error = TimeoutError("Request timed out.")
+    error.__cause__ = ConnectionResetError("the server hung up")
+    return error
+
+
+async def test_the_cause_under_an_error_is_logged(audit, fake_provider, logged):
+    """An SDK's "Request timed out." says little; what it was raised from says what
+    went wrong. Both the retry and the giving up say it."""
+    from ai_taxman.core.runner import run_audit_async
+
+    fake_provider.retryable = (TimeoutError,)
+    fake_provider.failures = {TWO: [failure_with_a_cause(), failure_with_a_cause()]}
+
+    await run_audit_async(audit("execution:\n  max_retries: 1"))
+
+    log = read_log(logged)
+    assert log.count("ConnectionResetError: the server hung up") == 2
+
+
 async def test_a_failed_message_is_logged_as_an_error(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 
