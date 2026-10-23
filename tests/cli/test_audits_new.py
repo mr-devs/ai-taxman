@@ -285,7 +285,7 @@ def test_execution_and_output_are_written_at_their_defaults(invoke, tmp_path):
 
     assert audit["execution"] == {
         "repeats": 1,
-        "max_concurrency": 8,
+        "max_concurrency": 4,
         "batch": False,
         "timeout_s": 120,
         "max_retries": 5,

@@ -90,7 +90,7 @@ def test_execution_defaults(tmp_path):
     execution = load_audit(write_audit(tmp_path)).execution
 
     assert execution.repeats == 1
-    assert execution.max_concurrency == 8
+    assert execution.max_concurrency == 4
     assert execution.batch is False
     assert execution.on_error == "continue"
     assert execution.shuffle is False

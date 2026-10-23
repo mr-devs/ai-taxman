@@ -89,7 +89,7 @@ output:
 
 execution:
   repeats: 1             # times each message is sent
-  max_concurrency: 8
+  max_concurrency: 4
   batch: false
   timeout_s: 120
   max_retries: 5

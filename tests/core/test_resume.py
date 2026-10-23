@@ -186,7 +186,7 @@ async def test_a_changed_setting_stops_the_run_being_resumed(audit, fake_provide
     with pytest.raises(AuditChangedError) as caught:
         await run_audit_async(audit("execution:\n  max_concurrency: 2"))
 
-    assert "execution.max_concurrency: 8 -> 2" in str(caught.value)
+    assert "execution.max_concurrency: 4 -> 2" in str(caught.value)
     assert fake_provider.sent == []
 
 

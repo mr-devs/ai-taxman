@@ -81,7 +81,7 @@ class ExecutionConfig(_Strict):
         description="How many times each message is sent.",
     )
     max_concurrency: int = Field(
-        default=8,
+        default=4,
         ge=1,
         description="Max number of simultaneous requests.",
     )
