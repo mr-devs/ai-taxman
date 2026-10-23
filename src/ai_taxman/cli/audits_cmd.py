@@ -43,15 +43,15 @@ def new_command(
 ) -> None:
     """Create an audit YAML file for a provider.
 
-    Every setting is written at its default, and the folders come from the
-    project's taxman.yaml. Open the file and change what you need - it lists
-    everything the provider accepts, with comments.
-
-    Two names in, one file out. Nothing else is accepted: parsing `key=value`
-    settings here meant core had to route each one to its owner and each
-    provider had to validate arbitrary keys, all to save opening the file that
-    was written for exactly that purpose.
+    Every setting is written at its default, with a comment explaining it, and
+    the folders come from the project's taxman.yaml. Open the file, fill in each
+    <insert_..._here> placeholder, and change anything else you need.
     """
+    # Two names in, one file out. Nothing else is accepted: parsing `key=value`
+    # settings here meant core had to route each one to its owner and each
+    # provider had to validate arbitrary keys, all to save opening the file that
+    # was written for exactly that purpose.
+    #
     # Resolve the provider before touching the disk: an unknown name should not
     # leave a stray file behind.
     resolved = get_provider(provider)
