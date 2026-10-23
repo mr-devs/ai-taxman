@@ -59,6 +59,10 @@ RETRYABLE_ERRORS = frozenset(
     }
 )
 
+#: A 408, the server's own timeout. The SDK has no class for it but retries it,
+#: and taxman's retries stand in for the SDK's.
+REQUEST_TIMEOUT = 408
+
 #: The `error.details.error_code` of the 429 at the usage tier's monthly spend cap:
 #: a `rate_limit_error` with no `retry-after`, failing until the 1st of the next
 #: month. Anthropic gives the code "to tell this response apart from a rate limit".
@@ -94,7 +98,10 @@ class AnthropicProvider(Provider):
 
     def is_retryable(self, exc: BaseException) -> bool:
         return (
-            type(exc).__name__ in RETRYABLE_ERRORS
+            (
+                type(exc).__name__ in RETRYABLE_ERRORS
+                or getattr(exc, "status_code", None) == REQUEST_TIMEOUT
+            )
             and _is_anthropic_error(exc)
             and not self.is_quota_exhausted(exc)
         )

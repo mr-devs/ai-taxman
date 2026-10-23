@@ -169,6 +169,20 @@ async def test_a_failure_is_one_http_call_so_attempts_stay_true(wire):
     assert len(wire.requests) == 1
 
 
+@pytest.mark.parametrize("status, retryable", [(408, True), (413, False)])
+async def test_a_server_timeout_is_retried_as_the_sdk_would(wire, status, retryable):
+    """The SDK has no class for a 408, the server's own timeout, but retries it
+    itself; taxman's retries stand in for the SDK's. A request too large is
+    no smaller on the next try."""
+    wire.status = status
+    wire.body = {"type": "error", "error": {"type": "api_error", "message": "no"}}
+
+    with pytest.raises(anthropic.APIStatusError) as caught:
+        await send(a_request())
+
+    assert AnthropicProvider().is_retryable(caught.value) is retryable
+
+
 #: Anthropic's own words, from its rate limits page.
 SPEND_CAP = {
     "type": "rate_limit_error",
