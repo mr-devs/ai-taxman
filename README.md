@@ -175,8 +175,17 @@ run: move that folder elsewhere and collect again to start over.
 Each run writes its log to `<output.log_dir>/<run_id>.log`, and only there: one line per
 response, every retry and why, and how the run ended. `collect` prints the log's path when it
 starts, then shows a progress bar on stderr while it runs; the bar is left out when stderr
-is not a terminal. Message text and API keys are never logged; the log does name the variable the key
-was read from.
+is not a terminal. Message text and API keys are never logged; the log does name the variable
+the key was read from.
+
+### Retries
+
+A request that fails with a rate limit, a timeout, or a server error is retried, up to
+`execution.max_retries` times. When the provider says how long to wait (a `Retry-After`
+header, which OpenAI and Anthropic send), every request pauses for that long, not just the one
+that was told, and the log says when it resumes. A wait over 5 minutes, such as a daily
+quota, fails the request instead; collecting again retries it. Otherwise each retry waits a
+little longer than the last, up to 30 seconds.
 
 ### Stopping a run
 

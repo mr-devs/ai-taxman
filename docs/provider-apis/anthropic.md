@@ -39,6 +39,7 @@ Anthropic's request differs from OpenAI's in four ways that matter to the adapte
 | `extra:`, merged into the request at any depth, never over a key path in `SET_BY_TAXMAN`; keys the SDK does not name go in `extra_body` | `config.py`, `provider.py` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 | `raw` = `Message.to_dict(mode="json")`: only the fields Anthropic sent, under the API's names | `provider.py` `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 | Retry set: `RateLimitError`, `OverloadedError` (529), `InternalServerError`, `ServiceUnavailableError`, `DeadlineExceededError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Errors](https://platform.claude.com/docs/en/api/errors.md) |
+| `retry-after`, in seconds: every request waits that long, up to 5 minutes; a longer wait fails the request | `provider.py` `retry_after()`, `core/runner.py` | [Rate limits](https://platform.claude.com/docs/en/api/rate-limits.md) |
 | Logged with each failed attempt: the status, and the `request-id` header (the SDK's `request_id`) | `provider.py` `error_details()` | [Errors](https://platform.claude.com/docs/en/api/errors.md) |
 | Client construction, `max_retries=0`, explicit `timeout=` per call | `provider.py` `_new_client()`, `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 
@@ -68,7 +69,6 @@ Nothing here is about *reading* a response. taxman writes Anthropic's answer ver
 | **Structured outputs**: reachable through `extra: {output_config: {format: ...}}` | [Structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs.md) |
 | **Service tiers, `inference_geo`**: reachable through `extra:` | [Service tiers](https://platform.claude.com/docs/en/api/service-tiers.md) |
 | **Prompt caching**: opt-in per content block, so `cache_read_input_tokens` stays zero | [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching.md) |
-| **`retry-after` header** (ignored; core uses a fixed backoff) | [Rate limits](https://platform.claude.com/docs/en/api/rate-limits.md) |
 | **`ANTHROPIC_BASE_URL`**: read by the SDK and not pinned, as with OpenAI's base URL | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 | **Thinking troubleshooting**: per-model `type` and `effort` rules | [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting.md) |
 

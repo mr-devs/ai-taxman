@@ -310,9 +310,12 @@ def test_an_unrelated_exception_is_not_retried(provider):
     assert provider.is_retryable(ValueError("nope")) is False
 
 
-def test_an_unrelated_exception_has_no_details_to_log(provider):
-    """Only the provider's own SDK errors carry a status or a request id."""
-    assert provider.error_details(RuntimeError("Request timed out.")) == {}
+def test_an_unrelated_exception_has_no_details_to_log_and_no_wait(provider):
+    """Only the provider's own SDK errors carry a status, a request id or a wait."""
+    unrelated = RuntimeError("Request timed out.")
+
+    assert provider.error_details(unrelated) == {}
+    assert provider.retry_after(unrelated) is None
 
 
 def test_claims_batch_support_only_if_it_implements_it(provider):

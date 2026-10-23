@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.core.template import render_block
-from ai_taxman.providers.base import Provider, Request
+from ai_taxman.providers.base import Provider, Request, parse_retry_after
 from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
 from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
@@ -67,6 +67,12 @@ class OpenAIProvider(Provider):
 
     def is_retryable(self, exc: BaseException) -> bool:
         return type(exc).__name__ in RETRYABLE_ERRORS and _is_openai_error(exc)
+
+    def retry_after(self, exc: BaseException) -> float | None:
+        response = getattr(exc, "response", None) if _is_openai_error(exc) else None
+        if response is None:
+            return None
+        return parse_retry_after(response.headers.get("retry-after"))
 
     def error_details(self, exc: BaseException) -> dict[str, str]:
         if not _is_openai_error(exc):

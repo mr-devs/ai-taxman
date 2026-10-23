@@ -529,3 +529,84 @@ def test_the_synchronous_entry_point_hands_on_each_record(audit, fake_provider):
     )
 
     assert sorted(record.message_id for record in seen) == sorted([ONE, TWO, THREE])
+
+
+# --- Retry-After ------------------------------------------------------------
+
+
+class RateLimited(Exception):
+    """A rate limit whose response said how long to wait."""
+
+    def __init__(self, retry_after):
+        super().__init__(f"slow down for {retry_after}s")
+        self.retry_after = retry_after
+
+
+#: Every test below passes `backoff_base=0`, so that a wait can only be the pause.
+
+
+def sends_of(fake_provider, message):
+    return [at for sent, at in fake_provider.sent_at if sent == message]
+
+
+async def test_a_retry_after_holds_back_every_request_not_just_its_own(audit, fake_provider):
+    """A rate limit is the account's, not the request's: another worker sending
+    during the wait only earns another 429."""
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.failures = {ONE: [RateLimited(0.3)]}
+
+    result = await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+
+    limited = sends_of(fake_provider, ONE)[0]
+    assert sends_of(fake_provider, THREE)[0] >= limited + 0.29
+    assert sends_of(fake_provider, ONE)[1] >= limited + 0.29
+    assert result.n_ok == 3
+
+
+async def test_a_longer_retry_after_extends_the_pause(audit, fake_provider):
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.delay = 0.05  # ONE and TWO are both in flight when the limits land
+    fake_provider.failures = {ONE: [RateLimited(0.1)], TWO: [RateLimited(0.4)]}
+
+    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+
+    first = min(at for _, at in fake_provider.sent_at)
+    assert sends_of(fake_provider, THREE)[0] >= first + 0.05 + 0.39
+
+
+async def test_a_wait_over_the_limit_fails_the_request_and_pauses_nothing(
+    audit, fake_provider, monkeypatch
+):
+    """A daily quota can ask for hours. The request is recorded as failed, to be
+    retried by collecting again, and the rest of the run goes on."""
+    from ai_taxman.core import runner
+
+    monkeypatch.setattr(runner, "MAX_RETRY_AFTER", 1.0)
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.failures = {ONE: [RateLimited(60)]}
+
+    result = await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+
+    (failed,) = [r for r in read_jsonl(result.output_path) if r.status == "error"]
+    assert (failed.message_id, failed.attempts) == (ONE, 1)
+    assert sends_of(fake_provider, THREE)[0] < sends_of(fake_provider, ONE)[0] + 1.0
+
+
+async def test_a_stop_ends_a_pause_early(audit, fake_provider):
+    """`kill <pid>` - here, `on_error: stop` - must not wait out a five-minute
+    pause. The request waiting to retry is recorded as failed, for the next collect."""
+    import time
+
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.delay = 0.05  # ONE and TWO are both in flight when they fail
+    fake_provider.failures = {ONE: [RateLimited(30)], TWO: [RuntimeError("no")]}
+    began = time.monotonic()
+
+    result = await run_audit_async(
+        audit("execution:\n  max_concurrency: 2\n  on_error: stop"), backoff_base=0
+    )
+
+    assert time.monotonic() - began < 10
+    assert result.stopped_early
+    statuses = {r.message_id: r.status for r in read_jsonl(result.output_path)}
+    assert statuses == {ONE: "error", TWO: "error"}

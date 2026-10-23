@@ -22,7 +22,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +68,10 @@ log = get_logger(__name__)
 
 DEFAULT_BACKOFF_BASE = 0.5
 MAX_BACKOFF = 30.0
+
+#: The longest a provider's Retry-After is waited out, in seconds. A longer one -
+#: a daily quota, say - fails the request instead, for the next collect to retry.
+MAX_RETRY_AFTER = 300.0
 
 OnRecord = Callable[[ResponseRecord], None]
 OnClaim = Callable[[RunPlan], None]
@@ -536,6 +540,32 @@ class _RunState:
     stop: asyncio.Event = dataclass_field(default_factory=asyncio.Event)
     #: The signal that set `stop`, if one did before an error could.
     stop_signal: int | None = None
+    #: The event loop's time before which no request is sent: a provider's
+    #: Retry-After holds back every worker, not only the one it answered.
+    resume_at: float = 0.0
+
+    def pause(self, seconds: float, *, provider: str) -> None:
+        """Hold back every request for `seconds`, unless a longer pause already does."""
+        until = asyncio.get_running_loop().time() + seconds
+        if until <= self.resume_at:
+            return
+        self.resume_at = until
+        log.warning(
+            "pausing  every request for %.1fs, until %s, as %s asked (Retry-After)",
+            seconds,
+            (now() + timedelta(seconds=seconds)).strftime("%H:%M:%S"),
+            provider,
+        )
+
+    async def wait_to_send(self) -> bool:
+        """Wait out any pause. False if the run was stopped during it."""
+        loop = asyncio.get_running_loop()
+        while (left := self.resume_at - loop.time()) > 0:
+            if self.stop.is_set():
+                return False
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self.stop.wait(), timeout=left)
+        return True
 
     def record(self, record: ResponseRecord) -> None:
         pair = (record.message_id, record.repeat)
@@ -581,10 +611,11 @@ async def _dispatch(
                 config=config,
                 run_id=run_id,
                 backoff_base=backoff_base,
+                state=state,
             )
             # Here, before the slot is given up, and not when the record is
             # written: by then the next task has the slot and has sent its request.
-            if record.status != "ok" and state.on_error == "stop":
+            if record is not None and record.status != "ok" and state.on_error == "stop":
                 state.stop.set()
             return record
 
@@ -620,13 +651,25 @@ async def _attempt(
     config: AuditConfig,
     run_id: str,
     backoff_base: float,
-) -> ResponseRecord:
-    """Send one request, retrying transient failures, and build its record."""
+    state: _RunState,
+) -> ResponseRecord | None:
+    """Send one request, retrying transient failures, and build its record.
+
+    None if the run was stopped while this waited out a pause, before it was
+    ever sent: there is nothing to record.
+    """
     started = now()
     attempts = 0
     last_error: BaseException | None = None
+    #: Why the request was given up on, when it is not the error alone.
+    giving_up = ""
 
     while attempts <= config.execution.max_retries:
+        if not await state.wait_to_send():
+            if last_error is None:
+                return None
+            giving_up = " stopped during a pause;"
+            break
         attempts += 1
         try:
             raw = await provider.send(request, timeout_s=config.execution.timeout_s)
@@ -634,19 +677,38 @@ async def _attempt(
             raise
         except BaseException as exc:  # noqa: BLE001 - one bad response must not end the run
             last_error = exc
-            if not provider.is_retryable(exc) or attempts > config.execution.max_retries:
+            if not provider.is_retryable(exc):
                 break
-            delay = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
+            asked = _retry_after(provider, exc)
+            if asked is not None and asked > MAX_RETRY_AFTER:
+                giving_up = (
+                    f" {provider.name} asked to wait {asked:.0f}s, over the "
+                    f"{MAX_RETRY_AFTER:.0f}s limit; collect again later to retry;"
+                )
+                break
+            if asked is not None:
+                # The limit is the account's, so every worker waits it out, this
+                # one included, at the top of its next attempt - even when this
+                # request has no retries left.
+                state.pause(asked, provider=provider.name)
+            if attempts > config.execution.max_retries:
+                break
+            if asked is None:
+                wait, source = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF), "backoff"
+            else:
+                wait, source = asked, "retry-after"
             log.warning(
-                "retrying  message=%s repeat=%d attempt=%d/%d in=%.1fs %s",
+                "retrying  message=%s repeat=%d attempt=%d/%d wait=%.1fs (%s) %s",
                 request.message.id,
                 request.repeat,
                 attempts,
                 config.execution.max_retries,
-                delay,
+                wait,
+                source,
                 _describe(exc, provider),
             )
-            await asyncio.sleep(delay)
+            if asked is None:
+                await asyncio.sleep(wait)
             continue
 
         return _record(
@@ -661,10 +723,11 @@ async def _attempt(
         )
 
     log.error(
-        "giving up  message=%s repeat=%d attempts=%d %s",
+        "giving up  message=%s repeat=%d attempts=%d%s %s",
         request.message.id,
         request.repeat,
         attempts,
+        giving_up,
         _describe(last_error, provider),
     )
     return _record(
@@ -677,6 +740,14 @@ async def _attempt(
         status="error",
         error=f"{type(last_error).__name__}: {last_error}",
     )
+
+
+def _retry_after(provider: Provider, exc: BaseException) -> float | None:
+    """The provider's Retry-After for `exc`. A provider's bug in reading it must
+    not end the run: it falls back to the backoff instead."""
+    with contextlib.suppress(Exception):
+        return provider.retry_after(exc)
+    return None
 
 
 #: How far down an error's chain of causes the log follows it.

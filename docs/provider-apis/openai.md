@@ -33,6 +33,7 @@ key to the `model:` block.
 | `search.include` → request-level `include`; defaults to `[web_search_call.action.sources]` when searching | `config.py`, `provider.py` `build_request()` | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md) |
 | `store` (always sent, defaults false) | `config.py` | [Data controls](https://developers.openai.com/api/docs/guides/your-data.md), [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state.md) |
 | Retry set: `RateLimitError`, `InternalServerError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Error codes](https://developers.openai.com/api/docs/guides/error-codes.md), [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
+| `Retry-After`, in seconds: every request waits that long, up to 5 minutes; a longer wait fails the request | `provider.py` `retry_after()`, `core/runner.py` | [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
 | Logged with each failed attempt: the status, and the `x-request-id` header (the SDK's `request_id`) | `provider.py` `error_details()` | [API overview](https://developers.openai.com/api/reference/overview.md) |
 | Client construction, `max_retries=0` | `provider.py` `_new_client()` | [Python SDK](https://developers.openai.com/api/docs/libraries.md) |
 
@@ -59,7 +60,7 @@ in the collected data, waiting for whatever reads it.
 | **Seed / reproducible outputs, `logprobs`** | [Advanced usage](https://developers.openai.com/api/docs/guides/advanced-usage.md) |
 | **`background: true`** for long runs (refused in `extra:`: it returns before the answer) | [Background mode](https://developers.openai.com/api/docs/guides/background.md) |
 | **Multi-turn input arrays, `previous_response_id`** | [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state.md) |
-| **`Retry-After` / `x-ratelimit-*` headers** (ignored; core uses fixed backoff) | [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
+| **`x-ratelimit-*` headers** (not read; only `Retry-After` is) | [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
 | **`base_url`, `organization`, `project`** (not surfaced) | [Admin APIs](https://developers.openai.com/api/docs/guides/admin-apis.md) |
 
 ## Model names

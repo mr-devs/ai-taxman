@@ -90,3 +90,8 @@ def rate_limited(headers):
 def test_an_error_gives_its_status():
     """Google documents no request id header, so there is none to give."""
     assert PROVIDER.error_details(rate_limited({})) == {"status": "429"}
+
+
+def test_no_wait_is_read_where_google_documents_none():
+    """Google documents no Retry-After, so its backoff is taxman's own."""
+    assert PROVIDER.retry_after(rate_limited({"retry-after": "7"})) is None

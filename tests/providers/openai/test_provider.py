@@ -65,3 +65,16 @@ def test_an_error_gives_its_status_and_the_request_id_support_asks_for():
         "status": "429",
         "request_id": "req_123",
     }
+
+
+@pytest.mark.parametrize(
+    "headers, wait",
+    [
+        ({"retry-after": "7"}, 7.0),
+        ({"retry-after": "Fri, 31 Dec 1999 23:59:59 GMT"}, None),
+        ({}, None),
+    ],
+    ids=["seconds", "not-seconds", "none"],
+)
+def test_a_retry_after_is_read_in_the_seconds_the_docs_promise(headers, wait):
+    assert PROVIDER.retry_after(rate_limited(headers)) == wait

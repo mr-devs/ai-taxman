@@ -32,7 +32,7 @@ from ai_taxman.providers.anthropic.models import (
     DEFAULT_WEB_SEARCH_VERSION,
     DISPLAY_UPDATES_BETA,
 )
-from ai_taxman.providers.base import Provider, Request
+from ai_taxman.providers.base import Provider, Request, parse_retry_after
 from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
 if TYPE_CHECKING:
@@ -80,6 +80,12 @@ class AnthropicProvider(Provider):
 
     def is_retryable(self, exc: BaseException) -> bool:
         return type(exc).__name__ in RETRYABLE_ERRORS and _is_anthropic_error(exc)
+
+    def retry_after(self, exc: BaseException) -> float | None:
+        response = getattr(exc, "response", None) if _is_anthropic_error(exc) else None
+        if response is None:
+            return None
+        return parse_retry_after(response.headers.get("retry-after"))
 
     def error_details(self, exc: BaseException) -> dict[str, str]:
         if not _is_anthropic_error(exc):

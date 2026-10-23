@@ -100,6 +100,8 @@ class FakeProvider(Provider):
     retryable: tuple[type[BaseException], ...] = ()
 
     sent: list[Request] = field(default_factory=list)
+    #: When each request was sent, by `time.monotonic()`, beside its message id.
+    sent_at: list[tuple[str, float]] = field(default_factory=list)
     api_key: str | None = None
     started: int = 0
     stopped: int = 0
@@ -136,11 +138,16 @@ class FakeProvider(Provider):
     def is_retryable(self, exc: BaseException) -> bool:
         return isinstance(exc, self.retryable)
 
+    def retry_after(self, exc: BaseException) -> float | None:
+        """Whatever wait the failure carries, as a provider would read its header."""
+        return getattr(exc, "retry_after", None)
+
     async def send(self, request: Request, *, timeout_s: float) -> dict[str, Any]:
         self._in_flight += 1
         self.peak_concurrency = max(self.peak_concurrency, self._in_flight)
         try:
             self.sent.append(request)
+            self.sent_at.append((request.message.id, time.monotonic()))
             if self.gate is not None:
                 await self.gate.wait()
             if self.delay:

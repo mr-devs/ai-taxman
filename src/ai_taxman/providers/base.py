@@ -18,6 +18,7 @@ data on disk.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,6 +46,19 @@ class BatchHandle:
     id: str
     provider: str
     details: dict[str, Any] = field(default_factory=dict)
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    """A `retry-after` header's wait, in seconds, or None if there is none to read.
+
+    Whole seconds are the only form OpenAI and Anthropic document; anything else
+    is no answer, and the runner falls back to its own backoff.
+    """
+    try:
+        seconds = float(value) if value is not None else math.nan
+    except ValueError:
+        return None
+    return seconds if math.isfinite(seconds) and seconds >= 0 else None
 
 
 class Provider(ABC):
@@ -120,6 +134,16 @@ class Provider(ABC):
         rather than hammering an endpoint.
         """
         return False
+
+    def retry_after(self, exc: BaseException) -> float | None:
+        """Seconds the provider asked to wait before `exc`'s request is retried,
+        or None if it did not say.
+
+        The runner holds back every request for that long, not only this one: a
+        rate limit belongs to the account. Only this provider knows where its
+        SDK keeps the answer.
+        """
+        return None
 
     def error_details(self, exc: BaseException) -> dict[str, str]:
         """What the log should say about `exc` beyond its message.
