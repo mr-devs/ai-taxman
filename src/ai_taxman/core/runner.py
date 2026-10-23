@@ -738,7 +738,7 @@ async def _attempt(
                     "limit or billing problem is resolved"
                 )
                 break
-            if not provider.is_retryable(exc):
+            if not _retryable(provider, exc):
                 break
             asked = _retry_after(provider, exc)
             if asked is not None and asked > MAX_RETRY_AFTER:
@@ -818,6 +818,14 @@ def _quota_exhausted(provider: Provider, exc: BaseException) -> bool:
     deciding must not end the run, or stop it: it is taken as a no."""
     with contextlib.suppress(Exception):
         return provider.is_quota_exhausted(exc)
+    return False
+
+
+def _retryable(provider: Provider, exc: BaseException) -> bool:
+    """Whether the provider says `exc` is worth retrying. A provider's bug in
+    deciding must not end the run: it is taken as a no, and the request fails."""
+    with contextlib.suppress(Exception):
+        return provider.is_retryable(exc)
     return False
 
 

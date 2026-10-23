@@ -145,6 +145,23 @@ async def test_non_retryable_failures_are_not_retried(audit, fake_provider):
     assert len(attempts) == 1
 
 
+async def test_a_provider_bug_in_deciding_a_retry_costs_one_row_not_the_run(
+    audit, fake_provider, monkeypatch
+):
+    """Taken as "do not retry", as a bug in any other check on an error is."""
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+
+    def broken(exc):
+        raise AttributeError("an error shaped like nothing the provider expected")
+
+    monkeypatch.setattr(fake_provider, "is_retryable", broken)
+
+    result = await run_audit_async(audit(), backoff_base=0, max_jitter=0)
+
+    assert (result.n_ok, result.n_error) == (2, 1)
+    assert len([r for r in fake_provider.sent if r.message.id == TWO]) == 1
+
+
 async def test_on_error_stop_sends_nothing_after_the_failure(audit, fake_provider):
     """One request at a time, so the one that failed is the last one sent: the
     slot it frees must not go to the next message before the stop is seen."""
