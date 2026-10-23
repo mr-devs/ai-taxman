@@ -269,6 +269,27 @@ async def test_the_model_block_is_validated_by_the_provider(project, fake_provid
         await run_audit_async(config)
 
 
+async def test_a_model_block_error_reads_like_a_core_setting_error(
+    audit, fake_provider, monkeypatch
+):
+    """One line per bad setting, named by its place in the file, as core's own
+    settings are - not pydantic's dump, with its link to errors.pydantic.dev."""
+    from pydantic import BaseModel, Field
+
+    class Block(BaseModel):
+        name: str
+        temperature: float = Field(le=2)
+
+    monkeypatch.setattr(fake_provider, "validate_model_config", lambda block: Block(**block))
+
+    with pytest.raises(ConfigError) as caught:
+        await run_audit_async(audit("model:\n  name: fake-1\n  temperature: 5"))
+
+    message = str(caught.value)
+    assert "model.temperature: " in message
+    assert "pydantic" not in message
+
+
 async def test_a_missing_message_file_is_reported_before_anything_is_sent(project, fake_provider):
     config = write_audit(
         project,

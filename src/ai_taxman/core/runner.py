@@ -26,9 +26,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from ai_taxman.core.config import (
     AuditConfig,
     check_output_paths,
+    format_validation_error,
     load_audit,
 )
 from ai_taxman.core.credentials import (
@@ -751,9 +754,14 @@ def validate_model(provider: Provider, config: AuditConfig) -> object:
     try:
         return provider.validate_model_config(dict(config.model))
     except Exception as exc:
+        details = (
+            format_validation_error(exc, within="model")
+            if isinstance(exc, ValidationError)
+            else f"  {exc}"
+        )
         raise ConfigError(
             f"The `model:` block in {config.source_path} is not valid for the "
-            f"{provider.name!r} provider:\n  {exc}"
+            f"{provider.name!r} provider:\n{details}"
         ) from exc
 
 

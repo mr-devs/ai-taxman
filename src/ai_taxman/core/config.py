@@ -208,7 +208,7 @@ def load_audit(path: str | Path) -> AuditConfig:
     try:
         config = AuditConfig(**data, source_path=path)
     except ValidationError as exc:
-        raise ConfigError(f"Invalid audit file at {path}:\n{_format(exc)}") from exc
+        raise ConfigError(f"Invalid audit file at {path}:\n{format_validation_error(exc)}") from exc
 
     # Outside a project there is no root to resolve its paths against, and
     # guessing one is how data lands somewhere nobody looks.
@@ -253,9 +253,18 @@ def _expand(config: AuditConfig, key: str, template: str, run_id: str) -> str:
         ) from exc
 
 
-def _format(exc: ValidationError) -> str:
+def format_validation_error(exc: ValidationError, *, within: str = "") -> str:
+    """One line per bad setting, named by its dotted place in the file.
+
+    `within` names the block the settings sit in (`model`), for errors from a
+    validator that only saw that block. Pydantic's own rendering runs to several
+    lines per error and ends each with a link to its docs; neither helps someone
+    editing an audit.
+    """
     lines = []
     for error in exc.errors():
-        location = ".".join(str(part) for part in error["loc"]) or "(top level)"
-        lines.append(f"  {location}: {error['msg']}")
+        parts = [str(part) for part in error["loc"]]
+        location = ".".join([within, *parts] if within else parts) or "(top level)"
+        message = error["msg"].removeprefix("Value error, ")
+        lines.append(f"  {location}: {message}")
     return "\n".join(lines)
