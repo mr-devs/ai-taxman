@@ -215,9 +215,11 @@ Changes are **additive** — auditors depend on old data staying readable. Remov
 field is a breaking change: it needs a `RESPONSE_SCHEMA_VERSION` bump and a row in the README's
 "Schema versions" table.
 
-**Every time taxman writes is the user's local time**, with its offset, through
-`records.timestamp()`: rows, manifests, log lines, and run ids. Never UTC: a time is read by
-the person who collected it, and the offset already makes it exact.
+**Every time taxman writes is the user's local time**, never UTC: a time is read by the
+person who collected it. Rows and manifests write theirs through `records.timestamp()`, with
+the offset that makes each exact; log lines carry the offset too, to the millisecond. A run
+id is a name, not a record: local time with no offset, so runs are ordered by their
+manifests' `started_at`, never by id.
 
 **Until the first public release, the schema stays at version 1.** taxman is in development
 and not yet published or shared, so there is no data in the wild to keep readable. Change the
