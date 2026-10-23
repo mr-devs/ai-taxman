@@ -13,8 +13,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-#: Offered by `taxman audits new anthropic` and tab completion. First entry is the
-#: default, the model Anthropic's models overview says to start with.
+#: A convenience list; nothing checks a model name against it.
 KNOWN_MODELS: tuple[str, ...] = (
     "claude-opus-5-5",
     "claude-sonnet-5-5",
@@ -29,8 +28,6 @@ KNOWN_MODELS: tuple[str, ...] = (
     "claude-sonnet-4-6",
     "claude-opus-4-5-20251101",
 )
-
-DEFAULT_MODEL = KNOWN_MODELS[0]
 
 #: The levels the Messages API documents for `output_config.effort`, ascending. Not
 #: every model accepts every one - `xhigh` and `max` are newer, and Haiku 4.5 takes

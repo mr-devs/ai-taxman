@@ -38,8 +38,9 @@ def test_writes_the_audit_from_the_projects_folders(invoke, tmp_path):
     assert not (tmp_path / "taxman-home").exists()
 
 
-def test_the_file_loads_and_validates_as_written(invoke, tmp_path):
-    """`audits new` output must load before the user edits a thing, model block included."""
+def test_the_file_loads_and_validates_once_the_model_is_named(invoke, tmp_path):
+    """`audits new` output must load before the user edits a thing, and its model
+    block validate once the one setting left to them, the model, is named."""
     from ai_taxman.core.registry import get_provider
 
     invoke("audits", "new", "openai", "probe")
@@ -49,7 +50,8 @@ def test_the_file_loads_and_validates_as_written(invoke, tmp_path):
     config = load_audit(tmp_path / "audits" / "probe.yaml")
 
     assert config.provider == "openai"
-    get_provider("openai").validate_model_config(read(tmp_path, "probe")["model"])
+    model = read(tmp_path, "probe")["model"]
+    get_provider("openai").validate_model_config({**model, "name": "gpt-x"})
 
 
 def test_the_name_is_required(invoke):
@@ -69,7 +71,7 @@ def test_tells_the_user_what_to_do_next(invoke):
         "Next:",
         "  1. Add messages in messages/election-probe.txt",
         "  2. (Optional) Add a system prompt in prompts/",
-        "  3. Finalize details in audits/election-probe.yaml",
+        "  3. Fill in the model name and api_key_env in audits/election-probe.yaml",
         "  4. Collect data by running `taxman collect election-probe`",
     ]
 
@@ -85,7 +87,7 @@ def test_paths_are_relative_to_the_project_wherever_the_user_stands(invoke, tmp_
     assert next_steps(result.output)[1:4] == [
         "  1. Add messages in messages/probe.txt",
         "  2. (Optional) Add a system prompt in prompts/",
-        "  3. Finalize details in audits/probe.yaml",
+        "  3. Fill in the model name and api_key_env in audits/probe.yaml",
     ]
     assert str(tmp_path) not in result.output
 
@@ -98,7 +100,7 @@ def test_next_steps_name_the_projects_own_folders(invoke, tmp_path):
     assert next_steps(result.output)[1:4] == [
         "  1. Add messages in study/msgs/probe.txt",
         "  2. (Optional) Add a system prompt in taxman/prompts/",
-        "  3. Finalize details in study/audits/probe.yaml",
+        "  3. Fill in the model name and api_key_env in study/audits/probe.yaml",
     ]
 
 

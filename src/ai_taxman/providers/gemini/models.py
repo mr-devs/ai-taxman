@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-#: Offered by `taxman audits new gemini` and tab completion. First entry is the default.
+#: A convenience list; nothing checks a model name against it.
 KNOWN_MODELS: tuple[str, ...] = (
     "gemini-3.8-flash",
     "gemini-3.7-flash",
@@ -26,8 +26,6 @@ KNOWN_MODELS: tuple[str, ...] = (
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
 )
-
-DEFAULT_MODEL = KNOWN_MODELS[0]
 
 #: The documented `generation_config.thinking_level` values, ascending. Gemini 3
 #: and 2.5 models both take it, but not every model takes every level - 2.5 models

@@ -11,7 +11,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 
 from ai_taxman.providers.gemini.models import ThinkingLevel
-from ai_taxman.providers.settings import SettingsBlock, check_extra
+from ai_taxman.providers.settings import ModelName, SettingsBlock, check_extra
 
 #: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
 #: anything else - a key inside `generation_config` included, so a `seed` can sit
@@ -65,7 +65,7 @@ class GeminiModelConfig(SettingsBlock):
     """Validated Gemini settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
-    name: str = Field(
+    name: ModelName = Field(
         description="The model to send every message to.",
         json_schema_extra={"docs": MODELS_DOCS},
     )

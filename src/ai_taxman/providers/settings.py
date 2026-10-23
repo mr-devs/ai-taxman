@@ -10,9 +10,28 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Collection, Iterator, Mapping
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, model_validator
+
+#: What `audits new` writes for the model. Only the user can choose it: which
+#: model is current changes faster than any default taxman could ship.
+MODEL_NAME_PLACEHOLDER = "<insert_model_name_here>"
+
+
+def _named(value: str) -> str:
+    if value.strip() == MODEL_NAME_PLACEHOLDER:
+        raise ValueError(
+            f"still {MODEL_NAME_PLACEHOLDER}; replace it with a model name from the "
+            "models page linked in the comment above it"
+        )
+    return value
+
+
+#: The model every message is sent to, refused while it is still the placeholder,
+#: so an unedited audit stops before a request goes out. Any other name is taken:
+#: the provider's API is what knows which models exist.
+ModelName = Annotated[str, AfterValidator(_named)]
 
 
 class SettingsBlock(BaseModel):
@@ -26,7 +45,7 @@ class SettingsBlock(BaseModel):
         """`taxman audits new` writes keys with no value; YAML reads those as None.
 
         Dropping them here lets the field defaults apply, so a freshly generated
-        template validates as-is.
+        template validates once its model is named.
         """
         if isinstance(block, dict):
             return {

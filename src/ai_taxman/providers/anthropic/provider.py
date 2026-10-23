@@ -29,13 +29,12 @@ from ai_taxman.providers.anthropic.config import (
     AnthropicSearchConfig,
 )
 from ai_taxman.providers.anthropic.models import (
-    DEFAULT_MODEL,
     DEFAULT_WEB_SEARCH_VERSION,
     DISPLAY_UPDATES_BETA,
     KNOWN_MODELS,
 )
 from ai_taxman.providers.base import Provider, Request
-from ai_taxman.providers.settings import merge_extra
+from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
 if TYPE_CHECKING:
     from anthropic import AsyncAnthropic
@@ -196,12 +195,12 @@ def render_template() -> str:
     """Return the `model:` block for a new Anthropic audit.
 
     Every parameter appears under a comment read from its own field, blank apart
-    from the model name and `max_tokens`, which Anthropic requires.
+    from the model name's placeholder and `max_tokens`, which Anthropic requires.
     """
     lines = render_block(
         AnthropicModelConfig,
         indent=2,
-        values={"name": DEFAULT_MODEL, "max_tokens": DEFAULT_MAX_TOKENS},
+        values={"name": MODEL_NAME_PLACEHOLDER, "max_tokens": DEFAULT_MAX_TOKENS},
     )
     return "\n".join(["model:", *lines]) + "\n"
 

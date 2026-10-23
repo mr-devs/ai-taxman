@@ -18,7 +18,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from ai_taxman.providers.openai.models import ReasoningEffort
-from ai_taxman.providers.settings import SettingsBlock, check_extra
+from ai_taxman.providers.settings import ModelName, SettingsBlock, check_extra
 
 #: Request keys `build_request` sets itself. `extra:` may not touch them.
 SET_BY_TAXMAN = frozenset(
@@ -241,7 +241,7 @@ class OpenAIModelConfig(SettingsBlock):
     """Validated OpenAI settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
-    name: str = Field(
+    name: ModelName = Field(
         description="The model to send every message to.",
         json_schema_extra={"docs": MODELS_DOCS},
     )

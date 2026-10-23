@@ -27,8 +27,8 @@ from ai_taxman.providers.gemini.config import (
     GENERATION_CONFIG_KEYS,
     GeminiModelConfig,
 )
-from ai_taxman.providers.gemini.models import DEFAULT_MODEL, KNOWN_MODELS
-from ai_taxman.providers.settings import merge_extra
+from ai_taxman.providers.gemini.models import KNOWN_MODELS
+from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
 if TYPE_CHECKING:
     from google.genai import Client
@@ -154,9 +154,10 @@ def render_template() -> str:
     """Return the `model:` block for a new Gemini audit.
 
     Every parameter appears under a comment read from its own field, blank apart
-    from the model name, so the generated file is the documentation the user edits.
+    from the model name's placeholder, so the generated file is the documentation
+    the user edits.
     """
-    lines = render_block(GeminiModelConfig, indent=2, values={"name": DEFAULT_MODEL})
+    lines = render_block(GeminiModelConfig, indent=2, values={"name": MODEL_NAME_PLACEHOLDER})
     return "\n".join(["model:", *lines]) + "\n"
 
 

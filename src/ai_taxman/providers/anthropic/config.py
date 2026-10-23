@@ -18,7 +18,7 @@ from ai_taxman.providers.anthropic.models import (
     WebSearchCaller,
     WebSearchVersion,
 )
-from ai_taxman.providers.settings import SettingsBlock, check_extra
+from ai_taxman.providers.settings import ModelName, SettingsBlock, check_extra
 
 #: Request keys `build_request` sets itself, as dotted paths. `extra:` may add
 #: anything else - a key inside one of these objects included, so `output_config`
@@ -281,7 +281,7 @@ class AnthropicModelConfig(SettingsBlock):
     """Validated Anthropic settings for one audit."""
 
     #: Any model name is allowed; `known_models()` is only a convenience list.
-    name: str = Field(
+    name: ModelName = Field(
         description="The model to send every message to.",
         json_schema_extra={"docs": MODELS_DOCS},
     )

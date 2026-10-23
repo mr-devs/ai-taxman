@@ -72,6 +72,8 @@ Commands work from anywhere inside the project, like `git`.
 `taxman audits new <provider> <audit-name>` takes no other arguments.
 It writes every setting at its default, with a comment above each giving its type, default, options, and a link to the provider's docs.
 You configure an audit by editing that file.
+Two settings are placeholders that a run refuses until you fill them in: `api_key_env:`, and
+the model's name, whose comment links the provider's list of current models.
 Without the comments:
 
 ```yaml
@@ -96,7 +98,7 @@ execution:
   on_error: continue
 
 model:                   # provider-specific; this is OpenAI's
-  name: gpt-5
+  name: <insert_model_name_here>
   temperature:
   # ...
 ```

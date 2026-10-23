@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-#: Offered by `taxman audits new openai` and tab completion. First entry is the default.
+#: A convenience list; nothing checks a model name against it.
 KNOWN_MODELS: tuple[str, ...] = (
     "gpt-5",
     "gpt-5-mini",
@@ -21,8 +21,6 @@ KNOWN_MODELS: tuple[str, ...] = (
     "o4-mini",
     "o3",
 )
-
-DEFAULT_MODEL = KNOWN_MODELS[0]
 
 #: The levels the Responses API documents for `reasoning.effort`, ascending. Not
 #: every reasoning model accepts every one, and non-reasoning models accept

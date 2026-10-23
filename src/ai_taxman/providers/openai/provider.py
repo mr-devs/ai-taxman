@@ -24,8 +24,8 @@ from ai_taxman.core.errors import ProviderDependencyError, ProviderError
 from ai_taxman.core.template import render_block
 from ai_taxman.providers.base import Provider, Request
 from ai_taxman.providers.openai.config import OpenAIModelConfig, OpenAISearchConfig
-from ai_taxman.providers.openai.models import DEFAULT_MODEL, KNOWN_MODELS
-from ai_taxman.providers.settings import merge_extra
+from ai_taxman.providers.openai.models import KNOWN_MODELS
+from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER, merge_extra
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
@@ -170,9 +170,10 @@ def render_template() -> str:
     """Return the `model:` block for a new OpenAI audit.
 
     Every parameter appears under a comment read from its own field, blank apart
-    from the model name, so the generated file is the documentation the user edits.
+    from the model name's placeholder, so the generated file is the documentation
+    the user edits.
     """
-    lines = render_block(OpenAIModelConfig, indent=2, values={"name": DEFAULT_MODEL})
+    lines = render_block(OpenAIModelConfig, indent=2, values={"name": MODEL_NAME_PLACEHOLDER})
     return "\n".join(["model:", *lines]) + "\n"
 
 

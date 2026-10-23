@@ -24,8 +24,12 @@ from ai_taxman.core.errors import ProviderError
 from ai_taxman.core.messages import Message
 from ai_taxman.core.template import SENTENCE_END
 from ai_taxman.providers.base import Provider, Request
+from ai_taxman.providers.settings import MODEL_NAME_PLACEHOLDER
 
 PROVIDERS = registry.available_providers()
+
+#: The model the tests name in each template, where the user would name theirs.
+MODEL = "a-model-taxman-never-heard-of"
 
 
 @pytest.fixture(params=PROVIDERS)
@@ -33,8 +37,18 @@ def provider(request):
     return registry.get_provider(request.param)
 
 
-def template_block(provider):
+def as_written(provider):
+    """The `model:` block exactly as `audits new` writes it."""
     return yaml.safe_load(provider.render_template())["model"]
+
+
+def template_block(provider):
+    """The template's `model:` block once the user has named a model, the one
+    setting `audits new` leaves for them. Found by its placeholder, not its key."""
+    return {
+        key: MODEL if value == MODEL_NAME_PLACEHOLDER else value
+        for key, value in as_written(provider).items()
+    }
 
 
 def test_every_provider_is_checked():
@@ -71,11 +85,17 @@ def test_template_is_one_model_block(provider):
     assert list(parsed) == ["model"]
 
 
-def test_template_validates_as_written(provider):
-    """`audits new` output must run as-is, before the user edits a thing."""
+def test_the_template_leaves_the_model_for_the_user_to_name(provider):
+    """Which model is current changes faster than taxman could ship a default, so
+    an unedited template must stop before anything is sent, and say why."""
+    with pytest.raises(ValueError, match=MODEL_NAME_PLACEHOLDER):
+        provider.validate_model_config(as_written(provider))
+
+
+def test_the_template_validates_once_the_model_is_named(provider):
     config = provider.validate_model_config(template_block(provider))
 
-    assert provider.describe_model(config) == provider.known_models()[0]
+    assert provider.describe_model(config) == MODEL
 
 
 def nested_block(annotation):

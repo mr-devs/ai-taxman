@@ -94,7 +94,8 @@ def new_command(
     typer.echo(f"  1. Add messages in {messages}")
     # The folder, not a file: the audit's own comment says how to name one.
     typer.echo(f"  2. (Optional) Add a system prompt in {layout.prompts}/")
-    typer.echo(f"  3. Finalize details in {audit_file}")
+    blanks = "the model name and api_key_env" if resolved.requires_api_key else "the model name"
+    typer.echo(f"  3. Fill in {blanks} in {audit_file}")
     typer.echo(f"  4. Collect data by running `taxman collect {audit}`")
 
 
