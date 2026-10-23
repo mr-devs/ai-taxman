@@ -39,6 +39,7 @@ Anthropic's request differs from OpenAI's in four ways that matter to the adapte
 | `extra:`, merged into the request at any depth, never over a key path in `SET_BY_TAXMAN`; keys the SDK does not name go in `extra_body` | `config.py`, `provider.py` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 | `raw` = `Message.to_dict(mode="json")`: only the fields Anthropic sent, under the API's names | `provider.py` `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 | Retry set: `RateLimitError`, `OverloadedError` (529), `InternalServerError`, `ServiceUnavailableError`, `DeadlineExceededError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Errors](https://platform.claude.com/docs/en/api/errors.md) |
+| Logged with each failed attempt: the status, and the `request-id` header (the SDK's `request_id`) | `provider.py` `error_details()` | [Errors](https://platform.claude.com/docs/en/api/errors.md) |
 | Client construction, `max_retries=0`, explicit `timeout=` per call | `provider.py` `_new_client()`, `send()` | [Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python.md) |
 
 `OverloadedError`, `ServiceUnavailableError` and `DeadlineExceededError` are siblings of

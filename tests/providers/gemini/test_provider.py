@@ -75,3 +75,18 @@ def _make_gemini_error(name):
     compat_errors = pytest.importorskip("google.genai._gaos.lib.compat_errors")
     cls = getattr(compat_errors, name)
     return cls.__new__(cls)
+
+
+def rate_limited(headers):
+    """A 429 as the SDK raises it, around a response that never crossed a network."""
+    import httpx
+    from google.genai._gaos.lib import compat_errors
+
+    request = httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/x")
+    response = httpx.Response(429, headers=headers, request=request)
+    return compat_errors.RateLimitError("rate_limit_exceeded", response=response, body=None)
+
+
+def test_an_error_gives_its_status():
+    """Google documents no request id header, so there is none to give."""
+    assert PROVIDER.error_details(rate_limited({})) == {"status": "429"}

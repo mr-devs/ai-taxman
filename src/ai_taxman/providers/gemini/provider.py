@@ -72,6 +72,11 @@ class GeminiProvider(Provider):
     def is_retryable(self, exc: BaseException) -> bool:
         return type(exc).__name__ in RETRYABLE_ERRORS and _is_genai_error(exc)
 
+    def error_details(self, exc: BaseException) -> dict[str, str]:
+        # Google documents no request id header, so there is only the status.
+        status = getattr(exc, "status_code", None) if _is_genai_error(exc) else None
+        return {"status": str(status)} if status is not None else {}
+
     # -- I/O ----------------------------------------------------------------
 
     async def send(self, request: Request, *, timeout_s: float) -> dict[str, Any]:

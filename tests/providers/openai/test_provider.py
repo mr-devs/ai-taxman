@@ -48,3 +48,20 @@ async def test_the_client_is_the_one_startup_was_given():
         assert provider._require_client().api_key == "sk-one"
     finally:
         await provider.shutdown()
+
+
+def rate_limited(headers):
+    """A 429 as the SDK raises it, around a response that never crossed a network."""
+    import httpx2
+    import openai
+
+    request = httpx2.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx2.Response(429, headers=headers, request=request)
+    return openai.RateLimitError("Rate limit reached", response=response, body=None)
+
+
+def test_an_error_gives_its_status_and_the_request_id_support_asks_for():
+    assert PROVIDER.error_details(rate_limited({"x-request-id": "req_123"})) == {
+        "status": "429",
+        "request_id": "req_123",
+    }

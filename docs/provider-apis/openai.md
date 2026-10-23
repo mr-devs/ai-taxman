@@ -33,6 +33,7 @@ key to the `model:` block.
 | `search.include` → request-level `include`; defaults to `[web_search_call.action.sources]` when searching | `config.py`, `provider.py` `build_request()` | [Web search](https://developers.openai.com/api/docs/guides/tools-web-search.md) |
 | `store` (always sent, defaults false) | `config.py` | [Data controls](https://developers.openai.com/api/docs/guides/your-data.md), [Conversation state](https://developers.openai.com/api/docs/guides/conversation-state.md) |
 | Retry set: `RateLimitError`, `InternalServerError`, `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [Error codes](https://developers.openai.com/api/docs/guides/error-codes.md), [Rate limits](https://developers.openai.com/api/docs/guides/rate-limits.md) |
+| Logged with each failed attempt: the status, and the `x-request-id` header (the SDK's `request_id`) | `provider.py` `error_details()` | [API overview](https://developers.openai.com/api/reference/overview.md) |
 | Client construction, `max_retries=0` | `provider.py` `_new_client()` | [Python SDK](https://developers.openai.com/api/docs/libraries.md) |
 
 ## Known gaps, with the spec to read first

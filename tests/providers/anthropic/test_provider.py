@@ -85,3 +85,20 @@ def _make_anthropic_error(name):
     anthropic = pytest.importorskip("anthropic")
     cls = getattr(anthropic, name)
     return cls.__new__(cls)
+
+
+def rate_limited(headers):
+    """A 429 as the SDK raises it, around a response that never crossed a network."""
+    import anthropic
+    import httpx2
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx2.Response(429, headers=headers, request=request)
+    return anthropic.RateLimitError("rate_limit_error", response=response, body=None)
+
+
+def test_an_error_gives_its_status_and_the_request_id_support_asks_for():
+    assert PROVIDER.error_details(rate_limited({"request-id": "req_123"})) == {
+        "status": "429",
+        "request_id": "req_123",
+    }

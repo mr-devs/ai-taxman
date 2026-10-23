@@ -644,7 +644,7 @@ async def _attempt(
                 attempts,
                 config.execution.max_retries,
                 delay,
-                _describe(exc),
+                _describe(exc, provider),
             )
             await asyncio.sleep(delay)
             continue
@@ -665,7 +665,7 @@ async def _attempt(
         request.message.id,
         request.repeat,
         attempts,
-        _describe(last_error),
+        _describe(last_error, provider),
     )
     return _record(
         request,
@@ -683,19 +683,25 @@ async def _attempt(
 _MAX_CAUSES = 5
 
 
-def _describe(error: BaseException | None) -> str:
-    """`error` and what it was raised from, outermost first, for the log.
+def _describe(error: BaseException | None, provider: Provider) -> str:
+    """`error` and what it was raised from, outermost first, then what the
+    provider can add about it (`status=429 request_id=req_1`), for the log.
 
     An SDK's own message is often vague - "Connection error." - and the cause
     underneath it is what says what went wrong: `APIConnectionError: Connection
     error. <- ConnectError: [Errno 8] nodename nor servname provided`.
     """
+    details: dict[str, str] = {}
+    if error is not None:
+        # A provider's bug in describing an error must not end the run.
+        with contextlib.suppress(Exception):
+            details = provider.error_details(error)
     parts: list[str] = []
     while error is not None and len(parts) < _MAX_CAUSES:
         text = str(error)
         parts.append(f"{type(error).__name__}: {text}" if text else type(error).__name__)
         error = error.__cause__ or (None if error.__suppress_context__ else error.__context__)
-    return " <- ".join(parts)
+    return " ".join([" <- ".join(parts), *(f"{key}={value}" for key, value in details.items())])
 
 
 def _record(

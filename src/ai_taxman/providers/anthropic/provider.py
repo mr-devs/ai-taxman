@@ -81,6 +81,17 @@ class AnthropicProvider(Provider):
     def is_retryable(self, exc: BaseException) -> bool:
         return type(exc).__name__ in RETRYABLE_ERRORS and _is_anthropic_error(exc)
 
+    def error_details(self, exc: BaseException) -> dict[str, str]:
+        if not _is_anthropic_error(exc):
+            return {}
+        details = {}
+        if (status := getattr(exc, "status_code", None)) is not None:
+            details["status"] = str(status)
+        # The SDK reads it from the response's request id header.
+        if request_id := getattr(exc, "request_id", None):
+            details["request_id"] = str(request_id)
+        return details
+
     # -- I/O ----------------------------------------------------------------
 
     async def send(self, request: Request, *, timeout_s: float) -> dict[str, Any]:

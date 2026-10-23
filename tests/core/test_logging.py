@@ -183,6 +183,23 @@ async def test_the_cause_under_an_error_is_logged(audit, fake_provider, logged):
     assert log.count("ConnectionResetError: the server hung up") == 2
 
 
+async def test_the_provider_s_details_of_an_error_are_logged(
+    audit, fake_provider, logged, monkeypatch
+):
+    """The status and request id are what a provider's support asks for."""
+    from ai_taxman.core.runner import run_audit_async
+
+    fake_provider.retryable = (TimeoutError,)
+    fake_provider.failures = {TWO: [TimeoutError("slow"), TimeoutError("slow")]}
+    monkeypatch.setattr(
+        fake_provider, "error_details", lambda exc: {"status": "503", "request_id": "req_9"}
+    )
+
+    await run_audit_async(audit("execution:\n  max_retries: 1"))
+
+    assert read_log(logged).count("status=503 request_id=req_9") == 2
+
+
 async def test_a_failed_message_is_logged_as_an_error(audit, fake_provider, logged):
     from ai_taxman.core.runner import run_audit_async
 

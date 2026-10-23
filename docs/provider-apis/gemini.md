@@ -35,6 +35,7 @@ The authoritative request and response schema is the REST reference. It is large
 | `extra:`, merged into the body at any depth (`generation_config.seed` included), never over a key path in `SET_BY_TAXMAN`; `stream` and `background` refused | `config.py`, `provider.py` | [Interactions reference](https://ai.google.dev/api/interactions.md.txt) |
 | `raw` = the response's JSON body, not the SDK's parsed object | `provider.py` `send()` | [Gemini API libraries](https://ai.google.dev/gemini-api/docs/libraries.md.txt) |
 | Retry set: `RateLimitError`, `InternalServerError` (every 5xx), `ConflictError`, `APIConnectionError`, `APITimeoutError` | `provider.py` `RETRYABLE_ERRORS` | [API errors](https://ai.google.dev/gemini-api/docs/api-errors.md.txt), [Rate limits](https://ai.google.dev/gemini-api/docs/rate-limits.md.txt) |
+| Logged with each failed attempt: the status only; no request id header is documented | `provider.py` `error_details()` | [API errors](https://ai.google.dev/gemini-api/docs/api-errors.md.txt) |
 | Client construction: explicit key, `enterprise=False`, SDK retries off, explicit `timeout=` per call | `provider.py` `_new_client()`, `send()` | [Gemini API libraries](https://ai.google.dev/gemini-api/docs/libraries.md.txt), [Using Gemini API keys](https://ai.google.dev/gemini-api/docs/api-key.md.txt) |
 
 ## How the SDK is used, and why

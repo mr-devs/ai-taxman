@@ -121,6 +121,15 @@ class Provider(ABC):
         """
         return False
 
+    def error_details(self, exc: BaseException) -> dict[str, str]:
+        """What the log should say about `exc` beyond its message.
+
+        The HTTP status, and the provider's id for the request - what its
+        support asks for. Only this provider knows where its SDK keeps them, so
+        an exception from anywhere else has none.
+        """
+        return {}
+
     # -- batch (opt-in) -----------------------------------------------------
 
     async def submit_batch(self, requests: list[Request], *, timeout_s: float) -> BatchHandle:
