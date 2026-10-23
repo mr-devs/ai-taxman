@@ -431,12 +431,14 @@ async def test_an_audit_without_api_key_env_is_rejected_when_the_provider_needs_
 
 
 async def test_the_unedited_placeholder_stops_the_run(audit, fake_provider):
-    """A scaffold nobody filled in must fail before anything is sent."""
+    """A scaffold nobody filled in must fail before anything is sent, and say
+    what to put there rather than call the placeholder an unset variable."""
     fake_provider.requires_api_key = True
 
-    with pytest.raises(MissingApiKeyError, match="insert_api_key_env_var_here"):
+    with pytest.raises(ConfigError, match="insert_api_key_env_var_here") as caught:
         await run_audit_async(audit("api_key_env: <insert_api_key_env_var_here>"))
 
+    assert "FAKE_API_KEY" in str(caught.value)
     assert fake_provider.sent == []
 
 

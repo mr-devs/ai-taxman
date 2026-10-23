@@ -18,10 +18,6 @@ from __future__ import annotations
 
 from ai_taxman.providers.base import Provider
 
-#: What `api_key_env:` says until the user replaces it. Deliberately not a valid
-#: variable name, so an unedited audit fails loudly instead of reading something.
-API_KEY_ENV_PLACEHOLDER = "<insert_api_key_env_var_here>"
-
 HEADER = """\
 # This is an `ai-taxman` audit file.
 #

@@ -31,7 +31,7 @@ from ai_taxman.core.config import (
     check_output_paths,
     load_audit,
 )
-from ai_taxman.core.credentials import resolve_api_key
+from ai_taxman.core.credentials import API_KEY_ENV_PLACEHOLDER, resolve_api_key
 from ai_taxman.core.errors import ConfigError, ProviderError, TaxmanError
 from ai_taxman.core.logging import get_logger
 from ai_taxman.core.messages import Message, read_messages
@@ -463,8 +463,21 @@ def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
             f"{provider.name!r} provider needs an API key. Add the name of the "
             "environment variable holding it, and export that variable in your shell."
         )
+    if config.api_key_env.strip() == API_KEY_ENV_PLACEHOLDER:
+        raise ConfigError(
+            f"`api_key_env:` in {config.source_path} is still {API_KEY_ENV_PLACEHOLDER}. "
+            f"Replace it with the name of the environment variable that holds your "
+            f"{provider.name} API key{_for_example(provider)}, and export that variable "
+            "in your shell."
+        )
 
     return resolve_api_key(config.api_key_env)
+
+
+def _for_example(provider: Provider) -> str:
+    """The variable this provider's SDK conventionally reads, as an example name."""
+    usual = provider.default_api_key_env
+    return f" (for example {usual})" if usual else ""
 
 
 async def _startup(provider: Provider, api_key: str | None) -> None:

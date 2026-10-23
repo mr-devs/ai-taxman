@@ -17,6 +17,10 @@ import os
 
 from ai_taxman.core.errors import MissingApiKeyError
 
+#: What `api_key_env:` says until the user replaces it. Deliberately not a valid
+#: variable name, so an unedited audit fails loudly instead of reading something.
+API_KEY_ENV_PLACEHOLDER = "<insert_api_key_env_var_here>"
+
 
 def resolve_api_key(env_name: str) -> str:
     """Return the API key held by `env_name`.

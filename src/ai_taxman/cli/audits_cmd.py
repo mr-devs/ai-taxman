@@ -8,8 +8,9 @@ import typer
 import yaml
 
 from ai_taxman.cli.completion import complete_audit, complete_provider
-from ai_taxman.cli.render import API_KEY_ENV_PLACEHOLDER, render_audit
+from ai_taxman.cli.render import render_audit
 from ai_taxman.cli.util import display_path, fail, handles_taxman_errors
+from ai_taxman.core.credentials import API_KEY_ENV_PLACEHOLDER
 from ai_taxman.core.discovery import (
     YAML_SUFFIXES,
     audits_dir,
