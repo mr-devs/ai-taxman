@@ -465,7 +465,8 @@ def resolve_key(provider: Provider, config: AuditConfig) -> str | None:
         raise ConfigError(
             f"{config.source_path} has no `api_key_env:`, and the "
             f"{provider.name!r} provider needs an API key. Add the name of the "
-            "environment variable holding it, and export that variable in your shell."
+            f"environment variable holding it{_for_example(provider)}, and export that "
+            "variable in your shell."
         )
     if config.api_key_env.strip() == API_KEY_ENV_PLACEHOLDER:
         raise ConfigError(

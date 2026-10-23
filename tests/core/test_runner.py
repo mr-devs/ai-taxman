@@ -428,6 +428,7 @@ async def test_an_audit_without_api_key_env_is_rejected_when_the_provider_needs_
     message = str(caught.value)
     assert "setup" not in message
     assert "export" in message.lower()
+    assert "FAKE_API_KEY" in message
 
 
 async def test_the_unedited_placeholder_stops_the_run(audit, fake_provider):
