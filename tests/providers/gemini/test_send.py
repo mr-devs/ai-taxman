@@ -140,6 +140,19 @@ async def test_a_used_up_quota_or_credit_is_not_retried_but_a_rate_limit_is(
     assert GeminiProvider().error_details(caught.value) == {"status": str(status), "code": code}
 
 
+@pytest.mark.parametrize("code, retried", [("aborted", True), ("already_exists", False)])
+async def test_a_conflict_is_retried_only_when_it_can_pass(wire, code, retried):
+    """Both are a 409. Google says to retry an aborted one; a thing that already
+    exists will still exist on the next try."""
+    wire.status = 409
+    wire.body = {"error": {"code": code, "message": "no"}}
+
+    with pytest.raises(Exception) as caught:
+        await send(a_request())
+
+    assert GeminiProvider().is_retryable(caught.value) is retried
+
+
 async def test_a_dropped_connection_is_one_http_call_too(wire):
     wire.error = httpx.ConnectError
 

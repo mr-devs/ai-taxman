@@ -60,6 +60,10 @@ DAILY_QUOTA = "quota_exceeded"
 #: answered until more is bought. Google says not to retry it.
 PAYMENT_REQUIRED = 402
 
+#: The `error.code` of a 409 for something that already exists, which a retry
+#: will find still there. The other 409, `aborted`, is retried.
+ALREADY_EXISTS = "already_exists"
+
 
 class GeminiProvider(Provider):
     """Audit Gemini models through the Interactions API."""
@@ -84,6 +88,7 @@ class GeminiProvider(Provider):
             type(exc).__name__ in RETRYABLE_ERRORS
             and _is_genai_error(exc)
             and not self.is_quota_exhausted(exc)
+            and _error_code(exc) != ALREADY_EXISTS
         )
 
     def is_quota_exhausted(self, exc: BaseException) -> bool:
