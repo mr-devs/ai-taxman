@@ -113,7 +113,7 @@ async def test_retryable_failures_are_retried_then_succeed(audit, fake_provider)
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [TimeoutError("slow"), TimeoutError("slow")]}
 
-    result = await run_audit_async(audit(), backoff_base=0)
+    result = await run_audit_async(audit(), backoff_base=0, max_jitter=0)
 
     assert result.n_error == 0
     record = next(r for r in read_jsonl(result.output_path) if r.message_id == ONE)
@@ -124,7 +124,9 @@ async def test_retries_stop_at_max_retries(audit, fake_provider):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [TimeoutError("slow")] * 10}
 
-    result = await run_audit_async(audit("execution:\n  max_retries: 2"), backoff_base=0)
+    result = await run_audit_async(
+        audit("execution:\n  max_retries: 2"), backoff_base=0, max_jitter=0
+    )
 
     record = next(r for r in read_jsonl(result.output_path) if r.message_id == ONE)
     assert record.status == "error"
@@ -136,7 +138,7 @@ async def test_non_retryable_failures_are_not_retried(audit, fake_provider):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [ValueError("bad request")] * 5}
 
-    await run_audit_async(audit(), backoff_base=0)
+    await run_audit_async(audit(), backoff_base=0, max_jitter=0)
 
     attempts = [r for r in fake_provider.sent if r.message.id == ONE]
     assert len(attempts) == 1
@@ -150,6 +152,7 @@ async def test_on_error_stop_sends_nothing_after_the_failure(audit, fake_provide
     result = await run_audit_async(
         audit("execution:\n  max_concurrency: 1\n  on_error: stop"),
         backoff_base=0,
+        max_jitter=0,
     )
 
     assert [request.message.id for request in fake_provider.sent] == [ONE]
@@ -550,7 +553,7 @@ class RateLimited(Exception):
         self.retry_after = retry_after
 
 
-#: Every test below passes `backoff_base=0`, so that a wait can only be the pause.
+#: Every test below passes `backoff_base=0, max_jitter=0`, so that a wait can only be the pause.
 
 
 def sends_of(fake_provider, message):
@@ -563,7 +566,9 @@ async def test_a_retry_after_holds_back_every_request_not_just_its_own(audit, fa
     fake_provider.retryable = (RateLimited,)
     fake_provider.failures = {ONE: [RateLimited(0.3)]}
 
-    result = await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+    result = await run_audit_async(
+        audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0
+    )
 
     limited = sends_of(fake_provider, ONE)[0]
     assert sends_of(fake_provider, THREE)[0] >= limited + 0.29
@@ -576,7 +581,7 @@ async def test_a_longer_retry_after_extends_the_pause(audit, fake_provider):
     fake_provider.delay = 0.05  # ONE and TWO are both in flight when the limits land
     fake_provider.failures = {ONE: [RateLimited(0.1)], TWO: [RateLimited(0.4)]}
 
-    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0)
 
     first = min(at for _, at in fake_provider.sent_at)
     assert sends_of(fake_provider, THREE)[0] >= first + 0.05 + 0.39
@@ -593,7 +598,9 @@ async def test_a_wait_over_the_limit_fails_the_request_and_pauses_nothing(
     fake_provider.retryable = (RateLimited,)
     fake_provider.failures = {ONE: [RateLimited(60)]}
 
-    result = await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+    result = await run_audit_async(
+        audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0
+    )
 
     (failed,) = [r for r in read_jsonl(result.output_path) if r.status == "error"]
     assert (failed.message_id, failed.attempts) == (ONE, 1)
@@ -611,7 +618,7 @@ async def test_a_stop_ends_a_pause_early(audit, fake_provider):
     began = time.monotonic()
 
     result = await run_audit_async(
-        audit("execution:\n  max_concurrency: 2\n  on_error: stop"), backoff_base=0
+        audit("execution:\n  max_concurrency: 2\n  on_error: stop"), backoff_base=0, max_jitter=0
     )
 
     assert time.monotonic() - began < 10
@@ -622,28 +629,31 @@ async def test_a_stop_ends_a_pause_early(audit, fake_provider):
 
 @pytest.fixture
 def jitter(monkeypatch):
-    """A random extra that is not random: 0.3s, every time."""
+    """A random extra that is not random: the most it may be, every time."""
     from ai_taxman.core import runner
 
-    monkeypatch.setattr(runner, "_jitter", lambda: 0.3)
+    monkeypatch.setattr(runner, "_jitter", lambda limit: limit)
 
 
-async def test_a_backoff_adds_a_random_extra(audit, fake_provider, jitter):
+@pytest.mark.parametrize("max_jitter", [0, 0.3])
+async def test_a_backoff_adds_a_random_extra(audit, fake_provider, jitter, max_jitter):
     """So requests that failed together do not all retry in the same instant."""
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {ONE: [TimeoutError("slow")]}
 
-    await run_audit_async(audit("execution:\n  max_concurrency: 1"), backoff_base=0)
+    await run_audit_async(
+        audit("execution:\n  max_concurrency: 1"), backoff_base=0, max_jitter=max_jitter
+    )
 
     first, retried = sends_of(fake_provider, ONE)
-    assert retried >= first + 0.29
+    assert first + max_jitter - 0.01 <= retried < first + max_jitter + 0.2
 
 
 async def test_each_request_held_by_a_pause_waits_a_random_extra(audit, fake_provider, jitter):
     fake_provider.retryable = (RateLimited,)
     fake_provider.failures = {ONE: [RateLimited(0.1)]}
 
-    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0, max_jitter=0.3)
 
     limited = sends_of(fake_provider, ONE)[0]
     assert sends_of(fake_provider, THREE)[0] >= limited + 0.1 + 0.29

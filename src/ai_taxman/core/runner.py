@@ -144,6 +144,7 @@ async def run_audit_async(
     on_record: OnRecord | None = None,
     new_run: bool = False,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
+    max_jitter: float = MAX_JITTER,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Run an audit and return what it produced.
@@ -157,6 +158,8 @@ async def run_audit_async(
     `stopped_early`. It defaults to none, because a library does not take a
     caller's signal handlers; `taxman collect` passes SIGTERM so that `kill <pid>`
     keeps the responses the run already paid for.
+
+    `backoff_base` and `max_jitter` set how long a retry waits; at 0, it does not.
     """
     provider = provider or get_provider(config.provider)
     checked = preflight(config, provider)
@@ -167,6 +170,7 @@ async def run_audit_async(
         new_run=new_run,
         on_record=on_record,
         backoff_base=backoff_base,
+        max_jitter=max_jitter,
         stop_signals=stop_signals,
     )
 
@@ -204,6 +208,7 @@ async def run_checked_async(
     on_claim: OnClaim | None = None,
     on_record: OnRecord | None = None,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
+    max_jitter: float = MAX_JITTER,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """Collect an audit that has passed `preflight`: plan its run, claim it, send.
@@ -227,7 +232,7 @@ async def run_checked_async(
     system_text = checked.system_text
 
     limit = config.execution.max_concurrency
-    state = _RunState(on_error=config.execution.on_error)
+    state = _RunState(on_error=config.execution.on_error, max_jitter=max_jitter)
     plan: RunPlan | None = None
     #: Set once the run is claimed: its manifest is on disk and its lock held.
     manifest: RunManifest | None = None
@@ -549,6 +554,8 @@ class _RunState:
     #: The event loop's time before which no request is sent: a provider's
     #: Retry-After holds back every worker, not only the one it answered.
     resume_at: float = 0.0
+    #: The most random extra added to a wait before a retry.
+    max_jitter: float = MAX_JITTER
 
     def pause(self, seconds: float, *, provider: str) -> None:
         """Hold back every request for `seconds`, unless a longer pause already does."""
@@ -570,7 +577,7 @@ class _RunState:
         loop = asyncio.get_running_loop()
         if self.resume_at <= loop.time():
             return True
-        extra = _jitter()
+        extra = _jitter(self.max_jitter)
         # Measured from `resume_at` each time round, which a longer pause can move.
         while (left := self.resume_at + extra - loop.time()) > 0:
             if self.stop.is_set():
@@ -707,7 +714,7 @@ async def _attempt(
                 break
             if asked is None:
                 backoff = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
-                wait, source = backoff + _jitter(), "backoff"
+                wait, source = backoff + _jitter(state.max_jitter), "backoff"
             else:
                 wait, source = asked, "retry-after"
             log.warning(
@@ -755,9 +762,9 @@ async def _attempt(
     )
 
 
-def _jitter() -> float:
-    """A random extra for one wait: up to `MAX_JITTER` seconds."""
-    return random.uniform(0, MAX_JITTER)
+def _jitter(limit: float) -> float:
+    """A random extra for one wait: up to `limit` seconds."""
+    return random.uniform(0, limit)
 
 
 def _retry_after(provider: Provider, exc: BaseException) -> float | None:

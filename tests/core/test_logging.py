@@ -155,7 +155,7 @@ async def test_a_retry_is_logged_as_a_warning(audit, fake_provider, logged):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {TWO: [TimeoutError("slow")]}
 
-    await run_audit_async(audit("execution:\n  max_retries: 2"))
+    await run_audit_async(audit("execution:\n  max_retries: 2"), backoff_base=0, max_jitter=0)
 
     log = read_log(logged)
     assert "WARNING" in log
@@ -177,7 +177,7 @@ async def test_the_cause_under_an_error_is_logged(audit, fake_provider, logged):
     fake_provider.retryable = (TimeoutError,)
     fake_provider.failures = {TWO: [failure_with_a_cause(), failure_with_a_cause()]}
 
-    await run_audit_async(audit("execution:\n  max_retries: 1"))
+    await run_audit_async(audit("execution:\n  max_retries: 1"), backoff_base=0, max_jitter=0)
 
     log = read_log(logged)
     assert log.count("ConnectionResetError: the server hung up") == 2
@@ -195,7 +195,7 @@ async def test_the_provider_s_details_of_an_error_are_logged(
         fake_provider, "error_details", lambda exc: {"status": "503", "request_id": "req_9"}
     )
 
-    await run_audit_async(audit("execution:\n  max_retries: 1"))
+    await run_audit_async(audit("execution:\n  max_retries: 1"), backoff_base=0, max_jitter=0)
 
     assert read_log(logged).count("status=503 request_id=req_9") == 2
 
