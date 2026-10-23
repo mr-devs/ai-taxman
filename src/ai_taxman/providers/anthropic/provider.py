@@ -68,6 +68,11 @@ SPEND_CAP = "enforced_spend_limit_reached"
 #: fails until it is fixed in the Console.
 BILLING_ERROR = "billing_error"
 
+#: How the 400 for a spend limit the organization set itself, on itself or on a
+#: workspace, begins its message. No code says so, so only the message tells it
+#: from a bad request: if Anthropic rewords it, each request fails once instead.
+OWN_SPEND_LIMIT = "You have reached your specified"
+
 
 class AnthropicProvider(Provider):
     """Audit Claude models through the Messages API."""
@@ -98,7 +103,11 @@ class AnthropicProvider(Provider):
         if not _is_anthropic_error(exc):
             return False
         error = _error(exc)
-        if getattr(exc, "status_code", None) == 402 or error.get("type") == BILLING_ERROR:
+        status = getattr(exc, "status_code", None)
+        if status == 402 or error.get("type") == BILLING_ERROR:
+            return True
+        message = error.get("message")
+        if status == 400 and isinstance(message, str) and message.startswith(OWN_SPEND_LIMIT):
             return True
         details = error.get("details")
         return isinstance(details, dict) and details.get("error_code") == SPEND_CAP

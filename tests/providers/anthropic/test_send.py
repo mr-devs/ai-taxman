@@ -182,18 +182,39 @@ RATE_LIMIT = {
     "message": "Number of requests has exceeded your rate limit",
 }
 BILLING = {"type": "billing_error", "message": "There is an issue with your billing."}
+#: A limit set in the Console, below the tier's cap: a 400 that only its message
+#: tells from a bad request. The docs give how it starts, and that it says when.
+OWN_LIMIT = {
+    "type": "invalid_request_error",
+    "message": "You have reached your specified API usage limits. You will regain access "
+    "on 2026-11-01 at 00:00 UTC.",
+}
+OWN_WORKSPACE_LIMIT = {
+    "type": "invalid_request_error",
+    "message": "You have reached your specified workspace API usage limits. You will "
+    "regain access on 2026-11-01 at 00:00 UTC.",
+}
+BAD_REQUEST = {"type": "invalid_request_error", "message": "max_tokens: Field required"}
 
 
 @pytest.mark.parametrize(
     "status, error, used_up",
-    [(429, SPEND_CAP, True), (429, RATE_LIMIT, False), (402, BILLING, True)],
-    ids=["spend-cap", "rate-limit", "billing"],
+    [
+        (429, SPEND_CAP, True),
+        (429, RATE_LIMIT, False),
+        (402, BILLING, True),
+        (400, OWN_LIMIT, True),
+        (400, OWN_WORKSPACE_LIMIT, True),
+        (400, BAD_REQUEST, False),
+    ],
+    ids=["spend-cap", "rate-limit", "billing", "own-limit", "own-workspace-limit", "bad-request"],
 )
 async def test_what_will_fail_until_it_is_resolved_stops_the_run(wire, status, error, used_up):
     """The tier's monthly spend cap is a 429 like a rate limit, without a
     `retry-after`, and "keeps failing until access resumes" - the 1st of the
     next month. Retried, it fails again, as does every other request. So does
-    every request after a 402, until the billing details are fixed."""
+    every request after a 402, until the billing details are fixed, and after
+    a spend limit the organization set itself, until it is raised."""
     wire.status = status
     wire.body = {"type": "error", "error": error, "request_id": "req_01"}
 
@@ -201,7 +222,7 @@ async def test_what_will_fail_until_it_is_resolved_stops_the_run(wire, status, e
         await send(a_request())
 
     assert AnthropicProvider().is_quota_exhausted(caught.value) is used_up
-    assert AnthropicProvider().is_retryable(caught.value) is not used_up
+    assert AnthropicProvider().is_retryable(caught.value) is (status == 429 and not used_up)
 
 
 async def test_a_large_max_tokens_is_sent_rather_than_refused(wire):
