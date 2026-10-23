@@ -184,7 +184,8 @@ async def test_the_response_is_json_safe(wire):
 
 
 @pytest.mark.parametrize(
-    "status, retryable", [(429, True), (500, True), (503, True), (400, False), (403, False)]
+    "status, retryable",
+    [(408, True), (429, True), (500, True), (503, True), (400, False), (403, False)],
 )
 async def test_what_send_raises_is_classified_by_status(wire, status, retryable):
     """The real exception, not a stand-in: the classes the SDK raises today."""

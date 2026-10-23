@@ -50,6 +50,10 @@ RETRYABLE_ERRORS = frozenset(
     }
 )
 
+#: A 408, the server's own timeout. The SDK has no class for it but retries it,
+#: and taxman's retries stand in for the SDK's.
+REQUEST_TIMEOUT = 408
+
 #: The `error.code` of a 429 for a used-up daily quota, which resets only at
 #: midnight Pacific time: until then every request fails, so the run stops. Other
 #: 429 codes (`rate_limit_exceeded`, `too_many_requests`) pass in seconds and are
@@ -85,7 +89,10 @@ class GeminiProvider(Provider):
 
     def is_retryable(self, exc: BaseException) -> bool:
         return (
-            type(exc).__name__ in RETRYABLE_ERRORS
+            (
+                type(exc).__name__ in RETRYABLE_ERRORS
+                or getattr(exc, "status_code", None) == REQUEST_TIMEOUT
+            )
             and _is_genai_error(exc)
             and not self.is_quota_exhausted(exc)
             and _error_code(exc) != ALREADY_EXISTS
