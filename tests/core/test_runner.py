@@ -515,3 +515,17 @@ async def test_the_caller_hears_of_its_run_once_it_is_claimed(audit, fake_provid
 
     assert claimed == [(first.run_id, True, 0)]
     assert again.already_complete is True
+
+
+def test_the_synchronous_entry_point_hands_on_each_record(audit, fake_provider):
+    """`collect` runs through `run_checked`, and its progress bar counts what this hands on."""
+    from ai_taxman.core.runner import preflight, run_checked
+
+    config = audit()
+    seen = []
+
+    run_checked(
+        config, preflight(config, fake_provider), provider=fake_provider, on_record=seen.append
+    )
+
+    assert sorted(record.message_id for record in seen) == sorted([ONE, TWO, THREE])

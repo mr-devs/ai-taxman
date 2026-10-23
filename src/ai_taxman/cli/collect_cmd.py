@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
@@ -13,8 +14,11 @@ from ai_taxman.core.discovery import find_audit
 from ai_taxman.core.registry import get_provider
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only, never imported at runtime
+    from tqdm import tqdm
+
     from ai_taxman.core.config import AuditConfig
-    from ai_taxman.core.runner import OnClaim, Preflight, RunResult
+    from ai_taxman.core.records import ResponseRecord
+    from ai_taxman.core.runner import OnClaim, OnRecord, Preflight, RunResult
     from ai_taxman.core.runs import RunPlan
     from ai_taxman.providers.base import Provider
 
@@ -82,8 +86,20 @@ def collect(
             )
         if plan.resuming:
             typer.secho(_resuming(plan), fg=typer.colors.YELLOW)
+        progress.start(len(plan.tasks))
 
-    result = _run(config, checked, provider=provider, new_run=new_run, on_claim=announce)
+    progress = _Progress()
+    try:
+        result = _run(
+            config,
+            checked,
+            provider=provider,
+            new_run=new_run,
+            on_claim=announce,
+            on_record=progress.record,
+        )
+    finally:
+        progress.close()
     if result.already_complete:
         _say_complete(
             config,
@@ -120,6 +136,41 @@ def collect(
     # that keeps failing has still collected everything else.
     if result.run_n_ok == 0:
         fail(_nothing_collected(result))
+
+
+class _Progress:
+    """What the terminal shows while a run goes: a bar of the responses this
+    session sends, with how many came back and how many failed."""
+
+    def __init__(self) -> None:
+        self._bar: tqdm[Any] | None = None
+        self._ok = 0
+        self._error = 0
+
+    def start(self, total: int, *, disable: bool | None = None) -> None:
+        """Show the bar. `disable=None` leaves it off when stderr is not a
+        terminal - under `nohup`, or redirected to a file - where it would only
+        write a line per update."""
+        # Imported here: shell completion imports this module on every Tab press.
+        from tqdm import tqdm
+
+        self._bar = tqdm(
+            total=total, unit="response", file=sys.stderr, disable=disable, dynamic_ncols=True
+        )
+
+    def record(self, record: ResponseRecord) -> None:
+        if self._bar is None:
+            return
+        if record.status == "ok":
+            self._ok += 1
+        else:
+            self._error += 1
+        self._bar.set_postfix(ok=self._ok, error=self._error, refresh=False)
+        self._bar.update(1)
+
+    def close(self) -> None:
+        if self._bar is not None:
+            self._bar.close()
 
 
 def _nothing_collected(result: RunResult) -> str:
@@ -169,6 +220,7 @@ def _run(
     provider: Provider,
     new_run: bool,
     on_claim: OnClaim,
+    on_record: OnRecord,
 ) -> RunResult:
     """Run in this process, stopping gracefully on SIGTERM.
 
@@ -189,5 +241,6 @@ def _run(
         provider=provider,
         new_run=new_run,
         on_claim=on_claim,
+        on_record=on_record,
         stop_signals=stop_signals,
     )

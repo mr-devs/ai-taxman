@@ -174,7 +174,8 @@ run: move that folder elsewhere and collect again to start over.
 
 Each run writes its log to `<output.log_dir>/<run_id>.log`, and only there: one line per
 response, every retry and why, and how the run ended. `collect` prints the log's path when it
-starts. Message text and API keys are never logged; the log does name the variable the key
+starts, then shows a progress bar on stderr while it runs; the bar is left out when stderr
+is not a terminal. Message text and API keys are never logged; the log does name the variable the key
 was read from.
 
 ### Stopping a run

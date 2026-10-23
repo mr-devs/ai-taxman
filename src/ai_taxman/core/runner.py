@@ -168,6 +168,7 @@ def run_checked(
     provider: Provider,
     new_run: bool = False,
     on_claim: OnClaim | None = None,
+    on_record: OnRecord | None = None,
     stop_signals: tuple[int, ...] = (),
 ) -> RunResult:
     """`run_checked_async`, synchronously."""
@@ -178,6 +179,7 @@ def run_checked(
             provider=provider,
             new_run=new_run,
             on_claim=on_claim,
+            on_record=on_record,
             stop_signals=stop_signals,
         )
     )

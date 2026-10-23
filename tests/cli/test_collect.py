@@ -297,6 +297,27 @@ def test_every_run_keeps_its_log_in_the_logs_folder_and_says_where(invoke, tmp_p
     assert log in result.output
 
 
+def test_a_progress_bar_counts_the_responses_and_how_they_went(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """What the terminal shows while a run goes. Forced on: tqdm turns itself off
+    when stderr is not a terminal, as it is not under a test runner."""
+    from ai_taxman.cli import collect_cmd
+
+    start = collect_cmd._Progress.start
+    monkeypatch.setattr(
+        collect_cmd._Progress, "start", lambda self, total: start(self, total, disable=False)
+    )
+    make_project(tmp_path)
+    fake_provider.failures = {TWO: [RuntimeError("nope")]}
+
+    result = invoke("collect", "probe")
+
+    assert "3/3" in result.output
+    assert "ok=2" in result.output
+    assert "error=1" in result.output
+
+
 def test_the_log_stays_out_of_the_terminal(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 
