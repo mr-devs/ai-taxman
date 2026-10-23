@@ -733,7 +733,10 @@ async def _attempt(
         except BaseException as exc:  # noqa: BLE001 - one bad response must not end the run
             last_error = exc
             if _quota_exhausted(provider, exc):
-                state.stop_for(f"{provider.name} says the quota is used up")
+                state.stop_for(
+                    f"{provider.name} will accept no more requests until a quota, spend "
+                    "limit or billing problem is resolved"
+                )
                 break
             if not provider.is_retryable(exc):
                 break
@@ -810,8 +813,9 @@ def _jitter(limit: float) -> float:
 
 
 def _quota_exhausted(provider: Provider, exc: BaseException) -> bool:
-    """Whether the provider says `exc` means its quota is used up. A provider's
-    bug in deciding must not end the run, or stop it: it is taken as a no."""
+    """Whether the provider says `exc` means it will accept nothing more for now -
+    a used-up quota, a spend limit, a billing problem. A provider's bug in
+    deciding must not end the run, or stop it: it is taken as a no."""
     with contextlib.suppress(Exception):
         return provider.is_quota_exhausted(exc)
     return False

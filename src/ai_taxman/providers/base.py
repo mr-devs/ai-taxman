@@ -138,8 +138,9 @@ class Provider(ABC):
         return False
 
     def is_quota_exhausted(self, exc: BaseException) -> bool:
-        """Whether `exc` says the account can send nothing more until a quota or
-        limit resets - a daily quota, a spend limit, no credit left.
+        """Whether `exc` says the account can send nothing more until a quota,
+        limit or bill is dealt with - a daily quota, a spend limit, no credit
+        left, a payment that failed.
 
         Every other request would fail the same way, so the runner stops the
         run, for a later collect to finish. Defaults to "no": a rate limit
