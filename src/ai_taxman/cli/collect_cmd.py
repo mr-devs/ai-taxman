@@ -34,13 +34,6 @@ def collect(
             help="Start a new run of the audit, even if its latest run is unfinished.",
         ),
     ] = False,
-    log_file: Annotated[
-        Path | None,
-        typer.Option(
-            "--log-file",
-            help="Write the run log here instead of the terminal. Parent directories are created.",
-        ),
-    ] = None,
 ) -> None:
     """Send every message in an audit to its provider and record the responses.
 
@@ -48,8 +41,7 @@ def collect(
     run is missing, or that failed, are sent. --new-run starts a new run instead.
 
     Progress is logged as the run happens - one line per response - to the
-    terminal and to the audit's log folder, as <run_id>.log. --log-file sends it
-    to that file alone instead.
+    terminal and to the audit's log folder, as <run_id>.log.
 
     kill <pid> stops a run gracefully: what is in flight finishes, and
     collecting again picks up where it stopped. The pid is in the run's
@@ -71,15 +63,14 @@ def collect(
 
     # The log is named after the run, which is known only once the runner has
     # claimed it. Until then, anything logged goes to the terminal alone.
-    setup_logging(log_file=log_file)
+    setup_logging()
 
     def announce(plan: RunPlan) -> None:
         """The run is claimed: open its log, and say which run it is."""
-        if log_file is None:
-            setup_logging(
-                log_file=resolve_log_file(config, run_id=plan.run_id),
-                also_terminal=True,
-            )
+        setup_logging(
+            log_file=resolve_log_file(config, run_id=plan.run_id),
+            also_terminal=True,
+        )
         # The provider names its own model; core has no business reading that block.
         typer.echo(
             f"Collecting {config.audit}: {config.provider} "

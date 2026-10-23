@@ -304,20 +304,6 @@ def test_a_foreground_run_still_logs_to_the_terminal(invoke, tmp_path, fake_prov
     assert "run starting" in result.output
 
 
-def test_the_summary_still_prints_when_the_log_goes_to_a_file(invoke, tmp_path, fake_provider):
-    """The log is for the run; the summary is for the person who ran it."""
-    make_project(tmp_path)
-
-    result = invoke("collect", "probe", "--log-file", "run.log")
-
-    assert result.exit_code == 0
-    assert "3 ok" in result.output
-    assert "run starting" not in result.output
-    log = (tmp_path / "run.log").read_text(encoding="utf-8")
-    assert "run starting" in log
-    assert ONE in log
-
-
 # --- what collect takes --------------------------------------------------
 
 
@@ -337,7 +323,6 @@ def test_collect_takes_only_its_own_options():
     assert taken == {
         ("argument", "audit"),
         ("option", "--new-run"),
-        ("option", "--log-file"),
     }
     assert [p.name for p in params if getattr(p, "hidden", False)] == []
 
