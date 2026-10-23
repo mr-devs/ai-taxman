@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from ai_taxman.core.logging import LOGGER_NAME, setup_logging
+from ai_taxman.core.logging import LOGGER_NAME, release_held, setup_logging
 from ai_taxman.core.messages import message_id
 
 #: The ids of the three messages each test project starts with.
@@ -71,6 +71,21 @@ def test_what_is_logged_before_the_file_is_known_lands_in_it(tmp_path, capsys):
     log = target.read_text(encoding="utf-8")
     assert log.index("early") < log.index("late")
     assert "early" not in capsys.readouterr().err
+
+
+def test_a_warning_held_for_a_log_that_never_opened_reaches_the_terminal(capsys):
+    """A collect can end before it claims a run - complete already, or refused -
+    and so before its log has a name. Its warnings must reach someone; what is
+    only news for the log is dropped."""
+    setup_logging()
+    logging.getLogger(LOGGER_NAME).warning("cannot be locked")
+    logging.getLogger(LOGGER_NAME).info("run starting")
+
+    release_held()
+
+    err = capsys.readouterr().err
+    assert "cannot be locked" in err
+    assert "run starting" not in err
 
 
 def test_the_log_file_is_created_with_its_parent_directory(tmp_path):

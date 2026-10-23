@@ -286,7 +286,8 @@ byte, so the rows it appends stay readable.
 logger and emit**. Handlers are attached by `cli/collect_cmd.py`, never by the library, and a
 `NullHandler` on the package logger keeps the Python API silent. Every `collect` writes
 its log to `<output.log_dir>/<run_id>.log` **and nowhere else**, always at INFO: what is logged
-before the run is claimed is held and written there once it is. The terminal is the
+before the run is claimed is held and written there once it is, and a collect that
+claims no run shows the warnings it held on stderr instead. The terminal is the
 command's own — a progress bar on stderr, the summary on stdout. There is no `--log-file`,
 `--log-level` or `--quiet`: the audit's `log_dir` decides where the log goes.
 

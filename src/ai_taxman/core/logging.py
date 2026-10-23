@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -77,6 +78,27 @@ def setup_logging(log_file: str | Path | None = None) -> None:
         existing.close()
 
     logger.addHandler(handler)
+
+
+def release_held() -> None:
+    """Write any warning still held to stderr, and stop holding.
+
+    For a collect that ended before it claimed a run - the audit complete
+    already, or the run refused - and so never had a log to put them in. A
+    warning from then - a lock that could not be taken - must still reach the
+    user; what was only news for the log is dropped with it.
+    """
+    logger = logging.getLogger(LOGGER_NAME)
+    for held in logger.handlers[:]:
+        if not isinstance(held, logging.handlers.MemoryHandler):
+            continue
+        terminal = logging.StreamHandler(sys.stderr)
+        terminal.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        # A level on the handler is not enough: a flush hands records straight to it.
+        terminal.addFilter(lambda record: record.levelno >= logging.WARNING)
+        held.setTarget(terminal)
+        logger.removeHandler(held)
+        held.close()
 
 
 def get_logger(name: str) -> logging.Logger:

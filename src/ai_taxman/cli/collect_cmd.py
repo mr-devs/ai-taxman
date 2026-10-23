@@ -56,7 +56,7 @@ def collect(
     # Imported here, not at module scope: shell completion imports this module on
     # every Tab press and must not pay for the config parser or the runner.
     from ai_taxman.core.config import load_audit, resolve_log_file
-    from ai_taxman.core.logging import setup_logging
+    from ai_taxman.core.logging import release_held, setup_logging
     from ai_taxman.core.runner import preflight
 
     config = load_audit(find_audit(audit))
@@ -102,6 +102,9 @@ def collect(
         )
     finally:
         progress.close()
+        # Only if no run was claimed - none needed collecting, or it was
+        # refused - is anything still held: there is no log to put it in.
+        release_held()
     if result.already_complete:
         _say_complete(
             config,

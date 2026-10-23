@@ -361,6 +361,27 @@ def test_a_bar_that_cannot_be_drawn_does_not_stop_the_run(
     assert "3 ok" in result.output
 
 
+def test_a_collect_that_claims_no_run_still_shows_its_warnings(
+    invoke, tmp_path, fake_provider, monkeypatch
+):
+    """The audit is complete, so no run is claimed and no log opened - and the
+    folder could not be locked, which the user still needs to hear."""
+    import errno
+    import os
+
+    def unsupported(fd, operation):
+        raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+
+    make_project(tmp_path)
+    assert invoke("collect", "probe").exit_code == 0
+    monkeypatch.setattr("fcntl.flock", unsupported)
+
+    result = invoke("collect", "probe")
+
+    assert "already complete" in result.output
+    assert "cannot be locked" in result.output
+
+
 def test_the_log_stays_out_of_the_terminal(invoke, tmp_path, fake_provider):
     make_project(tmp_path)
 
