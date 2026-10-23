@@ -44,11 +44,14 @@ def test_an_unset_variable_is_an_error_naming_the_variable():
 
 
 @pytest.mark.parametrize("value", ["", "   "], ids=["empty", "spaces"])
-def test_an_empty_variable_counts_as_unset(monkeypatch, value):
+def test_an_empty_variable_is_refused_as_empty_not_unset(monkeypatch, value):
+    """The fix differs: an unset variable needs exporting, an empty one a key put in it."""
     monkeypatch.setenv("OPENAI_API_KEY", value)
 
-    with pytest.raises(MissingApiKeyError):
+    with pytest.raises(MissingApiKeyError) as exc:
         resolve_api_key("OPENAI_API_KEY")
+
+    assert "empty" in str(exc.value)
 
 
 def test_the_placeholder_init_writes_is_reported_as_unset():

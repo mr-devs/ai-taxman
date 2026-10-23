@@ -36,7 +36,12 @@ def resolve_api_key(env_name: str) -> str:
     if value and value.strip():
         return value
 
+    if value is None:
+        raise MissingApiKeyError(
+            f"{env_name} is not set in this shell. Export it (`export {env_name}=...`) "
+            "and run again, or edit the audit's `api_key_env:` field to name a variable "
+            "that is set."
+        )
     raise MissingApiKeyError(
-        f"{env_name} is not set. Export it in your shell, or edit the audit's "
-        "`api_key_env:` field to name a variable that holds your key."
+        f"{env_name} is set but empty. Put your key in it (`export {env_name}=...`) and run again."
     )
