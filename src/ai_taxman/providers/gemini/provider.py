@@ -79,7 +79,7 @@ class GeminiProvider(Provider):
         return (
             type(exc).__name__ in RETRYABLE_ERRORS
             and _is_genai_error(exc)
-            and _error_code(exc) != DAILY_QUOTA
+            and not self.is_quota_exhausted(exc)
         )
 
     def is_quota_exhausted(self, exc: BaseException) -> bool:
