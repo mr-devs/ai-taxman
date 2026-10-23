@@ -19,6 +19,7 @@ import asyncio
 import contextlib
 import json
 import os
+import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -68,6 +69,11 @@ log = get_logger(__name__)
 
 DEFAULT_BACKOFF_BASE = 0.5
 MAX_BACKOFF = 30.0
+
+#: The most random extra added to every wait before a retry, in seconds, so the
+#: requests one wait held back do not all go out in the same instant. OpenAI's
+#: rate-limit guide asks for it on top of a Retry-After; Google's, on a backoff.
+MAX_JITTER = 1.0
 
 #: The longest a provider's Retry-After is waited out, in seconds. A longer one -
 #: a daily quota, say - fails the request instead, for the next collect to retry.
@@ -558,9 +564,15 @@ class _RunState:
         )
 
     async def wait_to_send(self) -> bool:
-        """Wait out any pause. False if the run was stopped during it."""
+        """Wait out any pause, plus a random extra of this worker's own, so the
+        workers a pause held back do not all send in the same instant. False if
+        the run was stopped during it."""
         loop = asyncio.get_running_loop()
-        while (left := self.resume_at - loop.time()) > 0:
+        if self.resume_at <= loop.time():
+            return True
+        extra = _jitter()
+        # Measured from `resume_at` each time round, which a longer pause can move.
+        while (left := self.resume_at + extra - loop.time()) > 0:
             if self.stop.is_set():
                 return False
             with contextlib.suppress(asyncio.TimeoutError):
@@ -694,7 +706,8 @@ async def _attempt(
             if attempts > config.execution.max_retries:
                 break
             if asked is None:
-                wait, source = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF), "backoff"
+                backoff = min(backoff_base * 2 ** (attempts - 1), MAX_BACKOFF)
+                wait, source = backoff + _jitter(), "backoff"
             else:
                 wait, source = asked, "retry-after"
             log.warning(
@@ -740,6 +753,11 @@ async def _attempt(
         status="error",
         error=f"{type(last_error).__name__}: {last_error}",
     )
+
+
+def _jitter() -> float:
+    """A random extra for one wait: up to `MAX_JITTER` seconds."""
+    return random.uniform(0, MAX_JITTER)
 
 
 def _retry_after(provider: Provider, exc: BaseException) -> float | None:

@@ -610,3 +610,32 @@ async def test_a_stop_ends_a_pause_early(audit, fake_provider):
     assert result.stopped_early
     statuses = {r.message_id: r.status for r in read_jsonl(result.output_path)}
     assert statuses == {ONE: "error", TWO: "error"}
+
+
+@pytest.fixture
+def jitter(monkeypatch):
+    """A random extra that is not random: 0.3s, every time."""
+    from ai_taxman.core import runner
+
+    monkeypatch.setattr(runner, "_jitter", lambda: 0.3)
+
+
+async def test_a_backoff_adds_a_random_extra(audit, fake_provider, jitter):
+    """So requests that failed together do not all retry in the same instant."""
+    fake_provider.retryable = (TimeoutError,)
+    fake_provider.failures = {ONE: [TimeoutError("slow")]}
+
+    await run_audit_async(audit("execution:\n  max_concurrency: 1"), backoff_base=0)
+
+    first, retried = sends_of(fake_provider, ONE)
+    assert retried >= first + 0.29
+
+
+async def test_each_request_held_by_a_pause_waits_a_random_extra(audit, fake_provider, jitter):
+    fake_provider.retryable = (RateLimited,)
+    fake_provider.failures = {ONE: [RateLimited(0.1)]}
+
+    await run_audit_async(audit("execution:\n  max_concurrency: 2"), backoff_base=0)
+
+    limited = sends_of(fake_provider, ONE)[0]
+    assert sends_of(fake_provider, THREE)[0] >= limited + 0.1 + 0.29
