@@ -114,6 +114,22 @@ async def test_an_error_status_is_one_http_call_so_attempts_stay_true(wire, stat
     assert len(wire.requests) == 1
 
 
+@pytest.mark.parametrize(
+    "code, retried", [("quota_exceeded", False), ("rate_limit_exceeded", True)]
+)
+async def test_a_daily_quota_is_not_retried_but_a_rate_limit_is(wire, code, retried):
+    """Both are a 429. A daily quota resets only at midnight Pacific time, so a
+    retry within the run fails again; a later collect retries it instead."""
+    wire.status = 429
+    wire.body = {"error": {"code": code, "message": "no"}}
+
+    with pytest.raises(Exception) as caught:
+        await send(a_request())
+
+    assert GeminiProvider().is_retryable(caught.value) is retried
+    assert GeminiProvider().error_details(caught.value) == {"status": "429", "code": code}
+
+
 async def test_a_dropped_connection_is_one_http_call_too(wire):
     wire.error = httpx.ConnectError
 

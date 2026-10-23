@@ -50,6 +50,11 @@ RETRYABLE_ERRORS = frozenset(
     }
 )
 
+#: The `error.code` of a 429 for a used-up daily quota, which resets only at
+#: midnight Pacific time: retried within a run, it fails again. Other 429 codes
+#: (`rate_limit_exceeded`, `too_many_requests`) pass in seconds and are retried.
+DAILY_QUOTA = "quota_exceeded"
+
 
 class GeminiProvider(Provider):
     """Audit Gemini models through the Interactions API."""
@@ -70,12 +75,22 @@ class GeminiProvider(Provider):
         return model.name
 
     def is_retryable(self, exc: BaseException) -> bool:
-        return type(exc).__name__ in RETRYABLE_ERRORS and _is_genai_error(exc)
+        return (
+            type(exc).__name__ in RETRYABLE_ERRORS
+            and _is_genai_error(exc)
+            and _error_code(exc) != DAILY_QUOTA
+        )
 
     def error_details(self, exc: BaseException) -> dict[str, str]:
-        # Google documents no request id header, so there is only the status.
-        status = getattr(exc, "status_code", None) if _is_genai_error(exc) else None
-        return {"status": str(status)} if status is not None else {}
+        # Google documents no request id header; its own code for the error says more.
+        if not _is_genai_error(exc):
+            return {}
+        details = {}
+        if (status := getattr(exc, "status_code", None)) is not None:
+            details["status"] = str(status)
+        if code := _error_code(exc):
+            details["code"] = code
+        return details
 
     # -- I/O ----------------------------------------------------------------
 
@@ -187,6 +202,14 @@ def _new_client(api_key: str | None) -> Client:
     client = genai.Client(api_key=api_key, enterprise=False)
     client.aio.interactions.sdk_configuration.retry_config = None
     return client
+
+
+def _error_code(exc: BaseException) -> str | None:
+    """The `error.code` Google put in the body of a failed request, if it named one."""
+    body = getattr(exc, "body", None)
+    error = body.get("error") if isinstance(body, dict) else None
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) else None
 
 
 def _is_genai_error(exc: BaseException) -> bool:
