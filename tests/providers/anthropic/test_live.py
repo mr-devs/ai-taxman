@@ -103,7 +103,11 @@ async def test_effort_and_thinking_display_on_a_current_model(tmp_path):
 
 
 async def test_web_search_called_directly(tmp_path):
-    """Haiku 4.5 has no programmatic tool calling, so it needs `allowed_callers: [direct]`."""
+    """Haiku 4.5 has no programmatic tool calling, so it needs `allowed_callers: [direct]`.
+
+    The model decides whether to search, and answers what it already knows
+    without one, so the message asks for something only a search can tell it.
+    """
     record = await collect(
         tmp_path,
         f"""\
@@ -115,7 +119,7 @@ async def test_web_search_called_directly(tmp_path):
             max_uses: 1
             allowed_callers: [direct]
         """,
-        message="Search the web: what is the capital of Australia?",
+        message="Search the web: what is the top story on bbc.com right now?",
     )
 
     assert any(block["type"] == "server_tool_use" for block in record.raw["content"])
