@@ -98,6 +98,8 @@ async def test_running_out_of_tokens_is_recorded_not_failed(tmp_path):
 
 
 async def test_google_search(tmp_path):
+    """The model decides whether to search, and answers what it already knows
+    without one, so the message asks for something only a search can tell it."""
     record = await collect(
         tmp_path,
         f"""\
@@ -106,7 +108,7 @@ async def test_google_search(tmp_path):
           search:
             web_search: true
         """,
-        message="Search the web: what is the capital of Australia?",
+        message="Search the web: what is the top story on bbc.com right now?",
     )
 
     assert step_types(record)[:2] == ["google_search_call", "google_search_result"]
