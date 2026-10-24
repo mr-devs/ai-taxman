@@ -490,7 +490,8 @@ async def test_the_unedited_placeholder_stops_the_run(audit, fake_provider):
     [
         "sk-proj-abc123",
         # A Google key, often with no `-`: as a shell sees it, a variable name.
-        "AIzaSyD3x9QkLmNoPqRsTuVwXyZ0123456789ab",
+        # Built from parts, so the source holds nothing a secret scanner takes for a key.
+        "AIza" + "Sy" + "x" * 33,
     ],
 )
 async def test_a_key_pasted_into_api_key_env_is_never_printed_back(audit, fake_provider, key):

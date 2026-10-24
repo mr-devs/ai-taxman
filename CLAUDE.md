@@ -69,6 +69,10 @@ details are in the `writing-tests` skill (`.claude/skills/writing-tests/SKILL.md
 or re-record `tests/providers/*/fixtures/`: ask, naming the tests and roughly how many calls.
 Any `-m` you pass must include `and not live and not network`.
 
+**Nothing shaped like a real key goes in the repo**, made up or not: GitHub's secret
+scanning flags it as a leak. A test that needs one builds it from parts at run time,
+`"AIza" + "Sy" + "x" * 33`, so the source never holds the whole pattern.
+
 ## Provider isolation (the core architectural rule)
 
 Each provider is a self-contained subpackage under `src/ai_taxman/providers/<name>/`. Adding,
